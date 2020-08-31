@@ -1,5 +1,13 @@
-﻿using Microsoft.AspNetCore.Hosting;
+﻿#if NETSTANDARD
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+#else
+using System.Net;
+using System.Web;
+using System.Web.Hosting;
+using HttpRequest = System.Net.Http.HttpRequestMessage;
+using HttpResponse = System.Net.Http.HttpResponseMessage;
+#endif
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using System;
@@ -19,47 +27,24 @@ namespace Dotmim.Sync.Web.Server
     {
         private List<WebServerOrchestrator> innerCollection = new List<WebServerOrchestrator>();
         public IMemoryCache Cache { get; }
-        public IHostingEnvironment Environment { get; }
 
         public string Hint { get; set; }
 
+        #if NETSTANDARD
+        public IHostingEnvironment Environment { get; }
         public WebServerManager(IMemoryCache cache, IHostingEnvironment env)
         {
             this.Cache = cache;
             this.Environment = env;
         }
-
-
-        /// <summary>
-        /// Habdle request
-        /// </summary>
-        public async Task HandleRequestAsync(HttpContext context, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
+        #else
+        public WebServerManager(IMemoryCache cache)
         {
-            if (context.Request.Method.ToLowerInvariant() == "get")
-            {
-                if (this.Environment != null && this.Environment.IsDevelopment())
-                    await this.WriteHelloAsync(context, cancellationToken);
-                else
-                    await context.Response.WriteAsync("<div>Server is configured to Production mode. No options displayed.</div>", cancellationToken);
-                return;
-            }
-
-            try
-            {
-                if (!WebServerOrchestrator.TryGetHeaderValue(context.Request.Headers, "dotmim-sync-scope-name", out var scopeName))
-                    throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
-
-                var orchestrator = this.GetOrchestrator(scopeName);
-
-                await orchestrator.HandleRequestAsync(context, cancellationToken, progress).ConfigureAwait(false);
-
-            }
-            catch (Exception ex)
-            {
-                await WriteExceptionAsync(context.Response, ex);
-            }
-
+            this.Cache = cache;
         }
+        #endif
+
+
 
 
 
@@ -110,12 +95,45 @@ namespace Dotmim.Sync.Web.Server
             return orchestrator;
         }
 
+        #if NETSTANDARD
+        
+        /// <summary>
+        /// Habdle request
+        /// </summary>
+        public async Task HandleRequestAsync(HttpContext context, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
+        {
+            if (context.Request.Method.ToLowerInvariant() == "get")
+            {
+                if (this.Environment != null && this.Environment.IsDevelopment())
+                    await this.WriteHelloAsync(context, cancellationToken);
+                else
+                    await context.Response.WriteAsync("<div>Server is configured to Production mode. No options displayed.</div>", cancellationToken);
+                return;
+            }
+
+            try
+            {
+                if (!context.Request.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
+                    throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
+
+                var orchestrator = this.GetOrchestrator(scopeName);
+
+                await orchestrator.HandleRequestAsync(context, cancellationToken, progress).ConfigureAwait(false);
+
+            }
+            catch (Exception ex)
+            {
+                await WriteExceptionAsync(context.Response, ex);
+            }
+
+        }
+
         /// <summary>
         /// Get a WebServerOrchestrator with Scope name == SyncOptions.
         /// </summary>
         public WebServerOrchestrator GetOrchestrator(HttpContext context)
         {
-            if (!WebServerOrchestrator.TryGetHeaderValue(context.Request.Headers, "dotmim-sync-scope-name", out var scopeName))
+            if (!context.Request.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
                 throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
 
             return GetOrchestrator(scopeName);
@@ -271,13 +289,215 @@ namespace Dotmim.Sync.Web.Server
             stringBuilder.AppendLine("</body>");
             stringBuilder.AppendLine("</html>");
 
-
-
             await httpResponse.WriteAsync(stringBuilder.ToString(), cancellationToken);
+        }
 
+        #else
+
+
+        
+        /// <summary>
+        /// Habdle request
+        /// </summary>
+        public async Task<HttpResponse> HandleRequestAsync(HttpRequest request, HttpContextBase context, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
+        {
+            if (request.Method.Method.ToLowerInvariant() == "get")
+            {
+                if (HostingEnvironment.IsDevelopmentEnvironment)
+                    return await this.WriteHelloAsync(request, context, cancellationToken);
+                else
+                {
+                    var response = request.CreateHttpResponse();
+                    await response.WriteAsync(
+                            "<div>Server is configured to Production mode. No options displayed.</div>",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    return response;
+                }
+            }
+
+            try
+            {
+                if (!context.Request.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
+                    throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
+
+                var orchestrator = this.GetOrchestrator(scopeName);
+
+                return await orchestrator.HandleRequestAsync(request, context, cancellationToken, progress).ConfigureAwait(false);
+
+            }
+            catch (Exception ex)
+            {
+                var response = request.CreateHttpResponse();
+                return await WriteExceptionAsync(response, ex);
+            }
 
         }
 
+        /// <summary>
+        /// Get a WebServerOrchestrator with Scope name == SyncOptions.
+        /// </summary>
+        public WebServerOrchestrator GetOrchestrator(HttpRequest context)
+        {
+            if (!context.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
+                throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
+
+            return GetOrchestrator(scopeName);
+        }
+
+
+
+        /// <summary>
+        /// Write exception to output message
+        /// </summary>
+        public static async Task<HttpResponse> WriteExceptionAsync(HttpResponse httpResponse, Exception ex)
+        {
+            // Check if it's an unknown error, not managed (yet)
+            if (!(ex is SyncException syncException))
+                syncException = new SyncException(ex);
+
+            var webException = new WebSyncException
+            {
+                Message = syncException.Message,
+                SyncStage = syncException.SyncStage,
+                TypeName = syncException.TypeName,
+                DataSource = syncException.DataSource,
+                InitialCatalog = syncException.InitialCatalog,
+                Number = syncException.Number,
+                Side = syncException.Side
+            };
+
+            httpResponse.Headers.Add("dotmim-sync-error", syncException.TypeName);
+            httpResponse.StatusCode = HttpStatusCode.BadRequest;
+            await httpResponse.WriteBodyAsync(webException).ConfigureAwait(false);
+            return httpResponse;
+        }
+
+
+        public async Task<HttpResponse> WriteHelloAsync(HttpRequest request, HttpContextBase context, CancellationToken cancellationToken)
+        {
+            var httpResponse = request.CreateHttpResponse();
+            var stringBuilder = new StringBuilder();
+
+
+            stringBuilder.AppendLine("<!doctype html>");
+            stringBuilder.AppendLine("<html>");
+            stringBuilder.AppendLine("<head>");
+            stringBuilder.AppendLine("<meta charset='utf-8'>");
+            stringBuilder.AppendLine("<meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'>");
+            stringBuilder.AppendLine("<script src='https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js'></script>");
+            stringBuilder.AppendLine("<link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css' integrity='sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh' crossorigin='anonymous'>");
+            stringBuilder.AppendLine("</head>");
+            stringBuilder.AppendLine("<title>Web Server properties</title>");
+            stringBuilder.AppendLine("<body>");
+
+
+            stringBuilder.AppendLine("<div class='container'>");
+            stringBuilder.AppendLine("<h2>Web Server properties</h2>");
+
+            foreach (var webOrchestrator in this)
+            {
+
+                string dbName = null;
+                string version = null;
+                string exceptionMessage = null;
+                bool hasException = false;
+                try
+                {
+                    (dbName, version) = await webOrchestrator.GetHelloAsync();
+                }
+                catch (Exception ex)
+                {
+                    exceptionMessage = ex.Message;
+                    hasException = true;
+
+                }
+
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item active'>Trying to reach database</li>");
+                stringBuilder.AppendLine("</ul>");
+                if (hasException)
+                {
+                    stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Exception occured</li>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-danger'>");
+                    stringBuilder.AppendLine($"{exceptionMessage}");
+                    stringBuilder.AppendLine("</li>");
+                    stringBuilder.AppendLine("</ul>");
+                }
+                else
+                {
+                    stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Database</li>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                    stringBuilder.AppendLine($"Check database {dbName}: Done.");
+                    stringBuilder.AppendLine("</li>");
+                    stringBuilder.AppendLine("</ul>");
+
+                    stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Engine version</li>");
+                    stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                    stringBuilder.AppendLine($"{version}");
+                    stringBuilder.AppendLine("</li>");
+                    stringBuilder.AppendLine("</ul>");
+                }
+
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item active'>ScopeName: {webOrchestrator.ScopeName}</li>");
+                stringBuilder.AppendLine("</ul>");
+
+                var s = JsonConvert.SerializeObject(webOrchestrator.Setup, Formatting.Indented);
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Setup</li>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                stringBuilder.AppendLine("<pre class='prettyprint' style='border:0px;font-size:75%'>");
+                stringBuilder.AppendLine(s);
+                stringBuilder.AppendLine("</pre>");
+                stringBuilder.AppendLine("</li>");
+                stringBuilder.AppendLine("</ul>");
+
+                s = JsonConvert.SerializeObject(webOrchestrator.Provider, Formatting.Indented);
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Provider</li>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                stringBuilder.AppendLine("<pre class='prettyprint' style='border:0px;font-size:75%'>");
+                stringBuilder.AppendLine(s);
+                stringBuilder.AppendLine("</pre>");
+                stringBuilder.AppendLine("</li>");
+                stringBuilder.AppendLine("</ul>");
+
+                s = JsonConvert.SerializeObject(webOrchestrator.Options, Formatting.Indented);
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Options</li>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                stringBuilder.AppendLine("<pre class='prettyprint' style='border:0px;font-size:75%'>");
+                stringBuilder.AppendLine(s);
+                stringBuilder.AppendLine("</pre>");
+                stringBuilder.AppendLine("</li>");
+                stringBuilder.AppendLine("</ul>");
+
+                s = JsonConvert.SerializeObject(webOrchestrator.WebServerOptions, Formatting.Indented);
+                stringBuilder.AppendLine("<ul class='list-group mb-2'>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-primary'>Web Server Options</li>");
+                stringBuilder.AppendLine($"<li class='list-group-item list-group-item-light'>");
+                stringBuilder.AppendLine("<pre class='prettyprint' style='border:0px;font-size:75%'>");
+                stringBuilder.AppendLine(s);
+                stringBuilder.AppendLine("</pre>");
+                stringBuilder.AppendLine("</li>");
+                stringBuilder.AppendLine("</ul>");
+
+
+
+            }
+            stringBuilder.AppendLine("</div>");
+            stringBuilder.AppendLine("</body>");
+            stringBuilder.AppendLine("</html>");
+
+            await httpResponse.WriteAsync(stringBuilder.ToString(), cancellationToken);
+            return httpResponse;
+        }
+
+        #endif
 
         public void Clear() => this.innerCollection.Clear();
         public WebServerOrchestrator this[int index] => innerCollection[index];

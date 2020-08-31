@@ -17,7 +17,7 @@ namespace Dotmim.Sync.Tests
         static Setup()
         {
             configuration = new ConfigurationBuilder()
-              .AddJsonFile("appsettings.json", false, true) 
+                .AddJsonFile("appsettings.json", false, true) 
               .AddJsonFile("appsettings.local.json", true, true)
               .Build();
 
@@ -26,7 +26,7 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Returns the database connection string for Sql
         /// </summary>
-        internal static string GetSqlDatabaseConnectionString(string dbName)
+        public static string GetSqlDatabaseConnectionString(string dbName)
         {
             var cstring = string.Format(configuration.GetSection("ConnectionStrings")["SqlConnection"], dbName);
 
@@ -47,13 +47,13 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Returns the database connection string for Azure Sql
         /// </summary>
-        internal static string GetSqlAzureDatabaseConnectionString(string dbName) =>
+        public static string GetSqlAzureDatabaseConnectionString(string dbName) =>
             string.Format(configuration.GetSection("ConnectionStrings")["AzureSqlConnection"], dbName);
 
         /// <summary>
         /// Returns the database connection string for MySql
         /// </summary>
-        internal static string GetMySqlDatabaseConnectionString(string dbName)
+        public static string GetMySqlDatabaseConnectionString(string dbName)
         {
             var cstring = string.Format(configuration.GetSection("ConnectionStrings")["MySqlConnection"], dbName);
 
@@ -73,7 +73,7 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Gets if the tests are running on AppVeyor
         /// </summary>
-        internal static bool IsOnAppVeyor
+        public static bool IsOnAppVeyor
         {
             get
             {
@@ -86,7 +86,7 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Gets if the tests are running on Azure Dev
         /// </summary>
-        internal static bool IsOnAzureDev
+        public static bool IsOnAzureDev
         {
             get
             {

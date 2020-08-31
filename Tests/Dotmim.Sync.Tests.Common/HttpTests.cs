@@ -1,26 +1,19 @@
 ﻿using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.SampleConsole;
-using Dotmim.Sync.Serialization;
-using Dotmim.Sync.SqlServer;
 using Dotmim.Sync.Tests.Core;
 using Dotmim.Sync.Tests.Misc;
 using Dotmim.Sync.Tests.Models;
 using Dotmim.Sync.Web.Client;
 using Dotmim.Sync.Web.Server;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -90,7 +83,7 @@ namespace Dotmim.Sync.Tests
 
         // Current test running
         private ITest test;
-        private KestrellTestServer kestrell;
+        private ITestServer kestrell;
 
 
         /// <summary>
@@ -111,7 +104,7 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// ctor
         /// </summary>
-        public HttpTests(HelperProvider fixture, ITestOutputHelper output)
+        protected HttpTests(HelperProvider fixture, ITestOutputHelper output)
         {
 
             // Getting the test running
@@ -142,7 +135,7 @@ namespace Dotmim.Sync.Tests
             this.Server = (serverDatabaseName, this.ServerType, serverProvider);
 
             // Create a kestrell server
-            this.kestrell = new KestrellTestServer(this.WebServerOrchestrator, this.UseFiddler);
+            this.kestrell = CreateTestServer(this.WebServerOrchestrator, this.UseFiddler);
 
             // start server and get uri
             this.ServiceUri = this.kestrell.Run();
@@ -159,6 +152,8 @@ namespace Dotmim.Sync.Tests
             }
 
         }
+
+        protected abstract ITestServer CreateTestServer(WebServerOrchestrator orchestrator, bool useFiddler);
 
         /// <summary>
         /// Drop all databases used for the tests

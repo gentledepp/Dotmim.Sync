@@ -1,35 +1,36 @@
-﻿using Dotmim.Sync.MySql;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Dotmim.Sync.MySql;
 using Dotmim.Sync.Sqlite;
 using Dotmim.Sync.SqlServer;
+using Dotmim.Sync.Tests;
 using Dotmim.Sync.Tests.Core;
 using Dotmim.Sync.Tests.Models;
 using Dotmim.Sync.Web.Server;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Dotmim.Sync.WebApi2.Tests.Core;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.IntegrationTests
+namespace Dotmim.Sync.WebApi2.Tests.IntegrationTests.SqlServer
 {
-    public class MySqlHttpTests : HttpTests
+    public class SqlServerHttpTests : HttpTests
     {
-        public MySqlHttpTests(HelperProvider fixture, ITestOutputHelper output) : base(fixture, output)
+        public SqlServerHttpTests(HelperProvider fixture, ITestOutputHelper output) : base(fixture, output)
         {
         }
 
         public override string[] Tables => new string[]
         {
-            "ProductCategory", "ProductModel", "Product", "Employee", "Customer", "Address", "CustomerAddress", "EmployeeAddress",
-            "SalesOrderHeader", "SalesOrderDetail", "Sql", "Posts", "Tags", "PostTag",
+            "SalesLT.ProductCategory", "SalesLT.ProductModel", "SalesLT.Product", "Employee", "Customer", "Address", "CustomerAddress", "EmployeeAddress",
+            "SalesLT.SalesOrderHeader", "SalesLT.SalesOrderDetail", "dbo.Sql", "Posts", "Tags", "PostTag",
             "PricesList", "PricesListCategory", "PricesListDetail"
         };
 
         public override List<ProviderType> ClientsType => new List<ProviderType>
-            { ProviderType.MySql};
+            { ProviderType.Sql, ProviderType.Sqlite};
 
-        public override ProviderType ServerType => ProviderType.MySql;
+        public override ProviderType ServerType => ProviderType.Sql;
 
 
 
@@ -49,6 +50,33 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         }
 
         public override bool UseFiddler => false;
+
+        public override async Task EnsureDatabaseSchemaAndSeedAsync((string DatabaseName, ProviderType ProviderType, CoreProvider Provider) t, bool useSeeding = false, bool useFallbackSchema = false)
+        {
+            AdventureWorksContext ctx = null;
+            try
+            {
+                ctx = new AdventureWorksContext(t, useFallbackSchema, useSeeding);
+                await ctx.Database.EnsureCreatedAsync();
+
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                if (ctx != null)
+                    ctx.Dispose();
+            }
+        }
+
+        public override Task CreateDatabaseAsync(ProviderType providerType, string dbName, bool recreateDb = true)
+        {
+            return HelperDatabase.CreateDatabaseAsync(providerType, dbName, recreateDb);
+        }
+
+        protected override ITestServer CreateTestServer(WebServerOrchestrator orchestrator, bool useFiddler) => new WebApi2TestServer(this.WebServerOrchestrator, this.UseFiddler);
+
 
         /// <summary>
         /// Get the server database rows count
@@ -83,31 +111,6 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             return totalCountRows;
         }
 
-
-        public override async Task EnsureDatabaseSchemaAndSeedAsync((string DatabaseName, ProviderType ProviderType, CoreProvider Provider) t, bool useSeeding = false, bool useFallbackSchema = false)
-        {
-            AdventureWorksContext ctx = null;
-            try
-            {
-                ctx = new AdventureWorksContext(t, useFallbackSchema, useSeeding);
-                await ctx.Database.EnsureCreatedAsync();
-
-            }
-            catch (Exception)
-            {
-            }
-            finally
-            {
-                if (ctx != null)
-                    ctx.Dispose();
-            }
-        }
-
-        public override Task CreateDatabaseAsync(ProviderType providerType, string dbName, bool recreateDb = true)
-        {
-            return HelperDatabase.CreateDatabaseAsync(providerType, dbName, recreateDb);
-        }
-
-        protected override ITestServer CreateTestServer(WebServerOrchestrator orchestrator, bool useFiddler) => new KestrellTestServer(this.WebServerOrchestrator, this.UseFiddler);
+      
     }
 }

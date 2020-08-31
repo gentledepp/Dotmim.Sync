@@ -74,6 +74,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             return HelperDatabase.CreateDatabaseAsync(providerType, dbName, recreateDb);
         }
 
+        protected override ITestServer CreateTestServer(WebServerOrchestrator orchestrator, bool useFiddler) => new KestrellTestServer(this.WebServerOrchestrator, this.UseFiddler);
+
 
         /// <summary>
         /// Get the server database rows count

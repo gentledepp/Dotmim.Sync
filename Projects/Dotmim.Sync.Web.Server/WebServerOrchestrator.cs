@@ -1,9 +1,7 @@
 ﻿using Dotmim.Sync.Batch;
-
 using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.Serialization;
 using Dotmim.Sync.Web.Client;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,6 +15,14 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+#if NETSTANDARD
+using Microsoft.AspNetCore.Http;
+#else
+using System.Web;
+using HttpRequest = System.Net.Http.HttpRequestMessage;
+using HttpResponse = System.Net.Http.HttpResponseMessage;
+using HttpContext = System.Web.HttpContextBase;
+#endif
 
 namespace Dotmim.Sync.Web.Server
 {
@@ -64,53 +70,69 @@ namespace Dotmim.Sync.Web.Server
         /// </summary>
         public void OnSendingScopes(Action<HttpMessageEnsureScopesResponseArgs> action) => this.On(action);
 
+        #if NETSTANDARD
         /// <summary>
         /// Call this method to handle requests on the server, sent by the client
         /// </summary>
         public Task HandleRequestAsync(HttpContext context, CancellationToken token = default, IProgress<ProgressArgs> progress = null) =>
             HandleRequestAsync(context, null, token, progress);
-
         /// <summary>
         /// Call this method to handle requests on the server, sent by the client
         /// </summary>
-        public async Task HandleRequestAsync(HttpContext context, Action<RemoteOrchestrator> action = null, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
+        public Task HandleRequestAsync(HttpContext context, Action<RemoteOrchestrator> action = null, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
         {
-            var httpRequest = context.Request;
-            var httpResponse = context.Response;
+            return this.HandleRequestInternalAsync(context.Request, context, action, cancellationToken, progress);
+        }
+        #else
+        /// <summary>
+        /// Call this method to handle requests on the server, sent by the client
+        /// </summary>
+        public Task<HttpResponse> HandleRequestAsync(HttpRequest request, HttpContext context, CancellationToken token = default, IProgress<ProgressArgs> progress = null) =>
+            HandleRequestAsync(request, context, null, token, progress);
+        /// <summary>
+        /// Call this method to handle requests on the server, sent by the client
+        /// </summary>
+        public Task<HttpResponse> HandleRequestAsync(HttpRequest httpRequest, HttpContext context, Action<RemoteOrchestrator> action = null, CancellationToken cancellationToken = default, IProgress<ProgressArgs> progress = null)
+        {
+            return this.HandleRequestInternalAsync(httpRequest, context, action, cancellationToken, progress);
+        }
+        #endif
+
+        private async Task<HttpResponse> HandleRequestInternalAsync(HttpRequest httpRequest, HttpContext context, Action<RemoteOrchestrator> action,
+            CancellationToken cancellationToken, IProgress<ProgressArgs> progress)
+        {
             var serAndsizeString = string.Empty;
             var converter = string.Empty;
-
+            var httpResponse = httpRequest.CreateHttpResponse();
 
             // Get the serialization and batch size format
-            if (TryGetHeaderValue(context.Request.Headers, "dotmim-sync-serialization-format", out var vs))
+            if (httpRequest.Headers.TryGetHeaderValue("dotmim-sync-serialization-format", out var vs))
                 serAndsizeString = vs.ToLowerInvariant();
 
             // Get the serialization and batch size format
-            if (TryGetHeaderValue(context.Request.Headers, "dotmim-sync-converter", out var cs))
+            if (httpRequest.Headers.TryGetHeaderValue("dotmim-sync-converter", out var cs))
                 converter = cs.ToLowerInvariant();
 
-            if (!TryGetHeaderValue(context.Request.Headers, "dotmim-sync-session-id", out var sessionId))
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-session-id", out var sessionId))
                 throw new HttpHeaderMissingExceptiopn("dotmim-sync-session-id");
 
-            if (!TryGetHeaderValue(context.Request.Headers, "dotmim-sync-scope-name", out var scopeName))
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
                 throw new HttpHeaderMissingExceptiopn("dotmim-sync-scope-name");
 
-            if (!TryGetHeaderValue(context.Request.Headers, "dotmim-sync-step", out string iStep))
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-step", out string iStep))
                 throw new HttpHeaderMissingExceptiopn("dotmim-sync-step");
 
-            var step = (HttpStep)Convert.ToInt32(iStep);
+            var step = (HttpStep) Convert.ToInt32(iStep);
             var readableStream = new MemoryStream();
 
             try
             {
                 // Copty stream to a readable and seekable stream
                 // HttpRequest.Body is a HttpRequestStream that is readable but can't be Seek
-                await httpRequest.Body.CopyToAsync(readableStream);
-                httpRequest.Body.Close();
-                httpRequest.Body.Dispose();
+                await httpRequest.ReadBodyAsync(readableStream);
 
                 // if Hash is present in header, check hash
-                if (TryGetHeaderValue(context.Request.Headers, "dotmim-sync-hash", out string hashStringRequest))
+                if (httpRequest.Headers.TryGetHeaderValue("dotmim-sync-hash", out string hashStringRequest))
                     HashAlgorithm.SHA256.EnsureHash(readableStream, hashStringRequest);
 
                 // try get schema from cache
@@ -125,62 +147,87 @@ namespace Dotmim.Sync.Web.Server
                 action?.Invoke(this);
 
                 // Get the serializer and batchsize
-                (var clientBatchSize, var clientSerializerFactory) = GetClientSerializer(serAndsizeString, this);
+                (var clientBatchSize, var clientSerializerFactory) = this.GetClientSerializer(serAndsizeString, this);
 
                 // Get converter used by client
                 // Can be null
-                var clientConverter = GetClientConverter(converter, this);
+                var clientConverter = this.GetClientConverter(converter, this);
                 this.ClientConverter = clientConverter;
 
                 byte[] binaryData = null;
                 switch (step)
                 {
                     case HttpStep.EnsureScopes:
-                        var m1 = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesRequest>().DeserializeAsync(readableStream);
-                        var s1 = await this.EnsureScopesAsync(m1, sessionCache, cancellationToken, progress).ConfigureAwait(false);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesResponse>().SerializeAsync(s1);
-                        await this.InterceptAsync(new HttpMessageEnsureScopesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                        var m1 = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesRequest>()
+                            .DeserializeAsync(readableStream);
+                        var s1 = await this.EnsureScopesAsync(m1, sessionCache, cancellationToken, progress)
+                            .ConfigureAwait(false);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesResponse>()
+                            .SerializeAsync(s1);
+                        await this.InterceptAsync(new HttpMessageEnsureScopesResponseArgs(binaryData), cancellationToken)
+                            .ConfigureAwait(false);
                         break;
                     case HttpStep.EnsureSchema:
-                        var m11 = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesRequest>().DeserializeAsync(readableStream);
-                        var s11 = await this.EnsureSchemaAsync(m11, sessionCache, cancellationToken, progress).ConfigureAwait(false);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageEnsureSchemaResponse>().SerializeAsync(s11);
-                        await this.InterceptAsync(new HttpMessageEnsureSchemaResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                        var m11 = await clientSerializerFactory.GetSerializer<HttpMessageEnsureScopesRequest>()
+                            .DeserializeAsync(readableStream);
+                        var s11 = await this.EnsureSchemaAsync(m11, sessionCache, cancellationToken, progress)
+                            .ConfigureAwait(false);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageEnsureSchemaResponse>()
+                            .SerializeAsync(s11);
+                        await this.InterceptAsync(new HttpMessageEnsureSchemaResponseArgs(binaryData), cancellationToken)
+                            .ConfigureAwait(false);
                         break;
                     case HttpStep.SendChanges:
-                        var m2 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>().DeserializeAsync(readableStream);
-                        var s2 = await this.ApplyThenGetChangesAsync(m2, sessionCache, clientBatchSize, cancellationToken, progress).ConfigureAwait(false);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>().SerializeAsync(s2);
+                        var m2 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>()
+                            .DeserializeAsync(readableStream);
+                        var s2 = await this
+                            .ApplyThenGetChangesAsync(m2, sessionCache, clientBatchSize, cancellationToken, progress)
+                            .ConfigureAwait(false);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>()
+                            .SerializeAsync(s2);
                         if (s2.Changes != null && s2.Changes.HasRows)
-                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken)
+                                .ConfigureAwait(false);
                         break;
                     case HttpStep.GetChanges:
-                        var m3 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>().DeserializeAsync(readableStream);
+                        var m3 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>()
+                            .DeserializeAsync(readableStream);
                         var s3 = await this.GetChangesAsync(m3, sessionCache, clientBatchSize, cancellationToken, progress);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>().SerializeAsync(s3);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>()
+                            .SerializeAsync(s3);
                         if (s3.Changes != null && s3.Changes.HasRows)
-                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken)
+                                .ConfigureAwait(false);
                         break;
                     case HttpStep.GetMoreChanges:
-                        var m4 = await clientSerializerFactory.GetSerializer<HttpMessageGetMoreChangesRequest>().DeserializeAsync(readableStream);
+                        var m4 = await clientSerializerFactory.GetSerializer<HttpMessageGetMoreChangesRequest>()
+                            .DeserializeAsync(readableStream);
                         var s4 = await this.GetMoreChangesAsync(m4, sessionCache, cancellationToken, progress);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>().SerializeAsync(s4);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>()
+                            .SerializeAsync(s4);
                         if (s4.Changes != null && s4.Changes.HasRows)
-                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken)
+                                .ConfigureAwait(false);
                         break;
                     case HttpStep.GetSnapshot:
-                        var m5 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>().DeserializeAsync(readableStream);
+                        var m5 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>()
+                            .DeserializeAsync(readableStream);
                         var s5 = await this.GetSnapshotAsync(m5, sessionCache, cancellationToken, progress);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>().SerializeAsync(s5);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>()
+                            .SerializeAsync(s5);
                         if (s5.Changes != null && s5.Changes.HasRows)
-                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken)
+                                .ConfigureAwait(false);
                         break;
                     case HttpStep.GetEstimatedChangesCount:
-                        var m6 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>().DeserializeAsync(readableStream);
+                        var m6 = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesRequest>()
+                            .DeserializeAsync(readableStream);
                         var s6 = await this.GetEstimatedChangesCountAsync(m6, cancellationToken, progress);
-                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>().SerializeAsync(s6);
+                        binaryData = await clientSerializerFactory.GetSerializer<HttpMessageSendChangesResponse>()
+                            .SerializeAsync(s6);
                         if (s6.Changes != null && s6.Changes.HasRows)
-                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken).ConfigureAwait(false);
+                            await this.InterceptAsync(new HttpMessageSendChangesResponseArgs(binaryData), cancellationToken)
+                                .ConfigureAwait(false);
                         break;
                 }
 
@@ -189,6 +236,7 @@ namespace Dotmim.Sync.Web.Server
 
                 // Save session client to cache with a sliding expiration
                 this.Cache.Set(sessionId, sessionCache, this.WebServerOptions.GetClientCacheOptions());
+
 
                 // Adding the serialization format used and session id
                 httpResponse.Headers.Add("dotmim-sync-session-id", sessionId.ToString());
@@ -201,9 +249,7 @@ namespace Dotmim.Sync.Web.Server
                 httpResponse.Headers.Add("dotmim-sync-hash", hashString);
 
                 // data to send back, as the response
-                byte[] data = this.EnsureCompression(httpRequest, httpResponse, binaryData);
-
-                await httpResponse.Body.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
+                await this.EnsureCompressionAsync(httpRequest, httpResponse, binaryData);
 
             }
             catch (Exception ex)
@@ -215,20 +261,27 @@ namespace Dotmim.Sync.Web.Server
                 readableStream.Close();
                 readableStream.Dispose();
             }
+
+            return httpResponse;
         }
 
 
         /// <summary>
         /// Ensure we have a Compression setting or not
         /// </summary>
-        private byte[] EnsureCompression(HttpRequest httpRequest, HttpResponse httpResponse, byte[] binaryData)
+        private async Task EnsureCompressionAsync(HttpRequest httpRequest, HttpResponse httpResponse, byte[] binaryData)
         {
-            string encoding = httpRequest.Headers["Accept-Encoding"];
+            if (!httpRequest.Headers.TryGetHeaderValue("Accept-Encoding", out var encoding))
+                encoding = null;
 
             // Compress data if client accept Gzip / Deflate
             if (!string.IsNullOrEmpty(encoding) && (encoding.Contains("gzip") || encoding.Contains("deflate")))
             {
+#if NETSTANDARD
+                // in .Net Core, we need to set this header **before** as no headers can be added
+                // once we start streaming/writing the body
                 httpResponse.Headers.Add("Content-Encoding", "gzip");
+#endif
 
                 using (var writeSteam = new MemoryStream())
                 {
@@ -237,12 +290,17 @@ namespace Dotmim.Sync.Web.Server
                         compress.Write(binaryData, 0, binaryData.Length);
                     }
 
-                    return writeSteam.ToArray();
+                    await httpResponse.WriteBodyAsync(writeSteam.ToArray()).ConfigureAwait(false);
+#if NET462
+                    // in WebApi 2, we need to set the content header **after** setting the content
+                    // otherwise we'll get a NullReferenceException
+                    httpResponse.Content.Headers.ContentEncoding.Add("gzip");
+#endif
                 }
 
             }
-
-            return binaryData;
+            else
+                await httpResponse.WriteBodyAsync(binaryData).ConfigureAwait(false);
         }
 
         private (int clientBatchSize, ISerializerFactory clientSerializer) GetClientSerializer(string serAndsizeString, WebServerOrchestrator serverOrchestrator)
@@ -282,18 +340,6 @@ namespace Dotmim.Sync.Web.Server
             }
         }
 
-
-        public static bool TryGetHeaderValue(IHeaderDictionary n, string key, out string header)
-        {
-            if (n.TryGetValue(key, out var vs))
-            {
-                header = vs[0];
-                return true;
-            }
-
-            header = null;
-            return false;
-        }
 
 
 

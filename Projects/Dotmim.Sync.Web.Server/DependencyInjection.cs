@@ -6,7 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Caching.Memory;
+#if NETSTANDARD
 using Microsoft.AspNetCore.Hosting;
+#endif
 
 [assembly: InternalsVisibleTo("Dotmim.Sync.Tests")]
 
@@ -47,9 +49,14 @@ namespace Microsoft.Extensions.DependencyInjection
             if (webServerManager == null)
             {
                 var cache = serviceProvider.GetService<IMemoryCache>();
-                var env = serviceProvider.GetService<IHostingEnvironment>();
 
+                #if NETSTANDARD
+                var env = serviceProvider.GetService<IHostingEnvironment>();
                 webServerManager = new WebServerManager(cache, env);
+                #else
+                webServerManager = new WebServerManager(cache);
+                #endif
+
                 serviceCollection.AddSingleton(webServerManager);
             }
 
@@ -81,9 +88,13 @@ namespace Microsoft.Extensions.DependencyInjection
             if (webServerManager == null)
             {
                 var cache = serviceProvider.GetService<IMemoryCache>();
+#if NETSTANDARD
                 var env = serviceProvider.GetService<IHostingEnvironment>();
+                webServerManager = new WebServerManager(cache, env);
+#else
+                webServerManager = new WebServerManager(cache);
+#endif
 
-                webServerManager = new WebServerManager(cache, env); 
                 serviceCollection.AddSingleton(webServerManager);
             }
            
