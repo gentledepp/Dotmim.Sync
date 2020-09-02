@@ -82,6 +82,15 @@ Synchronization done.
 
 Yes it's blazing fast !
 
+## Build from source and run the tests
+- To build this repository, just run `dotnet build`
+
+- then start up the MSSQL and MySQL databases required for the integration tests using `docker-compose up` (or `docker-compose up -d` in case you want it to run in the background)
+
+- finally run `dotnet test -v n` where `-v n` means "verbosity n[ormal]". Otherwise it would be m[inimal] and the console won't show any output
+
+It won't get any easyer ;-)
+
 ## Need Help
 
 * Check the full documentation, available here : [https://dotmimsync.readthedocs.io/](https://dotmimsync.readthedocs.io/)
