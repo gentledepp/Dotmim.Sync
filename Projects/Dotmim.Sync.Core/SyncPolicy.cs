@@ -93,7 +93,7 @@ namespace Dotmim.Sync
                         var canRetry = tryCount < this.RetryCount;
 
                         if (!canRetry)
-                            throw ex;
+                            throw;
 
                         // Do we have a Func that explicitely say if we can retry or not
                         if (this.isRetriable != null)
@@ -102,7 +102,7 @@ namespace Dotmim.Sync
                         Console.WriteLine($"[SyncPolicy] Retry N°{tryCount}. Exception:{ex.Message}. CanRetry: {canRetry}");
 
                         if (!canRetry)
-                            throw ex;
+                            throw;
 
                         if (onRetryAsync != null)
                             handledException = ex;
