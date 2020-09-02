@@ -226,9 +226,9 @@ namespace Dotmim.Sync.Web.Client
           throw new UnknownException(await response.Content.ReadAsStringAsync());
         }
       }
-      catch (SyncException sexc)
+      catch (SyncException)
       {
-        throw sexc;
+          throw;
       }
       catch (Exception ex)
       {
