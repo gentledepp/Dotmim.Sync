@@ -123,17 +123,6 @@ namespace Dotmim.Sync.Tests
             var serverProvider = this.CreateProvider(this.ServerType, serverDatabaseName);
 
             this.Server = (serverDatabaseName, this.ServerType, serverProvider);
-
-            // Get all clients providers
-            Clients = new List<(string DatabaseName, ProviderType ProviderType, CoreProvider provider)>(this.ClientsType.Count);
-
-            // Generate Client database
-            foreach (var clientType in this.ClientsType)
-            {
-                var dbCliName = HelperDatabase.GetRandomName("tcp_cli_");
-                var localProvider = this.CreateProvider(clientType, dbCliName);
-                this.Clients.Add((dbCliName, clientType, localProvider));
-            }
         }
 
         /// <summary>
@@ -156,10 +145,22 @@ namespace Dotmim.Sync.Tests
 
         }
 
-        [Theory, TestPriority(1)]
-        [ClassData(typeof(SyncOptionsData))]
-        public virtual async Task RowsCount(SyncOptions options)
+        private void InitializeClient(ProviderType clientType)
         {
+            // Get all clients providers
+            Clients = new List<(string, ProviderType, CoreProvider)>(1);
+
+            var dbCliName = HelperDatabase.GetRandomName("http_cli_");
+            var localProvider = this.CreateProvider(clientType, dbCliName);
+            this.Clients.Add((dbCliName, clientType, localProvider));
+        }
+
+        [Theory, TestPriority(1)]
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public virtual async Task RowsCount(SyncWithClient options)
+        {
+            InitializeClient(options.ClientType);
+
             // create a server db and seed it
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -173,7 +174,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in this.Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options,
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options,
                     new SyncSetup(this.Tables) { StoredProceduresPrefix = "cli", StoredProceduresSuffix = "", TrackingTablesPrefix = "tr" });
 
                 var s = await agent.SynchronizeAsync();
@@ -184,9 +185,11 @@ namespace Dotmim.Sync.Tests
         }
 
         [Theory, TestPriority(2)]
-        [ClassData(typeof(SyncOptionsData))]
-        public virtual async Task SchemaIsCreated(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public virtual async Task SchemaIsCreated(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server db without seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -197,7 +200,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(this.Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(this.Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -289,9 +292,12 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Check a bad connection should raise correct error
         /// </summary>
-        [Fact, TestPriority(3)]
-        public async Task Bad_ConnectionFromServer_ShouldRaiseError()
+        [Theory, TestPriority(3)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Bad_ConnectionFromServer_ShouldRaiseError(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create empty client databases
             foreach (var client in this.Clients)
                 await this.CreateDatabaseAsync(client.ProviderType, client.DatabaseName, true);
@@ -324,9 +330,12 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Check a bad connection should raise correct error
         /// </summary>
-        [Fact, TestPriority(4)]
-        public async Task Bad_ConnectionFromClient_ShouldRaiseError()
+        [Theory, TestPriority(4)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Bad_ConnectionFromClient_ShouldRaiseError(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
@@ -353,9 +362,12 @@ namespace Dotmim.Sync.Tests
         }
 
 
-        [Fact, TestPriority(5)]
-        public async Task Bad_TableWithoutPrimaryKeys_ShouldRaiseError()
+        [Theory, TestPriority(5)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Bad_TableWithoutPrimaryKeys_ShouldRaiseError(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             string tableTestCreationScript = "Create Table TableTest (TestId int, TestName varchar(50))";
 
             // Create an empty server database
@@ -385,9 +397,12 @@ namespace Dotmim.Sync.Tests
             }
         }
 
-        [Fact, TestPriority(6)]
-        public async Task Bad_ColumnSetup_DoesNotExistInSchema_ShouldRaiseError()
+        [Theory, TestPriority(6)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Bad_ColumnSetup_DoesNotExistInSchema_ShouldRaiseError(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server db without seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -416,9 +431,12 @@ namespace Dotmim.Sync.Tests
             }
         }
 
-        [Fact, TestPriority(7)]
-        public async Task Bad_TableSetup_DoesNotExistInSchema_ShouldRaiseError()
+        [Theory, TestPriority(7)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Bad_TableSetup_DoesNotExistInSchema_ShouldRaiseError(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server db without seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -448,12 +466,15 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Check interceptors are correctly called
         /// </summary>
-        [Fact, TestPriority(8)]
-        public virtual async Task Check_Interceptors()
+        [Theory, TestPriority(8)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public virtual async Task Check_Interceptors(SyncWithClient options)
         {
 
             await Task.Delay(100);
             Assert.True(true);
+            //InitializeClient(options.ClientType);
+
             //// create a server schema without seeding
             //await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -548,7 +569,7 @@ namespace Dotmim.Sync.Tests
             //        Assert.True(args.Schema.HasTables);
             //    });
 
-            //    var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+            //    var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
             //    agent.SetInterceptors(interceptors);
 
@@ -572,9 +593,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(9)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_OneTable_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_OneTable_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -585,7 +608,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -609,7 +632,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -624,9 +647,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(11)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_OneTable_ThenUpdate_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_OneTable_ThenUpdate_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -637,7 +662,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -672,7 +697,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -686,9 +711,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(12)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_OneTable_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_OneTable_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -699,7 +726,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -730,7 +757,7 @@ namespace Dotmim.Sync.Tests
             int download = 0;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -745,9 +772,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row in two tables on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(13)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_TwoTables_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_TwoTables_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -758,7 +787,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -788,7 +817,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -802,9 +831,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(14)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_TwoTables_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_TwoTables_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -815,7 +846,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -851,7 +882,7 @@ namespace Dotmim.Sync.Tests
             int download = 0;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -864,7 +895,7 @@ namespace Dotmim.Sync.Tests
             // Now sync again to be sure all clients have all lines
             foreach (var client in Clients)
             {
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
             }
 
             // check rows count on server and on each client
@@ -890,9 +921,11 @@ namespace Dotmim.Sync.Tests
         /// Update one row on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(15)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Update_OneTable_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Update_OneTable_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // Generate a random city name
             var cityName = HelperDatabase.GetRandomName("City");
             var addressLine = HelperDatabase.GetRandomName("Address");
@@ -910,7 +943,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -940,7 +973,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -962,9 +995,11 @@ namespace Dotmim.Sync.Tests
         /// Update one row on client, should be correctly sync on server then all clients
         /// </summary>
         [Theory, TestPriority(16)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Update_OneTable_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Update_OneTable_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -978,7 +1013,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1013,7 +1048,7 @@ namespace Dotmim.Sync.Tests
             int download = 0;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1025,7 +1060,7 @@ namespace Dotmim.Sync.Tests
             // Now sync again to be sure all clients have all lines
             foreach (var client in Clients)
             {
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
             }
 
             // check rows count on server and on each client
@@ -1062,9 +1097,11 @@ namespace Dotmim.Sync.Tests
         /// Update one row on client, should be correctly sync on server then all clients
         /// </summary>
         [Theory, TestPriority(17)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Update_NullValue_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Update_NullValue_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -1078,7 +1115,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1108,7 +1145,7 @@ namespace Dotmim.Sync.Tests
             int download = 0;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1120,7 +1157,7 @@ namespace Dotmim.Sync.Tests
             // Now sync again to be sure all clients have all lines
             foreach (var client in Clients)
             {
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
             }
 
 
@@ -1156,9 +1193,11 @@ namespace Dotmim.Sync.Tests
         /// Update one row on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(18)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Update_NullValue_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Update_NullValue_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -1172,7 +1211,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1195,7 +1234,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1226,7 +1265,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1248,9 +1287,11 @@ namespace Dotmim.Sync.Tests
         /// Delete rows on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(19)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Delete_OneTable_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Delete_OneTable_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -1308,7 +1349,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1346,7 +1387,7 @@ namespace Dotmim.Sync.Tests
             // Sync and check we have delete these lines on each server
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1369,9 +1410,12 @@ namespace Dotmim.Sync.Tests
  
         /// <summary>
         /// </summary>
-        //[Fact, TestPriority(29)]
-        public async Task Using_ExistingClientDatabase_ProvisionDeprovision()
+        //[Theory, TestPriority(29)]
+        //[ClassData(typeof(SyncClientsSimple))]
+        public async Task Using_ExistingClientDatabase_ProvisionDeprovision(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create empty client databases
             foreach (var client in this.Clients)
                 await this.CreateDatabaseAsync(client.ProviderType, client.DatabaseName, true);
@@ -1380,7 +1424,7 @@ namespace Dotmim.Sync.Tests
             var setup = new SyncSetup(this.Tables);
 
             // options
-            var options = new SyncOptions();
+            //var options = new SyncOptions();
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
@@ -1388,7 +1432,7 @@ namespace Dotmim.Sync.Tests
                 // create a client schema without seeding
                 await this.EnsureDatabaseSchemaAndSeedAsync(client, false, UseFallbackSchema);
 
-                var localOrchestrator = new LocalOrchestrator(client.Provider, options, setup);
+                var localOrchestrator = new LocalOrchestrator(client.Provider, options.Options, setup);
                 var provision = SyncProvision.ClientScope | SyncProvision.Table | SyncProvision.TrackingTable | SyncProvision.StoredProcedures | SyncProvision.Triggers;
 
                 // just check interceptor
@@ -1530,9 +1574,12 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Check foreign keys existence
         /// </summary>
-        [Fact, TestPriority(30)]
-        public async Task Check_Composite_ForeignKey_Existence()
+        [Theory, TestPriority(30)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Check_Composite_ForeignKey_Existence(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1603,9 +1650,11 @@ namespace Dotmim.Sync.Tests
         /// Be sure we continue to trakc correctly rows even during a sync process
         /// </summary>
         [Theory, TestPriority(31)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_Record_Then_Insert_During_GetChanges(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_Record_Then_Insert_During_GetChanges(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1616,7 +1665,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1690,7 +1739,7 @@ namespace Dotmim.Sync.Tests
                     return Task.CompletedTask;
                 };
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 // Intercept TableChangesSelected
                 agent.LocalOrchestrator.OnTableChangesSelected(tableChangesSelected);
@@ -1711,7 +1760,7 @@ namespace Dotmim.Sync.Tests
             download = 3 * (Clients.Count - 1);
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1727,7 +1776,7 @@ namespace Dotmim.Sync.Tests
             download = Clients.Count - 1;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1766,9 +1815,11 @@ namespace Dotmim.Sync.Tests
         /// Insert thousand or rows. Check if batch mode works correctly
         /// </summary>
         [Theory, TestPriority(32)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_ThousandRows_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_ThousandRows_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1778,7 +1829,7 @@ namespace Dotmim.Sync.Tests
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
             // Insert one thousand lines on each client
             foreach (var client in Clients)
@@ -1805,7 +1856,7 @@ namespace Dotmim.Sync.Tests
             int download = 0;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1823,9 +1874,11 @@ namespace Dotmim.Sync.Tests
         /// But since we set the correct options, shoudl work correctly
         /// </summary>
         [Theory, TestPriority(33)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Force_Failing_Constraints_ButWorks_WithOptions(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Force_Failing_Constraints_ButWorks_WithOptions(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1835,7 +1888,7 @@ namespace Dotmim.Sync.Tests
 
             // Disable check constraints
             // "true" is the default value, but set for information purpose
-            options.DisableConstraintsOnApplyChanges = true;
+            options.Options.DisableConstraintsOnApplyChanges = true;
 
             // product category and product items
             var productCategoryName = HelperDatabase.GetRandomName();
@@ -1848,7 +1901,7 @@ namespace Dotmim.Sync.Tests
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
 
             // Add a product and its product category
@@ -1875,7 +1928,7 @@ namespace Dotmim.Sync.Tests
             // Sync all clients 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1904,7 +1957,7 @@ namespace Dotmim.Sync.Tests
             // Sync all clients. Should raise an error
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -1923,9 +1976,11 @@ namespace Dotmim.Sync.Tests
         /// <param name="options"></param>
         /// <returns></returns>
         [Theory, TestPriority(34)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Force_Failing_Constraints_ButWorks_WithInterceptors(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Force_Failing_Constraints_ButWorks_WithInterceptors(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1934,7 +1989,7 @@ namespace Dotmim.Sync.Tests
                 await this.CreateDatabaseAsync(client.ProviderType, client.DatabaseName, true);
 
             // Enable check constraints
-            options.DisableConstraintsOnApplyChanges = false;
+            options.Options.DisableConstraintsOnApplyChanges = false;
 
             // product category and product items
             var productCategoryName = HelperDatabase.GetRandomName();
@@ -1947,7 +2002,7 @@ namespace Dotmim.Sync.Tests
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
 
             // Add a product and its product category
@@ -1975,7 +2030,7 @@ namespace Dotmim.Sync.Tests
             // Sync all clients 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -2005,7 +2060,7 @@ namespace Dotmim.Sync.Tests
             // Sync all clients. Should raise an error
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 //await Assert.ThrowsAsync<SyncException>(async () =>
                 //{
@@ -2124,9 +2179,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(35)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Reinitialize_Client(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Reinitialize_Client(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -2140,7 +2197,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -2173,7 +2230,7 @@ namespace Dotmim.Sync.Tests
             // inserted rows will be deleted 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync(SyncType.Reinitialize);
 
@@ -2188,9 +2245,11 @@ namespace Dotmim.Sync.Tests
         /// Insert one row on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(36)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task ReinitializeWithUpload_Client(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task ReinitializeWithUpload_Client(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -2204,7 +2263,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -2238,7 +2297,7 @@ namespace Dotmim.Sync.Tests
             int download = 2;
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync(SyncType.ReinitializeWithUpload);
 
@@ -2256,9 +2315,12 @@ namespace Dotmim.Sync.Tests
         /// Configuring tables to be upload only
         /// Server should receive lines but will not send back its own lines
         /// </summary>
-        [Fact, TestPriority(37)]
-        public async Task UploadOnly()
+        [Theory, TestPriority(37)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task UploadOnly(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -2493,9 +2555,12 @@ namespace Dotmim.Sync.Tests
         /// Configuring tables to be upload only
         /// Server should receive lines but will not send back its own lines
         /// </summary>
-        [Fact, TestPriority(38)]
-        public async Task DownloadOnly()
+        [Theory, TestPriority(38)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task DownloadOnly(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -2733,9 +2798,11 @@ namespace Dotmim.Sync.Tests
         /// When downloading the same row from server, the tracking table should be aligned with this new row
         /// </summary>
         [Theory, TestPriority(39)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Delete_OneTable_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Delete_OneTable_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -2745,7 +2812,7 @@ namespace Dotmim.Sync.Tests
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var client in Clients)
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
             // Insert a new product category on each client
             foreach (var client in Clients)
@@ -2766,7 +2833,7 @@ namespace Dotmim.Sync.Tests
             var download = 0;
             foreach (var client in Clients)
             {
-                var s = await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                var s = await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
                 Assert.Equal(download, s.TotalChangesDownloaded);
                 Assert.Equal(download, s.TotalChangesApplied);
@@ -2777,7 +2844,7 @@ namespace Dotmim.Sync.Tests
 
             // Execute a sync on all clients to be sure all clients have download all others clients product
             foreach (var client in Clients)
-                await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
 
             // Now delete rows on each client
@@ -2795,7 +2862,7 @@ namespace Dotmim.Sync.Tests
             var cpt = 0; // first client won't have any conflicts, but others will upload their deleted rows that are ALREADY deleted
             foreach (var client in Clients)
             {
-                var s = await new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables)).SynchronizeAsync();
+                var s = await new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables)).SynchronizeAsync();
 
                 // we may download deleted rows from server
                 Assert.Equal(cpt, s.TotalChangesDownloaded);
@@ -2834,9 +2901,12 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Insert one row in two tables on server, should be correctly sync on all clients
         /// </summary>
-        [Fact]
-        public async Task Snapshot_Initialize()
+        [Theory]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Snapshot_Initialize(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -2850,13 +2920,15 @@ namespace Dotmim.Sync.Tests
             var snapshotDirctory = HelperDatabase.GetRandomName();
             var directory = Path.Combine(Environment.CurrentDirectory, snapshotDirctory);
 
-            var options = new SyncOptions
-            {
-                SnapshotsDirectory = directory,
-                BatchSize = 3000
-            };
+            //var options = new SyncOptions
+            //{
+            //    SnapshotsDirectory = directory,
+            //    BatchSize = 3000
+            //};
+            options.Options.SnapshotsDirectory = directory;
+            options.Options.BatchSize = 3000;
 
-            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options, setup);
+            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options.Options, setup);
 
             // ----------------------------------
             // Create a snapshot
@@ -2891,7 +2963,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var s = await agent.SynchronizeAsync();
 
@@ -2903,9 +2975,12 @@ namespace Dotmim.Sync.Tests
 
 
 
-        [Fact, TestPriority(40)]
-        public async Task Serialize_And_Deserialize()
+        [Theory, TestPriority(40)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Serialize_And_Deserialize(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -2961,9 +3036,10 @@ namespace Dotmim.Sync.Tests
             foreach (var client in this.Clients)
             {
                 // Defining options with Batchsize to enable serialization on disk
-                var options = new SyncOptions { BatchSize = 1000 };
+                //var options = new SyncOptions { BatchSize = 1000 };
+                options.Options.BatchSize = 1000;
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables), scopeName);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables), scopeName);
 
                 // Get the orchestrators
                 var localOrchestrator = agent.LocalOrchestrator;
@@ -3009,9 +3085,12 @@ namespace Dotmim.Sync.Tests
         }
 
 
-        [Fact, TestPriority(41)]
-        public async Task IsOutdated_ShouldWork_If_Correct_Action()
+        [Theory, TestPriority(41)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task IsOutdated_ShouldWork_If_Correct_Action(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -3025,9 +3104,10 @@ namespace Dotmim.Sync.Tests
             foreach (var client in this.Clients)
             {
                 // Defining options with Batchsize to enable serialization on disk
-                var options = new SyncOptions { BatchSize = 1000 };
+                //var options = new SyncOptions { BatchSize = 1000 };
+                options.Options.BatchSize = 1000;
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables), scopeName);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables), scopeName);
 
                 // Making a first sync, will initialize everything we need
                 var s = await agent.SynchronizeAsync();
@@ -3041,9 +3121,10 @@ namespace Dotmim.Sync.Tests
             {
 
                 // Defining options with Batchsize to enable serialization on disk
-                var options = new SyncOptions { BatchSize = 1000 };
+                //var options = new SyncOptions { BatchSize = 1000 };
+                options.Options.BatchSize = 1000;
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables), scopeName);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables), scopeName);
 
                 // Call a server delete metadata to update the last valid timestamp value in scope_info_server table
                 var dmc = await agent.RemoteOrchestrator.DeleteMetadatasAsync();
@@ -3094,9 +3175,11 @@ namespace Dotmim.Sync.Tests
         /// Server should receive lines but will not send back its own lines
         /// </summary>
         [Theory, TestPriority(42)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Change_Bidirectional_To_UploadOnly_ShouldWork(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Change_Bidirectional_To_UploadOnly_ShouldWork(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -3127,7 +3210,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in this.Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, setup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, setup);
 
                 var s = await agent.SynchronizeAsync();
 
@@ -3296,7 +3379,7 @@ namespace Dotmim.Sync.Tests
             // Execute a sync on all clients and check results
             foreach (var client in Clients)
             {
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, setup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, setup);
 
                 var s = await agent.SynchronizeAsync();
 
@@ -3310,12 +3393,12 @@ namespace Dotmim.Sync.Tests
 
             }
 
-            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options, setup);
+            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options.Options, setup);
             var remoteScope = await remoteOrchestrator.GetServerScopeAsync();
 
             foreach (var client in Clients)
             {
-                var localOrchestrator = new LocalOrchestrator(client.Provider, options, setup);
+                var localOrchestrator = new LocalOrchestrator(client.Provider, options.Options, setup);
                 var localScope = await localOrchestrator.GetClientScopeAsync();
 
                 Assert.True(localScope.Setup.Equals(remoteScope.Setup));

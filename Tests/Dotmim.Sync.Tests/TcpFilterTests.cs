@@ -131,18 +131,6 @@ namespace Dotmim.Sync.Tests
             var serverProvider = this.CreateProvider(this.ServerType, serverDatabaseName);
 
             this.Server = (serverDatabaseName, this.ServerType, serverProvider);
-
-            // Get all clients providers
-            Clients = new List<(string DatabaseName, ProviderType ProviderType, CoreProvider Provider)>(this.ClientsType.Count);
-
-            // Generate Client database
-            foreach (var clientType in this.ClientsType)
-            {
-                var dbCliName = HelperDatabase.GetRandomName("tcpfilt_cli_");
-                var localProvider = this.CreateProvider(clientType, dbCliName);
-
-                this.Clients.Add((dbCliName, clientType, localProvider));
-            }
         }
 
         /// <summary>
@@ -163,9 +151,22 @@ namespace Dotmim.Sync.Tests
 
         }
 
-        [Fact, TestPriority(1)]
-        public virtual async Task SchemaIsCreated()
+        private void InitializeClient(ProviderType clientType)
         {
+            // Get all clients providers
+            Clients = new List<(string, ProviderType, CoreProvider)>(1);
+
+            var dbCliName = HelperDatabase.GetRandomName("http_cli_");
+            var localProvider = this.CreateProvider(clientType, dbCliName);
+            this.Clients.Add((dbCliName, clientType, localProvider));
+        }
+
+        [Theory,TestPriority(1)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public virtual async Task SchemaIsCreated(SyncWithClient options)
+        {
+            InitializeClient(options.ClientType);
+
             // create a server db without seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -231,9 +232,11 @@ namespace Dotmim.Sync.Tests
         }
 
         [Theory, TestPriority(2)]
-        [ClassData(typeof(SyncOptionsData))]
-        public virtual async Task RowsCount(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public virtual async Task RowsCount(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server db and seed it
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -248,7 +251,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in this.Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
                 agent.Parameters.AddRange(this.FilterParameters);
 
                 var s = await agent.SynchronizeAsync();
@@ -263,9 +266,11 @@ namespace Dotmim.Sync.Tests
         /// Insert two rows on server, should be correctly sync on all clients
         /// </summary>
         [Theory, TestPriority(3)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_TwoTables_FromServer(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_TwoTables_FromServer(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema and seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -280,7 +285,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -316,7 +321,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -333,9 +338,11 @@ namespace Dotmim.Sync.Tests
         /// Insert four rows on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(4)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_TwoTables_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_TwoTables_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema and seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -350,7 +357,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -407,7 +414,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -423,7 +430,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -436,9 +443,11 @@ namespace Dotmim.Sync.Tests
         /// Insert four rows on each client, should be sync on server and clients
         /// </summary>
         [Theory, TestPriority(5)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Delete_TwoTables_FromClient(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Delete_TwoTables_FromClient(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema and seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -453,7 +462,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -506,7 +515,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -521,7 +530,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -547,7 +556,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -565,9 +574,12 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// Insert one row in two tables on server, should be correctly sync on all clients
         /// </summary>
-        [Fact, TestPriority(6)]
-        public async Task Snapshot_Initialize()
+        [Theory,TestPriority(6)]
+        [ClassData(typeof(SyncClientsSimple))]
+        public async Task Snapshot_Initialize(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema with seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -581,16 +593,18 @@ namespace Dotmim.Sync.Tests
             // ----------------------------------
             // Setting correct options for sync agent to be able to reach snapshot
             // ----------------------------------
-            var options = new SyncOptions
-            {
-                SnapshotsDirectory = directory,
-                BatchSize = 3000
-            };
+            //var options = new SyncOptions
+            //{
+            //    SnapshotsDirectory = directory,
+            //    BatchSize = 3000
+            //};
+            options.Options.SnapshotsDirectory = directory;
+            options.Options.BatchSize = 3000;
 
             // ----------------------------------
             // Create a snapshot
             // ----------------------------------
-            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options, this.FilterSetup);
+            var remoteOrchestrator = new RemoteOrchestrator(Server.Provider, options.Options, this.FilterSetup);
             await remoteOrchestrator.CreateSnapshotAsync(this.FilterParameters);
 
 
@@ -626,7 +640,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -644,9 +658,11 @@ namespace Dotmim.Sync.Tests
         /// Insert rows on server, and ensure DISTINCT is applied correctly 
         /// </summary>
         [Theory, TestPriority(7)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Insert_TwoTables_EnsureDistinct(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Insert_TwoTables_EnsureDistinct(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema and seed
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, true, UseFallbackSchema);
 
@@ -661,7 +677,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 
@@ -716,7 +732,7 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
                 // create agent with filtered tables and parameter
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, this.FilterSetup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, this.FilterSetup);
 
                 agent.Parameters.AddRange(this.FilterParameters);
 

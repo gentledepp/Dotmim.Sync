@@ -123,17 +123,6 @@ namespace Dotmim.Sync.Tests
             var serverProvider = this.CreateProvider(this.ServerType, serverDatabaseName);
 
             this.Server = (serverDatabaseName, this.ServerType, serverProvider);
-
-            // Get all clients providers
-            Clients = new List<(string DatabaseName, ProviderType ProviderType, CoreProvider provider)>(this.ClientsType.Count);
-
-            // Generate Client database
-            foreach (var clientType in this.ClientsType)
-            {
-                var dbCliName = HelperDatabase.GetRandomName("tcp_cli_");
-                var localProvider = this.CreateProvider(clientType, dbCliName);
-                this.Clients.Add((dbCliName, clientType, localProvider));
-            }
         }
 
         /// <summary>
@@ -154,6 +143,16 @@ namespace Dotmim.Sync.Tests
             Console.WriteLine(str);
             Debug.WriteLine(str);
 
+        }
+        
+        private void InitializeClient(ProviderType clientType)
+        {
+            // Get all clients providers
+            Clients = new List<(string, ProviderType, CoreProvider)>(1);
+
+            var dbCliName = HelperDatabase.GetRandomName("http_cli_");
+            var localProvider = this.CreateProvider(clientType, dbCliName);
+            this.Clients.Add((dbCliName, clientType, localProvider));
         }
 
 
@@ -240,9 +239,11 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict since it's the default behavior
         /// </summary>
         [Theory, TestPriority(1)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_IC_IS_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_IC_IS_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -251,9 +252,9 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines + the conflict (some Clients.count)
             foreach (var client in Clients)
             {
-                await Generate_InsertClient_InsertServer(client, options);
+                await Generate_InsertClient_InsertServer(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -311,9 +312,11 @@ namespace Dotmim.Sync.Tests
         /// Client should wins the conflict because configuration set to ClientWins
         /// </summary>
         [Theory, TestPriority(2)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_IC_IS_ClientShouldWins_CozConfiguration(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_IC_IS_ClientShouldWins_CozConfiguration(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -322,9 +325,9 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines (and not the conflict since it's resolved)
             foreach (var client in Clients)
             {
-                await Generate_InsertClient_InsertServer(client, options);
+                await Generate_InsertClient_InsertServer(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 agent.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
@@ -373,9 +376,11 @@ namespace Dotmim.Sync.Tests
         /// Client should wins the conflict because we have an event raised
         /// </summary>
         [Theory, TestPriority(3)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_IC_IS_ClientShouldWins_CozHandler(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_IC_IS_ClientShouldWins_CozHandler(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // Create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -384,9 +389,9 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines (and not the conflict since it's resolved)
             foreach (var client in Clients)
             {
-                await Generate_InsertClient_InsertServer(client, options);
+                await Generate_InsertClient_InsertServer(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -490,9 +495,11 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict because default behavior
         /// </summary>
         [Theory, TestPriority(4)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_US_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_US_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -501,9 +508,9 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines + conflict that should be ovewritten on client
             foreach (var client in Clients)
             {
-                await Generate_UC_US_Conflict(client, options);
+                await Generate_UC_US_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -562,9 +569,11 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict because default behavior
         /// </summary>
         [Theory, TestPriority(5)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_US_ClientShouldWins_CozConfiguration(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_US_ClientShouldWins_CozConfiguration(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -573,8 +582,8 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines + conflict that should be ovewritten on client
             foreach (var client in Clients)
             {
-                var id = await Generate_UC_US_Conflict(client, options);
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var id = await Generate_UC_US_Conflict(client, options.Options);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 agent.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
@@ -621,9 +630,11 @@ namespace Dotmim.Sync.Tests
         /// Client should wins coz handler
         /// </summary>
         [Theory, TestPriority(6)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_US_ClientShouldWins_CozHandler(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_US_ClientShouldWins_CozHandler(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -632,9 +643,9 @@ namespace Dotmim.Sync.Tests
             // then download the others client lines + conflict that should be ovewritten on client
             foreach (var client in Clients)
             {
-                var id = await Generate_UC_US_Conflict(client, options);
+                var id = await Generate_UC_US_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 agent.OnApplyChangesFailed(acf =>
                 {
@@ -667,17 +678,19 @@ namespace Dotmim.Sync.Tests
         /// Client should wins coz handler
         /// </summary>
         [Theory, TestPriority(7)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_US_Resolved_ByMerge(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_US_Resolved_ByMerge(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                var id = await Generate_UC_US_Conflict(client, options);
+                var id = await Generate_UC_US_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -793,9 +806,11 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict since it's the default behavior
         /// </summary>
         [Theory, TestPriority(8)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_US_ClientShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_US_ClientShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -804,8 +819,8 @@ namespace Dotmim.Sync.Tests
             // then download the updated row from server 
             foreach (var client in Clients)
             {
-                var productId = await Generate_DC_US_Conflict(client, options);
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var productId = await Generate_DC_US_Conflict(client, options.Options);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 agent.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
@@ -857,16 +872,18 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict since it's the default behavior
         /// </summary>
         [Theory, TestPriority(9)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_US_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_US_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_DC_US_Conflict(client, options);
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                await Generate_DC_US_Conflict(client, options.Options);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -963,20 +980,22 @@ namespace Dotmim.Sync.Tests
         /// Should have an outdated situation, resolved by a reinitialize action
         /// </summary>
         [Theory, TestPriority(10)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_OUTDATED_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_OUTDATED_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             var cpt = 1;
             foreach (var client in Clients)
             {
-                await Generate_UC_OUTDATED_Conflict(client, options);
+                await Generate_UC_OUTDATED_Conflict(client, options.Options);
 
                 var setup = new SyncSetup(Tables);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, setup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, setup);
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1017,9 +1036,11 @@ namespace Dotmim.Sync.Tests
         /// Should have an outdated situation, resolved by a reinitialize action
         /// </summary>
         [Theory, TestPriority(11)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_OUTDATED_ServerShouldWins_EvenIf_ResolutionIsClientWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_OUTDATED_ServerShouldWins_EvenIf_ResolutionIsClientWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
 
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
@@ -1027,11 +1048,11 @@ namespace Dotmim.Sync.Tests
             var cpt = 1;
             foreach (var client in Clients)
             {
-                await Generate_UC_OUTDATED_Conflict(client, options);
+                await Generate_UC_OUTDATED_Conflict(client, options.Options);
 
                 var setup = new SyncSetup(Tables);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, setup);
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, setup);
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1122,17 +1143,19 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// </summary>
         [Theory, TestPriority(12)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_DS_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_DS_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_UC_DS_Conflict(client, options);
+                await Generate_UC_DS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1186,20 +1209,22 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// </summary>
         [Theory, TestPriority(13)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_DS_ClientShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_DS_ClientShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                var productCategoryId = await Generate_UC_DS_Conflict(client, options);
+                var productCategoryId = await Generate_UC_DS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 // Resolution is set to client side
-                options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
+                options.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1287,17 +1312,19 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// </summary>
         [Theory, TestPriority(14)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_DS_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_DS_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_DC_DS_Conflict(client, options);
+                await Generate_DC_DS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1345,19 +1372,21 @@ namespace Dotmim.Sync.Tests
         /// <summary>
         /// </summary>
         [Theory, TestPriority(15)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_DS_ClientShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_DS_ClientShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_DC_DS_Conflict(client, options); ;
+                await Generate_DC_DS_Conflict(client, options.Options); ;
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
-                options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
+                options.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1436,17 +1465,19 @@ namespace Dotmim.Sync.Tests
 
         /// </summary>
         [Theory, TestPriority(16)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_NULLS_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_NULLS_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_DC_NULLS_Conflict(client, options);
+                await Generate_DC_NULLS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1484,21 +1515,23 @@ namespace Dotmim.Sync.Tests
 
         /// </summary>
         [Theory, TestPriority(17)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_DC_NULLS_ClientShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_DC_NULLS_ClientShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
 
             foreach (var client in Clients)
             {
-                await Generate_DC_NULLS_Conflict(client, options);
+                await Generate_DC_NULLS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 // Set conflict resolution to client
-                options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
+                options.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1572,17 +1605,19 @@ namespace Dotmim.Sync.Tests
 
 
         [Theory, TestPriority(19)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_NULLC_DS_ServerShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_NULLC_DS_ServerShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
             foreach (var client in Clients)
             {
-                await Generate_NULLC_DS_Conflict(client, options);
+                await Generate_NULLC_DS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1620,21 +1655,23 @@ namespace Dotmim.Sync.Tests
 
         /// </summary>
         [Theory, TestPriority(20)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_NULLC_DS_ClientShouldWins(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_NULLC_DS_ClientShouldWins(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
 
             foreach (var client in Clients)
             {
-                await Generate_NULLC_DS_Conflict(client, options);
+                await Generate_NULLC_DS_Conflict(client, options.Options);
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 // Set conflict resolution to client
-                options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
+                options.Options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
@@ -1677,9 +1714,11 @@ namespace Dotmim.Sync.Tests
         /// Server should wins the conflict because default behavior
         /// </summary>
         [Theory, TestPriority(21)]
-        [ClassData(typeof(SyncOptionsData))]
-        public async Task Conflict_UC_US_ClientChoosedTheWinner(SyncOptions options)
+        [ClassData(typeof(SyncClientsWithBatching))]
+        public async Task Conflict_UC_US_ClientChoosedTheWinner(SyncWithClient options)
         {
+            InitializeClient(options.ClientType);
+
             // create a server schema without seeding
             await this.EnsureDatabaseSchemaAndSeedAsync(this.Server, false, UseFallbackSchema);
 
@@ -1689,11 +1728,11 @@ namespace Dotmim.Sync.Tests
             foreach (var client in Clients)
             {
 
-                await Generate_UC_US_Conflict(client, options);
+                await Generate_UC_US_Conflict(client, options.Options);
 
                 var clientNameDecidedOnClientMachine = HelperDatabase.GetRandomName();
 
-                var agent = new SyncAgent(client.Provider, Server.Provider, options, new SyncSetup(Tables));
+                var agent = new SyncAgent(client.Provider, Server.Provider, options.Options, new SyncSetup(Tables));
 
                 var localOrchestrator = agent.LocalOrchestrator;
                 var remoteOrchestrator = agent.RemoteOrchestrator;
