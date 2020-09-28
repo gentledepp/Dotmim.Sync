@@ -31,6 +31,8 @@ using MySql.Data.MySqlClient;
 using System.Linq;
 using System.Transactions;
 using System.Threading;
+using Dotmim.Sync.SampleConsole.Models.SQLiteNet;
+using SQLite;
 
 internal class Program
 {
@@ -39,14 +41,15 @@ internal class Program
     public static string clientDbName = "Client";
     public static string[] allTables = new string[] {"ProductDescription", "ProductCategory",
                                                     "ProductModel", "Product",
-                                                    "Address", "Customer", "CustomerAddress",
+                                                    "AddressSQlite", "Customer", "CustomerAddress",
                                                     "SalesOrderHeader", "SalesOrderDetail" };
 
     public static string[] oneTable = new string[] { "ProductCategory" };
     private static async Task Main(string[] args)
     {
 
-        await SynchronizeAsync();
+        //await SynchronizeAsync();
+        await LongTransactionBeforeRuningSyncAsync();
 
     }
 
@@ -56,7 +59,7 @@ internal class Program
         var serverProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(serverDbName));
         var clientProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(clientDbName));
         //var clientProvider = new SqliteSyncProvider("dedee.db");
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
 
         var options = new SyncOptions();
         // Creating an agent that will handle all the process
@@ -103,7 +106,7 @@ internal class Program
 
         var configureServices = new Action<IServiceCollection>(services =>
         {
-            var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
+            var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
 
             setup.Filters.Add("Customer", "CompanyName");
 
@@ -113,9 +116,9 @@ internal class Program
             addressCustomerFilter.AddWhere("CompanyName", "Customer", "CompanyName");
             setup.Filters.Add(addressCustomerFilter);
 
-            var addressFilter = new SetupFilter("Address");
+            var addressFilter = new SetupFilter("AddressSQlite");
             addressFilter.AddParameter("CompanyName", "Customer");
-            addressFilter.AddJoin(Join.Left, "CustomerAddress").On("CustomerAddress", "AddressId", "Address", "AddressId");
+            addressFilter.AddJoin(Join.Left, "CustomerAddress").On("CustomerAddress", "AddressId", "AddressSQlite", "AddressId");
             addressFilter.AddJoin(Join.Left, "Customer").On("CustomerAddress", "CustomerId", "Customer", "CustomerId");
             addressFilter.AddWhere("CompanyName", "Customer", "CompanyName");
             setup.Filters.Add(addressFilter);
@@ -357,7 +360,7 @@ internal class Program
         var serverProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(serverDbName));
         var clientProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(clientDbName));
 
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
 
         var options = new SyncOptions();
         // Creating an agent that will handle all the process
@@ -825,8 +828,22 @@ internal class Program
     private static async Task LongTransactionBeforeRuningSyncAsync()
     {
         // Create 2 Sql Sync providers
+        var fileName = "longrunning.sqlite";
         var serverProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(serverDbName));
-        var clientProvider = new SqliteSyncProvider("longrunning.sqlite");
+        var clientProvider = new SqliteSyncProvider(fileName);
+
+        // enable write-ahead logging
+        using (var c = clientProvider.CreateConnection())
+        {
+            c.Open();
+
+            var pragma = c.CreateCommand();
+            pragma.CommandText = "PRAGMA journal_mode=WAL";
+            var res = (string)pragma.ExecuteScalar(); // should return "wal"
+            c.Close();
+            if (res != "wal")
+                throw new NotSupportedException("journal_mode 'wal' could not be set");
+        }
 
         // Create standard Setup and Options
         var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress" });
@@ -847,6 +864,9 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("SECOND PARALLEL SYNC");
         Console.WriteLine("--------------------");
+        
+        var ev0 = new SemaphoreSlim(0, 1);
+        var ev1 = new SemaphoreSlim(0, 1);
 
         agent.LocalOrchestrator.OnDatabaseChangesSelecting(dcsa =>
         {
@@ -861,6 +881,7 @@ internal class Program
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"[{DateTime.Now:ss.ms}] - Last Sync TS for next run (T10) : " + dcsa.Timestamp.ToString().Substring(dcsa.Timestamp.ToString().Length - 4, 4));
             Console.ResetColor();
+            ev1.Release();
         });
 
 
@@ -872,8 +893,13 @@ internal class Program
             Console.ResetColor();
         });
 
-        var t1 = LongInsertIntoSqliteAsync(clientProvider.CreateConnection());
-        var t2 = agent.SynchronizeAsync(progress);
+        //var t1 = Task.Run(() => LongInsertIntoSqliteAsync(clientProvider.CreateConnection(), ev));
+        var t1 = Task.Run(() => LongInsertIntoSqlite_SqliteNetAsync(fileName, ev0, ev1));
+        var t2 = Task.Run(async () =>
+        {
+            await ev0.WaitAsync();
+            return await agent.SynchronizeAsync(progress);
+        });
 
         await Task.WhenAll(t1, t2);
         Console.WriteLine(t2.Result);
@@ -894,16 +920,18 @@ internal class Program
 
 
 
-    private static async Task LongInsertIntoSqliteAsync(DbConnection connection)
+    private static async Task LongInsertIntoSqliteAsync(DbConnection connection,
+        SemaphoreSlim @lock)
     {
         var addressline1 = Path.GetRandomFileName().Replace(".", "").ToLowerInvariant();
-
         var command = connection.CreateCommand();
-        command.CommandText =
-            $"Insert into Address (AddressLine1, City, StateProvince, CountryRegion, PostalCode, rowguid, ModifiedDate) Values ('{addressline1}', 'Toulouse', 'Haute Garonne', 'Occitanie', '31000', '{Guid.NewGuid()}', '2020-02-02');" +
-            $"Select timestamp from Address_tracking where AddressID = (Select AddressID from Address where AddressLine1 = '{addressline1}')";
 
+        command.CommandText =
+            $"Insert into AddressSQlite (AddressLine1, City, StateProvince, CountryRegion, PostalCode, rowguid, ModifiedDate) Values ('{addressline1}', 'Toulouse', 'Haute Garonne', 'Occitanie', '31000', '{Guid.NewGuid()}', '2020-02-02');" +
+            $"Select timestamp from Address_tracking where AddressID = (Select AddressID from AddressSQlite where AddressLine1 = '{addressline1}')";
         connection.Open();
+
+
 
         using (var transaction = connection.BeginTransaction())
         {
@@ -911,17 +939,67 @@ internal class Program
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"[{DateTime.Now:ss.ms}] - Inserting row ");
             var ts = await command.ExecuteScalarAsync();
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"[{DateTime.Now:ss.ms}] - SQLite Timestamp inserted (T9) : " + ts.ToString().Substring(ts.ToString().Length - 4, 4));
 
             Console.WriteLine($"[{DateTime.Now:ss.ms}] - Waiting 10 sec before commit");
-            await Task.Delay(10000);
+            //await Task.Delay(10000);
+            await @lock.WaitAsync();
 
             transaction.Commit();
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"[{DateTime.Now:ss.ms}] - Transaction commit");
             Console.ResetColor();
 
         }
         connection.Close();
+    }
+
+    private static async Task LongInsertIntoSqlite_SqliteNetAsync(string fileName, SemaphoreSlim ev0, SemaphoreSlim ev1)
+    {
+        var addressline1 = Path.GetRandomFileName().Replace(".", "").ToLowerInvariant();
+
+        var path = Environment.CurrentDirectory;
+        var filePath = Path.Combine(path, fileName);
+
+        using (var db = new SQLiteConnection(filePath))
+        {
+            db.CreateTable<AddressSQlite>();
+            db.CreateTable<AddressTrackingSQlite>();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[{DateTime.Now:ss.ms}] - Inserting row ");
+            var a = new AddressSQlite
+            {
+                AddressLine1 = addressline1,
+                City = "Vienna",
+                StateProvince = "Haute Garonne",
+                CountryRegion = "Occitanie",
+                PostalCode = "31000",
+                Rowguid = Guid.NewGuid(),
+                ModifiedDate = DateTime.UtcNow
+            };
+            db.BeginTransaction();
+
+            db.Insert(a);
+
+            //var ts = db.ExecuteScalar<string>("Select max(timestamp) from Address_tracking");
+            var ts = db.ExecuteScalar<string>("Select timestamp from Address_tracking where AddressId = ?", a.AddressId);
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[{DateTime.Now:ss.ms}] - SQLite Timestamp inserted (T9) : " + ts.ToString().Substring(ts.ToString().Length - 4, 4));
+
+            Console.WriteLine($"[{DateTime.Now:ss.ms}] - Waiting 10 sec before commit");
+            
+            ev0.Release();
+            await ev1.WaitAsync();
+
+            db.Commit();
+            
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[{DateTime.Now:ss.ms}] - Transaction commit - Address {a.AddressId} has timestamp {ts}");
+            Console.ResetColor();
+
+        }
     }
 
     private static async Task InsertIntoSqliteWithCurrentTransactionAsync(DbConnection connection, DbTransaction transaction)
@@ -934,8 +1012,8 @@ internal class Program
 
             var command = connection.CreateCommand();
             command.CommandText =
-                $"Insert into Address (AddressLine1, City, StateProvince, CountryRegion, PostalCode, rowguid, ModifiedDate) Values ('{addressline1}', 'Toulouse', 'Haute Garonne', 'Occitanie', '31000', '{Guid.NewGuid()}', '2020-02-02');" +
-                $"Select timestamp from Address_tracking where AddressID = (Select AddressID from Address where AddressLine1 = '{addressline1}')";
+                $"Insert into AddressSQlite (AddressLine1, City, StateProvince, CountryRegion, PostalCode, rowguid, ModifiedDate) Values ('{addressline1}', 'Toulouse', 'Haute Garonne', 'Occitanie', '31000', '{Guid.NewGuid()}', '2020-02-02');" +
+                $"Select timestamp from Address_tracking where AddressID = (Select AddressID from AddressSQlite where AddressLine1 = '{addressline1}')";
 
             command.Transaction = transaction;
 
@@ -972,7 +1050,7 @@ internal class Program
         var clientProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(clientDbName));
 
         // Create standard Setup and Options
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress" });
         var options = new SyncOptions();
 
         // Creating an agent that will handle all the process
@@ -990,7 +1068,7 @@ internal class Program
         // Migrating a table by adding a new column
         // -----------------------------------------------------------------
 
-        // Adding a new column called CreatedDate to Address table, on the server, and on the client.
+        // Adding a new column called CreatedDate to AddressSQlite table, on the server, and on the client.
         await AddNewColumnToAddressAsync(serverProvider.CreateConnection());
         await AddNewColumnToAddressAsync(clientProvider.CreateConnection());
 
@@ -998,25 +1076,25 @@ internal class Program
         // Server side
         // -----------------------------------------------------------------
 
-        // Creating a setup regarding only the table Address
-        var setupAddress = new SyncSetup(new string[] { "Address" });
+        // Creating a setup regarding only the table AddressSQlite
+        var setupAddress = new SyncSetup(new string[] { "AddressSQlite" });
 
-        // Create a server orchestrator used to Deprovision and Provision only table Address
+        // Create a server orchestrator used to Deprovision and Provision only table AddressSQlite
         var remoteOrchestrator = new RemoteOrchestrator(serverProvider, options, setupAddress);
 
-        // Unprovision the Address triggers / stored proc. 
-        // We can conserve the Address tracking table, since we just add a column, 
+        // Unprovision the AddressSQlite triggers / stored proc. 
+        // We can conserve the AddressSQlite tracking table, since we just add a column, 
         // that is not a primary key used in the tracking table
         // That way, we are preserving historical data
         await remoteOrchestrator.DeprovisionAsync(SyncProvision.StoredProcedures | SyncProvision.Triggers);
 
-        // Provision the Address triggers / stored proc again, 
+        // Provision the AddressSQlite triggers / stored proc again, 
         // This provision method will fetch the address schema from the database, 
-        // so it will contains all the columns, including the new Address column added
+        // so it will contains all the columns, including the new AddressSQlite column added
         await remoteOrchestrator.ProvisionAsync(SyncProvision.StoredProcedures | SyncProvision.Triggers);
 
         // Now we need the full setup to get the full schema.
-        // Setup includes [Address] [Customer] and [CustomerAddress]
+        // Setup includes [AddressSQlite] [Customer] and [CustomerAddress]
         remoteOrchestrator.Setup = setup;
         var newSchema = await remoteOrchestrator.GetSchemaAsync();
 
@@ -1038,11 +1116,11 @@ internal class Program
         // Now go for local orchestrator
         var localOrchestrator = new LocalOrchestrator(clientProvider, options, setupAddress);
 
-        // Unprovision the Address triggers / stored proc. We can conserve tracking table, since we just add a column, that is not a primary key used in the tracking table
+        // Unprovision the AddressSQlite triggers / stored proc. We can conserve tracking table, since we just add a column, that is not a primary key used in the tracking table
         // In this case, we will 
         await localOrchestrator.DeprovisionAsync(SyncProvision.StoredProcedures | SyncProvision.Triggers);
 
-        // Provision the Address triggers / stored proc again, 
+        // Provision the AddressSQlite triggers / stored proc again, 
         // This provision method will fetch the address schema from the database, so it will contains all the columns, including the new one added
         await localOrchestrator.ProvisionAsync(SyncProvision.StoredProcedures | SyncProvision.Triggers);
 
@@ -1191,7 +1269,7 @@ internal class Program
     {
         using (var command = c.CreateCommand())
         {
-            command.CommandText = "ALTER TABLE dbo.Address ADD CreatedDate datetime NULL;";
+            command.CommandText = "ALTER TABLE dbo.AddressSQlite ADD CreatedDate datetime NULL;";
             c.Open();
             await command.ExecuteNonQueryAsync();
             c.Close();
@@ -1345,7 +1423,7 @@ internal class Program
 
         // Create 2 tables list (one for each scope)
         string[] productScopeTables = new string[] { "ProductCategory", "ProductModel", "Product" };
-        string[] customersScopeTables = new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" };
+        string[] customersScopeTables = new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" };
 
         // Create 2 sync setup with named scope 
         var setupProducts = new SyncSetup(productScopeTables);
@@ -1457,7 +1535,7 @@ internal class Program
         var clientProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(clientDbName));
         //var clientProvider = new SqliteSyncProvider("clientX.db");
 
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
 
         setup.Filters.Add("Customer", "CompanyName");
 
@@ -1467,9 +1545,9 @@ internal class Program
         addressCustomerFilter.AddWhere("CompanyName", "Customer", "CompanyName");
         setup.Filters.Add(addressCustomerFilter);
 
-        var addressFilter = new SetupFilter("Address");
+        var addressFilter = new SetupFilter("AddressSQlite");
         addressFilter.AddParameter("CompanyName", "Customer");
-        addressFilter.AddJoin(Join.Left, "CustomerAddress").On("CustomerAddress", "AddressId", "Address", "AddressId");
+        addressFilter.AddJoin(Join.Left, "CustomerAddress").On("CustomerAddress", "AddressId", "AddressSQlite", "AddressId");
         addressFilter.AddJoin(Join.Left, "Customer").On("CustomerAddress", "CustomerId", "Customer", "CustomerId");
         addressFilter.AddWhere("CompanyName", "Customer", "CompanyName");
         setup.Filters.Add(addressFilter);
@@ -1543,7 +1621,7 @@ internal class Program
         var clientProvider = new SqlSyncProvider(DBHelper.GetDatabaseConnectionString(clientDbName));
         //var clientProvider = new SqliteSyncProvider("clientX.db");
 
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail" });
         //var setup = new SyncSetup(new string[] { "Customer" });
         //var setup = new SyncSetup(new[] { "Customer" });
         //setup.Tables["Customer"].Columns.AddRange(new[] { "CustomerID", "FirstName", "LastName" });
@@ -1812,7 +1890,7 @@ internal class Program
         var tables = new string[] {"ProductCategory",
                     "ProductDescription", "ProductModel",
                     "Product", "ProductModelProductDescription",
-                    "Address", "Customer", "CustomerAddress",
+                    "AddressSQlite", "Customer", "CustomerAddress",
                     "SalesOrderHeader", "SalesOrderDetail" };
 
         var setup = new SyncSetup(tables)
@@ -1847,7 +1925,7 @@ internal class Program
         var tables = new string[] {"ProductCategory",
                     "ProductDescription", "ProductModel",
                     "Product", "ProductModelProductDescription",
-                    "Address", "Customer", "CustomerAddress",
+                    "AddressSQlite", "Customer", "CustomerAddress",
                     "SalesOrderHeader", "SalesOrderDetail" };
         var setup = new SyncSetup(tables)
         {
@@ -1957,7 +2035,7 @@ internal class Program
         var clientProvider = new SqlSyncProvider(DBHelper.GetMySqlDatabaseConnectionString(clientDbName));
         //var clientProvider = new SqliteSyncProvider("client.db");
 
-        var setup = new SyncSetup(new string[] { "Address", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail", "BuildVersion" });
+        var setup = new SyncSetup(new string[] { "AddressSQlite", "Customer", "CustomerAddress", "SalesOrderHeader", "SalesOrderDetail", "BuildVersion" });
         // Add pref suf
         setup.StoredProceduresPrefix = "s";
         setup.StoredProceduresSuffix = "";
