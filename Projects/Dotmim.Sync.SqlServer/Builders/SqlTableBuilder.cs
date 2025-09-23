@@ -4,6 +4,7 @@ using Dotmim.Sync.Manager;
 using Dotmim.Sync.SqlServer.Manager;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Dotmim.Sync.SqlServer.Builders

@@ -1351,7 +1351,7 @@ namespace Dotmim.Sync.SqlServer.Builders
                 comma = ", ";
             }
 
-            stringBuilder.AppendLine($"\t, [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]");
+            stringBuilder.AppendLine($"\t, 0 as [sync_row_is_tombstone]");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
 
             // ----------------------------------
@@ -1395,7 +1395,7 @@ namespace Dotmim.Sync.SqlServer.Builders
             }
 
             // ----------------------------------
-            stringBuilder.AppendLine("\t([side].[timestamp] > @sync_min_timestamp OR  @sync_min_timestamp IS NULL)");
+            stringBuilder.AppendLine("\t([side].[timestamp] is null OR [side].[timestamp] > @sync_min_timestamp OR  @sync_min_timestamp IS NULL)");
             stringBuilder.AppendLine(")");
             stringBuilder.AppendLine("UNION");
             stringBuilder.AppendLine("SELECT");
