@@ -111,12 +111,6 @@ namespace Dotmim.Sync
         public TimeSpan BatchRetentionPeriod { get; set; }
 
         /// <summary>
-        /// Gets or sets whether to perform immediate cleanup on session end.
-        /// If false, relies on time-based cleanup. Default: false (deferred cleanup).
-        /// </summary>
-        public bool BatchCleanupWhenSessionEnds { get; set; }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.
         /// Create a new instance of options with default values.
         /// </summary>
@@ -150,5 +144,7 @@ namespace Dotmim.Sync
         /// Get the default sync tmp folder name.
         /// </summary>
         public static string GetDefaultUserBatchDirectoryName() => "DotmimSync";
+
+        public bool OptimizedFlowEnabled { get; set; } = true;
     }
 }

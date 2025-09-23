@@ -30,13 +30,26 @@ namespace Dotmim.Sync
                 // check columns
                 var columns = (await tableBuilder.GetColumnsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false)).ToList();
 
-                return columns.Count == 6
+                // Support both old (6 columns) and new (10 columns) schema
+                var isLegacySchema = columns.Count == 6
                         && columns[0].ColumnName == "sync_scope_name"
                         && columns[1].ColumnName == "sync_scope_schema"
                         && columns[2].ColumnName == "sync_scope_setup"
                         && columns[3].ColumnName == "sync_scope_version"
                         && columns[4].ColumnName == "sync_scope_last_clean_timestamp"
                         && columns[5].ColumnName == "sync_scope_properties";
+
+                var isNewSchema = columns.Count == 8
+                          && columns[0].ColumnName == "sync_scope_name"
+                          && columns[1].ColumnName == "sync_scope_schema"
+                          && columns[2].ColumnName == "sync_scope_setup"
+                          && columns[3].ColumnName == "sync_scope_version"
+                          && columns[4].ColumnName == "sync_scope_last_clean_timestamp"
+                          && columns[5].ColumnName == "sync_scope_properties"
+                          && columns[6].ColumnName == "sync_scope_server_capabilities"
+                          && columns[7].ColumnName == "sync_scope_schema_hash";
+
+                return isLegacySchema || isNewSchema;
             }
         }
 
@@ -59,7 +72,7 @@ namespace Dotmim.Sync
                 // check columns
                 var columns = (await tableBuilder.GetColumnsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false)).ToList();
 
-                return columns.Count == 10
+                return columns.Count == 8
                         && columns[0].ColumnName == "sync_scope_id"
                         && columns[1].ColumnName == "sync_scope_name"
                         && columns[2].ColumnName == "sync_scope_hash"
@@ -247,6 +260,36 @@ namespace Dotmim.Sync
                 await runner.CommitAsync().ConfigureAwait(false);
 
                 return newVersion;
+            }
+        }
+
+        /// <summary>
+        /// Upgrade scope_info table to add new columns for server capabilities and schema hash.
+        /// </summary>
+        internal virtual async Task UpgradeScopeInfoTableSchemaAsync(SyncContext context, 
+            DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            using var runner = await this.GetConnectionAsync(context, SyncMode.WithTransaction, SyncStage.Migrating, 
+                connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+            await using (runner.ConfigureAwait(false))
+            {
+                var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
+                var tableName = scopeBuilder.GetParsedScopeInfoTableNames().Name;
+                var tableBuilder = this.GetSyncAdapter(new SyncTable(tableName), new ScopeInfo { Setup = new SyncSetup() }).GetTableBuilder();
+
+                // Check if we need to upgrade the table
+                var columns = (await tableBuilder.GetColumnsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false)).ToList();
+                
+                if (columns.Count == 6) // Legacy schema
+                {
+                    // Use the database-specific migration method implemented in each provider
+                    var cmd = scopeBuilder.GetMigrateScopeInfoTableCommand(runner.Connection, runner.Transaction);
+                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    
+                    var message = "- Upgraded scope_info table with new columns for HTTP protocol optimization.";
+                    await this.InterceptAsync(new UpgradeProgressArgs(context, message, SyncVersion.Current, 
+                        runner.Connection, runner.Transaction), progress, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
     }

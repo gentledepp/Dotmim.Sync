@@ -2,6 +2,7 @@
 using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.Web.Client.BackwardCompatibility;
 using System;
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dotmim.Sync.Web.Client
@@ -91,6 +92,18 @@ namespace Dotmim.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "policy", IsRequired = true, Order = 10)]
         public ConflictResolutionPolicy ConflictResolutionPolicy { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the session was ended with this response.
+        /// </summary>
+        [DataMember(Name = "sessionEnded", IsRequired = false, Order = 11)]
+        public bool SessionEnded { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server timestamp when session was ended.
+        /// </summary>
+        [DataMember(Name = "serverTimestamp", IsRequired = false, Order = 12)]
+        public long? ServerTimestamp { get; set; }
     }
 
     /// <summary>
@@ -539,5 +552,219 @@ namespace Dotmim.Sync.Web.Client
         /// <inheritdoc  />
         [DataMember(Name = "sc", IsRequired = true, Order = 1)]
         public SyncContext SyncContext { get; set; }
+    }
+
+    /// <summary>
+    /// Combined incremental sync request message that extends the base HttpMessageSendChangesRequest.
+    /// Optimizes sync by combining BeginSession + EnsureScopes + GetOperation + SendChanges into a single request.
+    /// NOTE: Only used for the FIRST batch of client changes. Multi-batch scenarios fall back to traditional flow.
+    /// </summary>
+    [DataContract(Name = "increq"), Serializable]
+    public class HttpMessageSendChangesIncrementalRequest : HttpMessageSendChangesRequest
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HttpMessageSendChangesIncrementalRequest"/> class.
+        /// </summary>
+        public HttpMessageSendChangesIncrementalRequest() : base()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HttpMessageSendChangesIncrementalRequest"/> class with the specified context and client scope info.
+        /// </summary>
+        /// <param name="context">The synchronization context.</param>
+        /// <param name="cScopeInfoClient">The client scope information.</param>
+        public HttpMessageSendChangesIncrementalRequest(SyncContext context, ScopeInfoClient cScopeInfoClient) 
+            : base(context, cScopeInfoClient)
+        {
+        }
+
+        /// <summary>
+        /// Gets or sets the schema hash for validation to ensure client and server schema compatibility.
+        /// </summary>
+        [DataMember(Name = "sh", IsRequired = false, Order = 20)]
+        public string SchemaHash { get; set; }
+
+        /// <summary>
+        /// Gets or sets the client schema version for compatibility checking.
+        /// </summary>
+        [DataMember(Name = "csv", IsRequired = false, Order = 21)]
+        public string ClientSchemaVersion { get; set; }
+    }
+    /// <summary>
+    /// Combined incremental sync response message that extends the base HttpMessageSummaryResponse.
+    /// Provides additional properties specific to incremental synchronization operations including 
+    /// operation type, schema validation, and server scope information.
+    /// </summary>
+    [DataContract(Name = "incres"), Serializable]
+    public class HttpMessageSendChangesIncrementalResponse : HttpMessageSummaryResponse
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HttpMessageSendChangesIncrementalResponse"/> class.
+        /// </summary>
+        public HttpMessageSendChangesIncrementalResponse() : base()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HttpMessageSendChangesIncrementalResponse"/> class with the specified context.
+        /// </summary>
+        /// <param name="context">The synchronization context.</param>
+        /// <exception cref="ArgumentNullException">Thrown when context is null.</exception>
+        public HttpMessageSendChangesIncrementalResponse(SyncContext context) : base(context)
+        {
+        }
+
+        /// <summary>
+        /// Gets or sets the sync operation determined by the server for incremental sync processing.
+        /// </summary>
+        [DataMember(Name = "op", IsRequired = false, Order = 20)]
+        public SyncOperation Operation { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the client schema is valid and compatible with the server schema.
+        /// </summary>
+        [DataMember(Name = "sv", IsRequired = false, Order = 21)]
+        public bool SchemaValid { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server scope info (only sent if schema is invalid or needs to be updated).
+        /// </summary>
+        [DataMember(Name = "ssi", IsRequired = false, Order = 22)]
+        public ScopeInfo ServerScopeInfo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server capabilities for HTTP protocol optimization.
+        /// </summary>
+        [DataMember(Name = "scap", IsRequired = false, Order = 23)]
+        public string ServerCapabilities { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server version for capability tracking.
+        /// </summary>
+        [DataMember(Name = "sver", IsRequired = false, Order = 24)]
+        public string ServerVersion { get; set; }
+
+        /// <summary>
+        /// Gets or sets the timestamp when capabilities were last updated.
+        /// </summary>
+        [DataMember(Name = "cu", IsRequired = false, Order = 25)]
+        public DateTime? CapabilitiesLastUpdated { get; set; }
+    }
+
+    /// <summary>
+    /// Request for reporting sync errors after session completion.
+    /// </summary>
+    [DataContract(Name = "errorreq"), Serializable]
+    public class HttpMessageSendSyncErrorsRequest : IScopeMessage
+    {
+        /// <inheritdoc cref="HttpMessageSendSyncErrorsRequest" />
+        public HttpMessageSendSyncErrorsRequest()
+        {
+        }
+
+        /// <inheritdoc />
+        [DataMember(Name = "sc", IsRequired = true, Order = 1)]
+        public SyncContext SyncContext { get; set; }
+
+        /// <summary>
+        /// Gets or sets the session identifier.
+        /// </summary>
+        [DataMember(Name = "sid", IsRequired = true, Order = 2)]
+        public Guid SessionId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the scope name.
+        /// </summary>
+        [DataMember(Name = "sn", IsRequired = true, Order = 3)]
+        public string ScopeName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the client identifier.
+        /// </summary>
+        [DataMember(Name = "cid", IsRequired = true, Order = 4)]
+        public Guid ClientId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the error timestamp.
+        /// </summary>
+        [DataMember(Name = "et", IsRequired = true, Order = 5)]
+        public DateTime ErrorTimestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the serialized exception information.
+        /// </summary>
+        [DataMember(Name = "ex", IsRequired = false, Order = 6)]
+        public SerializableExceptionInfo SyncException { get; set; }
+
+        /// <summary>
+        /// Gets or sets the error context.
+        /// </summary>
+        [DataMember(Name = "ctx", IsRequired = false, Order = 7)]
+        public SyncErrorContext ErrorContext { get; set; }
+
+        /// <summary>
+        /// Create error request from exception.
+        /// </summary>
+        public static HttpMessageSendSyncErrorsRequest FromException(
+            SyncContext context, Exception exception, SyncErrorContext errorContext = null)
+        {
+            return new HttpMessageSendSyncErrorsRequest
+            {
+                SyncContext = context,
+                SessionId = context.SessionId,
+                ScopeName = context.ScopeName,
+                ClientId = context.ClientId ?? Guid.Empty,
+                ErrorTimestamp = DateTime.UtcNow,
+                SyncException = SerializableExceptionInfo.FromException(exception),
+                ErrorContext = errorContext
+            };
+        }
+    }
+
+    /// <summary>
+    /// Response for sync error reporting.
+    /// </summary>
+    [DataContract(Name = "errorres"), Serializable]
+    public class HttpMessageSendSyncErrorsResponse : IScopeMessage
+    {
+        /// <inheritdoc cref="HttpMessageSendSyncErrorsResponse" />
+        public HttpMessageSendSyncErrorsResponse()
+        {
+        }
+
+        /// <inheritdoc />
+        [DataMember(Name = "sc", IsRequired = true, Order = 1)]
+        public SyncContext SyncContext { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the error was received.
+        /// </summary>
+        [DataMember(Name = "er", IsRequired = false, Order = 2)]
+        public bool ErrorReceived { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server-generated error tracking ID.
+        /// </summary>
+        [DataMember(Name = "eid", IsRequired = false, Order = 3)]
+        public string ErrorId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server timestamp.
+        /// </summary>
+        [DataMember(Name = "st", IsRequired = false, Order = 4)]
+        public DateTime ServerTimestamp { get; set; }
+
+        /// <summary>
+        /// Gets or sets optional recommendations from server.
+        /// </summary>
+        [DataMember(Name = "rec", IsRequired = false, Order = 5)]
+        public string[] Recommendations { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server step.
+        /// </summary>
+        [DataMember(Name = "ss", IsRequired = true, Order = 6)]
+        public HttpStep ServerStep { get; set; }
     }
 }

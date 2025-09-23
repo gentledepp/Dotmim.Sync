@@ -34,6 +34,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using Dotmim.Sync.Builders;
+using Dotmim.Sync.Sqlite;
 using Dotmim.Sync.Tests.Fixtures;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
@@ -602,6 +603,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         [ClassData(typeof(SyncOptionsData))]
         public async Task InsertOneRowInOneTableOnClientSideThenInsertAgainDuringGetChanges(SyncOptions options)
         {
+            options.OptimizedFlowEnabled = true;
+            
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
                 await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
@@ -650,7 +653,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 agent.LocalOrchestrator.ClearInterceptors();
 
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(download, s.TotalChangesAppliedOnClient);
                 Assert.Equal(3, s.TotalChangesUploadedToServer);
+                Assert.Equal(3, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download += 3;
 
@@ -667,7 +672,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var s = await agent.SynchronizeAsync();
 
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(download, s.TotalChangesAppliedOnClient);
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
+                Assert.Equal(1, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download -= 2;
             }
@@ -1657,9 +1664,14 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         }
 
         [Fact]
-        public async Task IsOutdatedShouldWorkIfCorrectAction()
+        public async Task IsOutdated_WhenLegacyProtocol_ShouldThrow()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions
+            { 
+                DisableConstraintsOnApplyChanges = true, 
+                // In case of the optimizedflow, this works differntly: Instead of throwing an error, the Server chagnes the operation to ReinitializeWithUpload
+                OptimizedFlowEnabled = false
+            };
 
             // Execute a sync on all clients and check results
             foreach (var clientProvider in clientsProvider)
@@ -1706,6 +1718,55 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(rowsCount, clientRowsCount);
 
 
+            }
+        }
+
+        [Fact]
+        public async Task IsOutdated_WhenOptimizedSync_ShouldReinitializeWithUpload()
+        {
+            var options = new SyncOptions
+            {
+                DisableConstraintsOnApplyChanges = true, 
+                OptimizedFlowEnabled = true
+            };
+
+            // Execute a sync on all clients to establish baseline and enable optimized sync
+            foreach (var clientProvider in clientsProvider.Take(1))
+            {
+                // first sync, so optimized one can be used
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+                var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
+
+                // Call a server delete metadata to update the last valid timestamp value in scope_info_server table
+                var remoteOrchestrator = new RemoteOrchestrator(serverProvider);
+                var dmc = await remoteOrchestrator.DeleteMetadatasAsync();
+
+                // Client side : Create a product category and a product
+                await clientProvider.AddProductAsync();
+                await clientProvider.AddProductCategoryAsync();
+
+                // Generate an outdated situation
+                await HelperDatabase.ExecuteScriptAsync(clientProviderType, clientDatabaseName,
+                                    $"Update scope_info_client set scope_last_server_sync_timestamp=-1");
+
+                var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serviceUri), options);
+
+                // In optimized sync, the server should detect the outdated client and return ReinitializeWithUpload
+                // The client should then re-download all data from the server
+                var r = await agent.SynchronizeAsync();
+
+                var rowsCount = serverProvider.GetDatabaseRowsCount();
+                var clientRowsCount = clientProvider.GetDatabaseRowsCount();
+
+                // Verify that all server data was re-downloaded
+                Assert.Equal(rowsCount, r.TotalChangesDownloadedFromServer);
+
+                // Verify that the 2 client changes were uploaded to server
+                Assert.Equal(2, r.TotalChangesUploadedToServer);
+
+                // Verify that client has all server data
+                Assert.Equal(rowsCount, clientRowsCount);
             }
         }
 
@@ -2577,6 +2638,238 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             Assert.True(count > 0);
             // Clean up
             this.Kestrel.IsAuthorisationEnabled = false;
+        }
+
+        
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task OptimizedSync_IfNoClientOrServerChanges_SynchronizesUsingASingleRequest(SyncOptions options)
+        {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+            
+            // Execute a sync on all clients and check results
+            // NOTE: the optimized sync is ONLY supported for incremental synchronizations
+            foreach (var clientProvider in clientsProvider)
+            {
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
+                
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+                
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
+                Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
+                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
+                
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+            }
+        }
+        
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task OptimizedSync_IfChangesFitIntoSingleRequestAndResponse_SynchronizesUsingASingleRequest(SyncOptions options)
+        {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+            var clientChangeCount = 100;
+            var serverChangeCount = 100;
+            
+            // Add many rows on the client to trigger batching
+            foreach (var clientProvider in clientsProvider)
+            {
+                for (int i = 0; i < clientChangeCount; i++)
+                    await clientProvider.AddProductCategoryAsync();
+            }
+            // also add data on server
+            for (int i = 0; i < serverChangeCount; i++)
+                await this.serverProvider.AddProductCategoryAsync();
+
+            var download = 0;
+            // Execute a sync on all clients and check results
+            // NOTE: the optimized sync is ONLY supported for incremental synchronizations
+            foreach (var clientProvider in clientsProvider)
+            {
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
+                
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+                proxy.OnHttpGettingChangesRequest(r => getChangesRequests.Add(r));
+                
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
+                Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
+                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
+                
+                Assert.Equal(download*clientChangeCount + serverChangeCount, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(100, s.TotalChangesUploadedToServer);
+                Assert.Equal(100, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+                download++;
+                
+                
+                sentChangesRequests.Clear();
+                allSentRequests.Clear();
+                allReceivedResponses.Clear();
+
+                // ensure client timestamp is handled correctly
+                var s2 = await agent.SynchronizeAsync();
+                Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(1, allSentRequests.Count); 
+                Assert.Equal(1, allReceivedResponses.Count);
+                
+                Assert.Equal(0, s2.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s2.TotalChangesUploadedToServer);
+                Assert.Equal(0, s2.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s2.TotalResolvedConflicts);
+            }
+        }
+        
+        
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task OptimizedSync_IfClientChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)
+        {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+            {
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+                var clientChangeCount = 2000;
+
+                // Add many rows on the client to trigger batching
+                for (int i = 0; i < clientChangeCount; i++)
+                    await clientProvider.AddProductCategoryAsync();
+
+                // interestingly, the batch counts (i.e what fits into one batch) are different per provider..
+                var expectedBatches = clientProvider switch
+                {
+                    SqliteSyncProvider sqlite => 2,
+                    SqlSyncProvider mssql => 3
+                };
+                
+                // Execute a sync on all clients and check results
+                // NOTE: the optimized sync is ONLY supported for incremental synchronizations
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(expectedBatches, sentChangesRequests.Count); // N batches expected
+                Assert.Equal(expectedBatches, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnClient);
+                Assert.Equal(clientChangeCount, s.TotalChangesUploadedToServer);
+                Assert.Equal(clientChangeCount, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+            }
+        }
+        
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task OptimizedSync_IfServerChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)
+        {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+            {
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+            }
+
+            var serverChangeCount = 2000;
+
+            // Add many rows on the server to trigger batching
+            for (int i = 0; i < serverChangeCount; i++)
+                await this.serverProvider.AddProductCategoryAsync();
+
+            
+            foreach(var clientProvider in this.clientsProvider)
+            {
+               // Execute a sync on all clients and check results
+                // NOTE: the optimized sync is ONLY supported for incremental synchronizations
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
+
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+                proxy.OnHttpGettingChangesRequest(r => getChangesRequests.Add(r));
+
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count); // only one changeset is sent but...
+                Assert.Equal(3 - 1 /*first batch in first request*/,getChangesRequests.Count);
+                Assert.Equal(3, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(3, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+
+                Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(2000, s.TotalChangesAppliedOnClient);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+            }
         }
     }
 }

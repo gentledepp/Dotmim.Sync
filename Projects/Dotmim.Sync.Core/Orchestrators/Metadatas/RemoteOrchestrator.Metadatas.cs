@@ -44,7 +44,7 @@ namespace Dotmim.Sync
                     if (sScopeInfoClients == null || sScopeInfoClients.Count == 0)
                         return new DatabaseMetadatasCleaned();
 
-                    var minTimestamp = sScopeInfoClients.Min(shsi => shsi.LastSyncTimestamp);
+                    var minTimestamp = sScopeInfoClients.Min(shsi => shsi.LastServerSyncTimestamp);
 
                     if (minTimestamp == 0)
                         return new DatabaseMetadatasCleaned();
