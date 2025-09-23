@@ -138,6 +138,8 @@ namespace Dotmim.Sync.Sqlite
                         sync_scope_version text NULL,
                         sync_scope_last_clean_timestamp integer NULL,
                         sync_scope_properties text NULL,
+                        sync_scope_server_capabilities text NULL,
+                        sync_scope_schema_hash text NULL,
                         CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedName} PRIMARY KEY(sync_scope_name))";
 
             var command = connection.CreateCommand();
@@ -173,12 +175,14 @@ namespace Dotmim.Sync.Sqlite
         public override DbCommand GetAllScopeInfosCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                $@"SELECT [sync_scope_name], 
-                          [sync_scope_schema], 
-                          [sync_scope_setup], 
+                $@"SELECT [sync_scope_name],
+                          [sync_scope_schema],
+                          [sync_scope_setup],
                           [sync_scope_version],
                           [sync_scope_last_clean_timestamp],
-                          [sync_scope_properties]
+                          [sync_scope_properties],
+                          [sync_scope_server_capabilities],
+                          [sync_scope_schema_hash]
                     FROM  {this.ScopeInfoTableNames.NormalizedName}";
 
             var command = connection.CreateCommand();
@@ -270,12 +274,14 @@ namespace Dotmim.Sync.Sqlite
             var tableName = this.ScopeInfoTableNames.NormalizedName;
 
             var commandText =
-                    $@"SELECT [sync_scope_name], 
-                          [sync_scope_schema], 
-                          [sync_scope_setup], 
+                    $@"SELECT [sync_scope_name],
+                          [sync_scope_schema],
+                          [sync_scope_setup],
                           [sync_scope_version],
                           [sync_scope_last_clean_timestamp],
-                          [sync_scope_properties]
+                          [sync_scope_properties],
+                          [sync_scope_server_capabilities],
+                          [sync_scope_schema_hash]
                     FROM  [{tableName}]
                     WHERE [sync_scope_name] = @sync_scope_name";
 
@@ -366,15 +372,19 @@ namespace Dotmim.Sync.Sqlite
                       $"sync_scope_setup=@sync_scope_setup, " +
                       $"sync_scope_version=@sync_scope_version, " +
                       $"sync_scope_last_clean_timestamp=@sync_scope_last_clean_timestamp, " +
-                      $"sync_scope_properties=@sync_scope_properties " +
+                      $"sync_scope_properties=@sync_scope_properties, " +
+                      $"sync_scope_server_capabilities=@sync_scope_server_capabilities, " +
+                      $"sync_scope_schema_hash=@sync_scope_schema_hash " +
                       $"WHERE sync_scope_name=@sync_scope_name;"
 
                     : $"INSERT INTO {tableName} " +
                       $"(sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
-                      $"sync_scope_last_clean_timestamp, sync_scope_properties) " +
+                      $"sync_scope_last_clean_timestamp, sync_scope_properties, sync_scope_server_capabilities, " +
+                      $"sync_scope_schema_hash) " +
                       $"VALUES " +
                       $"(@sync_scope_name, @sync_scope_schema, @sync_scope_setup, @sync_scope_version, " +
-                      $"@sync_scope_last_clean_timestamp, @sync_scope_properties);");
+                      $"@sync_scope_last_clean_timestamp, @sync_scope_properties, @sync_scope_server_capabilities, " +
+                      $"@sync_scope_schema_hash);");
 
             stmtText.AppendLine(@$"SELECT sync_scope_name
                            , sync_scope_schema
@@ -382,6 +392,8 @@ namespace Dotmim.Sync.Sqlite
                            , sync_scope_version
                            , sync_scope_last_clean_timestamp
                            , sync_scope_properties
+                           , sync_scope_server_capabilities
+                           , sync_scope_schema_hash
                     FROM  {tableName}
                     WHERE sync_scope_name=@sync_scope_name;");
 
@@ -420,6 +432,18 @@ namespace Dotmim.Sync.Sqlite
             p.ParameterName = "@sync_scope_properties";
             p.DbType = DbType.String;
             p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_server_capabilities";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_schema_hash";
+            p.DbType = DbType.String;
+            p.Size = 64;
             command.Parameters.Add(p);
 
             return command;
@@ -551,6 +575,18 @@ namespace Dotmim.Sync.Sqlite
             command.Connection = connection;
             command.Transaction = transaction;
 
+            return command;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetMigrateScopeInfoTableCommand(DbConnection connection, DbTransaction transaction)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $@"
+                ALTER TABLE {this.ScopeInfoTableNames.NormalizedName} ADD COLUMN sync_scope_server_capabilities TEXT NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.NormalizedName} ADD COLUMN sync_scope_schema_hash TEXT NULL;
+            ";
             return command;
         }
     }

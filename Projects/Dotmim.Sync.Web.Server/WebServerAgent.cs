@@ -19,7 +19,7 @@ namespace Dotmim.Sync.Web.Server
     /// <summary>
     /// Web server agent.
     /// </summary>
-    public class WebServerAgent
+    public partial class WebServerAgent
     {
         private static readonly ISerializer JsonSerializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
 
@@ -317,7 +317,7 @@ namespace Dotmim.Sync.Web.Server
                 // HttpStep.EnsureScopes is the first call from client when client is not new
                 // This is the only moment where we are initializing the sessionCache and store it in session
                 if (sessionCache == null &&
-                    (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp))
+                    (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp || step == HttpStep.SendChangesIncremental))
                 {
                     sessionCache = new SessionCache();
                     httpContext.Session.Set(sessionId, sessionCache);
@@ -401,6 +401,14 @@ namespace Dotmim.Sync.Web.Server
                         requestSerializerType = typeof(HttpMessageEndSessionRequest);
                         responseSerializerType = typeof(HttpMessageEndSessionResponse);
                         break;
+                    case HttpStep.SendChangesIncremental:
+                        requestSerializerType = typeof(HttpMessageSendChangesIncrementalRequest);
+                        responseSerializerType = typeof(HttpMessageSendChangesIncrementalResponse);
+                        break;
+                    case HttpStep.SendSyncErrors:
+                        requestSerializerType = typeof(HttpMessageSendSyncErrorsRequest);
+                        responseSerializerType = typeof(HttpMessageSendSyncErrorsResponse);
+                        break;
                 }
 
                 IScopeMessage messsageRequest = await clientSerializerFactory.GetSerializer().DeserializeAsync(readableStream, requestSerializerType).ConfigureAwait(false) as IScopeMessage;
@@ -445,6 +453,14 @@ namespace Dotmim.Sync.Web.Server
                         break;
                     case HttpStep.EndSession:
                         messageResponse = await this.EndSessionAsync(httpContext, (HttpMessageEndSessionRequest)messsageRequest, progress, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case HttpStep.SendChangesIncremental:
+                        var sendChangesRequest2 = (HttpMessageSendChangesRequest)messsageRequest;
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest2, httpContext.Request.Host.Host, sessionCache), progress, cancellationToken).ConfigureAwait(false);
+                        messageResponse = await this.SendChangesIncrementalAsync(httpContext, (HttpMessageSendChangesIncrementalRequest)messsageRequest, sessionCache, clientBatchSize, progress, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case HttpStep.SendSyncErrors:
+                        messageResponse = await this.SendSyncErrorsAsync(httpContext, (HttpMessageSendSyncErrorsRequest)messsageRequest, progress, cancellationToken).ConfigureAwait(false);
                         break;
                 }
 
@@ -854,6 +870,18 @@ namespace Dotmim.Sync.Web.Server
             // TODO : Is it used ?
             httpContext.Session.Set(context.ScopeName, sScopeInfo.Schema);
 
+            // if we already applied all changes successfully, but the client retried uploading the last batch, simple return
+            if(sessionCache?.AppliedBatchesSuccessfully == true)
+                return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                {
+                    BatchInfo = sessionCache.ServerBatchInfo,
+                    Step = HttpStep.GetSummary,
+                    RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                    ClientChangesApplied = sessionCache.ClientChangesApplied,
+                    ServerChangesSelected = sessionCache.ServerChangesSelected,
+                    ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                };
+            
             // ------------------------------------------------------------
             // FIRST STEP : receive client changes
             // ------------------------------------------------------------
@@ -927,7 +955,7 @@ namespace Dotmim.Sync.Web.Server
             ServerSyncChanges serverSyncChanges;
             context = httpMessage.SyncContext;
             var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
-
+            
             // get changes
             (context, serverSyncChanges, _) = await this.RemoteOrchestrator.InternalApplyThenGetChangesAsync(
                                                httpMessage.ScopeInfoClient,
@@ -941,18 +969,16 @@ namespace Dotmim.Sync.Web.Server
             sessionCache.ServerBatchInfo = serverSyncChanges.ServerBatchInfo;
             sessionCache.ServerChangesSelected = serverSyncChanges.ServerChangesSelected;
             sessionCache.ClientChangesApplied = serverSyncChanges.ServerChangesApplied;
+            sessionCache.AppliedBatchesSuccessfully = true; // mark session as already applied => that way any intermittent error causing a client to retry will not be applied to the server anymore
 
             // delete the folder (not the BatchPartInfo, because we have a reference on it)
             var cleanFolder = this.Options.CleanFolder;
-
+            
             if (cleanFolder)
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
-
+            
             if (cleanFolder)
                 sessionCache.ClientBatchInfo.TryRemoveDirectory();
-
-            // we do not need client batch info now
-            sessionCache.ClientBatchInfo = null;
 
             // Retro compatiblité to version < 0.9.3
             if (serverSyncChanges.ServerBatchInfo.BatchPartsInfo == null)
@@ -960,11 +986,11 @@ namespace Dotmim.Sync.Web.Server
 
             var summaryResponse = new HttpMessageSummaryResponse(httpMessage.SyncContext)
             {
-                BatchInfo = serverSyncChanges.ServerBatchInfo,
+                BatchInfo = sessionCache.ServerBatchInfo,
                 Step = HttpStep.GetSummary,
-                RemoteClientTimestamp = serverSyncChanges.RemoteClientTimestamp,
-                ClientChangesApplied = serverSyncChanges.ServerChangesApplied,
-                ServerChangesSelected = serverSyncChanges.ServerChangesSelected,
+                RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                ClientChangesApplied = sessionCache.ClientChangesApplied,
+                ServerChangesSelected = sessionCache.ServerChangesSelected,
                 ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
             };
 
@@ -975,11 +1001,36 @@ namespace Dotmim.Sync.Web.Server
         /// <summary>
         /// Get batch changes.
         /// </summary>
-        protected internal virtual Task<HttpMessageSendChangesResponse> GetMoreChangesAsync(HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
+        protected internal virtual async Task<HttpMessageSendChangesResponse> GetMoreChangesAsync(HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
             SessionCache sessionCache, IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
-        => this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
+        {
+            var response = await this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
                 sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
                 sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
+
+            if(response.IsLastBatch)
+                await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
+
+            return response;
+        }
+
+        private async Task AutomaticallyEndSession(HttpContext httpContext, SyncContext context,
+            SessionCache sessionCache, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            // Handle session close integration
+            if (TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out string autoEnd) && bool.TryParse(autoEnd, out var b) & b)
+            {
+                // Create EndSession request to reuse existing logic
+                var endSessionRequest = new HttpMessageEndSessionRequest(context)
+                {
+                    ChangesAppliedOnClient = sessionCache.ClientChangesApplied,
+                    ServerChangesSelected = sessionCache.ServerChangesSelected
+                };
+
+                // Execute EndSession logic
+                var _ = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
+            }
+        }
 
         /// <summary>
         /// Get changes from server.
@@ -1052,15 +1103,35 @@ namespace Dotmim.Sync.Web.Server
         }
 
         /// <summary>
-        /// Send an end download changes message.
+        /// Send an end download changes message - combines batch data retrieval with cleanup for optimized clients.
         /// </summary>
         protected internal virtual async Task<HttpMessageSendChangesResponse> SendEndDownloadChangesAsync(
             HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
             SessionCache sessionCache, IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
+            // Check if client is using optimized protocol
+            var isOptimizedClient = TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out var optimizedValue) &&
+                                   bool.TryParse(optimizedValue, out var isOptimized) && isOptimized;
+
+            HttpMessageSendChangesResponse response;
+
+            if (isOptimizedClient)
+            {
+                // New optimized protocol: return batch data + cleanup
+                response = await this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
+                    sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
+                    sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
+            }
+            else
+            {
+                // Legacy protocol: return empty response (cleanup only)
+                response = new HttpMessageSendChangesResponse(httpMessage.SyncContext);
+            }
+
+            // Perform cleanup logic for both protocols
             var batchPartInfo = sessionCache.ServerBatchInfo.BatchPartsInfo.FirstOrDefault(d => d.Index == httpMessage.BatchIndexRequested);
 
-            // we can try to clean if batchinfo is empty of if we found the last one AND we have the option.
+            // we can try to clean if batchinfo is empty or if we found the last one AND we have the option.
             var cleanFolder = (batchPartInfo == null || batchPartInfo.IsLastBatch) && this.Options.CleanFolder;
 
             if (cleanFolder)
@@ -1068,7 +1139,15 @@ namespace Dotmim.Sync.Web.Server
 
             if (cleanFolder)
                 sessionCache.ServerBatchInfo.TryRemoveDirectory();
-            return new HttpMessageSendChangesResponse(httpMessage.SyncContext) { ServerStep = HttpStep.SendEndDownloadChanges };
+
+            // Update the response to indicate this was the end download step
+            response.ServerStep = HttpStep.SendEndDownloadChanges;
+
+            // Handle automatic session end for optimized clients
+            if(isOptimizedClient && response.IsLastBatch)
+                await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
+
+            return response;
         }
 
         private static async Task UpgradeAsync(RemoteOrchestrator remoteOrchestrator)

@@ -3,6 +3,7 @@ using Dotmim.Sync.DatabaseStringParsers;
 using Dotmim.Sync.Manager;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Threading.Tasks;
 
 #if MARIADB
@@ -160,5 +161,6 @@ namespace Dotmim.Sync.MySql.Builders
             var columnParser = new ObjectParser(column.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
             return new(columnParser.QuotedShortName, columnParser.NormalizedShortName);
         }
+
     }
 }

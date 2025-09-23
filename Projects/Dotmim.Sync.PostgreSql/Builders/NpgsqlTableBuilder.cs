@@ -3,6 +3,7 @@ using Dotmim.Sync.DatabaseStringParsers;
 using Dotmim.Sync.Manager;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Dotmim.Sync.PostgreSql.Builders
@@ -169,5 +170,6 @@ namespace Dotmim.Sync.PostgreSql.Builders
         /// <inheritdoc/>
         public override Task<IEnumerable<DbRelationDefinition>> GetRelationsAsync(DbConnection connection, DbTransaction transaction)
                                     => this.BuilderTable.GetRelationsAsync(connection, transaction);
+
     }
 }

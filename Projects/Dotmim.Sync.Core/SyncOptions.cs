@@ -137,5 +137,7 @@ namespace Dotmim.Sync
         /// Get the default sync tmp folder name.
         /// </summary>
         public static string GetDefaultUserBatchDirectoryName() => "DotmimSync";
+
+        public bool OptimizedFlowEnabled { get; set; } = true;
     }
 }
