@@ -79,5 +79,15 @@
         /// End session.
         /// </summary>
         EndSession,
+
+        /// <summary>
+        /// Combined incremental sync request: Session Begin + Ensure Scopes + Get Operation + Send Changes.
+        /// </summary>
+        SendChangesIncremental,
+
+        /// <summary>
+        /// Send detailed error information after sync completion.
+        /// </summary>
+        SendSyncErrors,
     }
 }

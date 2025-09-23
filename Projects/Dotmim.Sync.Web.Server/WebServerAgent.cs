@@ -19,7 +19,7 @@ namespace Dotmim.Sync.Web.Server
     /// <summary>
     /// Web server agent.
     /// </summary>
-    public class WebServerAgent
+    public partial class WebServerAgent
     {
         private static readonly ISerializer JsonSerializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
 
@@ -401,6 +401,14 @@ namespace Dotmim.Sync.Web.Server
                         requestSerializerType = typeof(HttpMessageEndSessionRequest);
                         responseSerializerType = typeof(HttpMessageEndSessionResponse);
                         break;
+                    case HttpStep.SendChangesIncremental:
+                        requestSerializerType = typeof(HttpMessageSendChangesIncrementalRequest);
+                        responseSerializerType = typeof(HttpMessageSendChangesIncrementalResponse);
+                        break;
+                    case HttpStep.SendSyncErrors:
+                        requestSerializerType = typeof(HttpMessageSendSyncErrorsRequest);
+                        responseSerializerType = typeof(HttpMessageSendSyncErrorsResponse);
+                        break;
                 }
 
                 IScopeMessage messsageRequest = await clientSerializerFactory.GetSerializer().DeserializeAsync(readableStream, requestSerializerType).ConfigureAwait(false) as IScopeMessage;
@@ -445,6 +453,12 @@ namespace Dotmim.Sync.Web.Server
                         break;
                     case HttpStep.EndSession:
                         messageResponse = await this.EndSessionAsync(httpContext, (HttpMessageEndSessionRequest)messsageRequest, progress, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case HttpStep.SendChangesIncremental:
+                        messageResponse = await this.SendChangesIncrementalAsync(httpContext, (HttpMessageSendChangesIncrementalRequest)messsageRequest, sessionCache, clientBatchSize, progress, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case HttpStep.SendSyncErrors:
+                        messageResponse = await this.SendSyncErrorsAsync(httpContext, (HttpMessageSendSyncErrorsRequest)messsageRequest, progress, cancellationToken).ConfigureAwait(false);
                         break;
                 }
 
@@ -975,11 +989,38 @@ namespace Dotmim.Sync.Web.Server
         /// <summary>
         /// Get batch changes.
         /// </summary>
-        protected internal virtual Task<HttpMessageSendChangesResponse> GetMoreChangesAsync(HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
+        protected internal virtual async Task<HttpMessageSendChangesResponse> GetMoreChangesAsync(HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
             SessionCache sessionCache, IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
-        => this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
+        {
+            var response = await this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
                 sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
                 sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
+
+            // Handle session close integration
+            if (httpMessage.CloseSession == true)
+            {
+                // If this is the last batch and client requested session close, execute EndSession logic
+                var isLastBatch = response.BatchIndex >= response.BatchCount - 1;
+                if (isLastBatch)
+                {
+                    // Create EndSession request to reuse existing logic
+                    var endSessionRequest = new HttpMessageEndSessionRequest(httpMessage.SyncContext)
+                    {
+                        ChangesAppliedOnClient = sessionCache.ClientChangesApplied,
+                        ServerChangesSelected = sessionCache.ServerChangesSelected
+                    };
+
+                    // Execute EndSession logic
+                    var endSessionResponse = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
+
+                    // Update response to include EndSession data
+                    response.ServerStep = HttpStep.EndSession;
+                    response.SessionEnded = true;
+                }
+            }
+
+            return response;
+        }
 
         /// <summary>
         /// Get changes from server.
