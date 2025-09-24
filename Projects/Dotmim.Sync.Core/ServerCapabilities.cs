@@ -1,9 +1,12 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+
 namespace Dotmim.Sync
 {
     /// <summary>
     /// Server feature keys for capability negotiation.
     /// </summary>
-    public static class ServerFeatureKeys
+    public static class ServerCapabilities
     {
         /// <summary>
         /// Indicates if the server supports incremental sync protocol optimization.
@@ -26,13 +29,21 @@ namespace Dotmim.Sync
         public const string SupportsErrorReporting = "supportsErrorReporting";
 
         /// <summary>
-        /// Maximum batch size supported by the server.
+        /// Contains all currently supported capabilities of the server.
+        /// Add new capabilities here, so they get added to the scope-infos correctly (updating the date the capabilities were changed)
         /// </summary>
-        public const string MaxBatchSize = "maxBatchSize";
-
-        /// <summary>
-        /// Array of supported server versions.
-        /// </summary>
-        public const string SupportedVersions = "supportedVersions";
+        /// <returns></returns>
+        public static ReadOnlyDictionary<string, object> GetServerCapabilities()
+        {
+            return Capabilities;
+        }
+        
+        private static readonly ReadOnlyDictionary<string,object> Capabilities = new(new Dictionary<string, object>
+        {
+            { ServerCapabilities.SupportsErrorReporting, true }, 
+            { ServerCapabilities.SupportsIncrementalSync, true }, 
+            { ServerCapabilities.SupportsSchemaHashing, true }, 
+            { ServerCapabilities.SupportsSessionClose, true }
+        });
     }
 }

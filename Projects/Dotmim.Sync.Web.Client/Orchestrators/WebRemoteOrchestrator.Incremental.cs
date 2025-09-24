@@ -32,7 +32,7 @@ namespace Dotmim.Sync.Web.Client
                 return false;
 
             // Must support incremental sync feature
-            if (!clientScopeInfo.SupportsCapability(ServerFeatureKeys.SupportsIncrementalSync))
+            if (!clientScopeInfo.SupportsCapability(ServerCapabilities.SupportsIncrementalSync))
                 return false;
 
             // Must have schema hash for validation
@@ -311,7 +311,7 @@ namespace Dotmim.Sync.Web.Client
             {
                 // Check if server supports error reporting
                 var scopeInfo = await this.GetScopeInfoAsync(context.ScopeName);
-                if (!scopeInfo.SupportsCapability(ServerFeatureKeys.SupportsErrorReporting))
+                if (!scopeInfo.SupportsCapability(ServerCapabilities.SupportsErrorReporting))
                     return false;
 
                 // Enhance error context with client environment

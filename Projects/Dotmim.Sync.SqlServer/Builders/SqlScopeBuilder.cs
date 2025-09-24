@@ -373,7 +373,7 @@ namespace Dotmim.Sync.SqlServer.Scope
 
             p = command.CreateParameter();
             p.ParameterName = "@sync_scope_capabilities_last_updated";
-            p.DbType = DbType.DateTime2;
+            p.DbType = DbType.DateTime;
             command.Parameters.Add(p);
 
             return command;
@@ -445,7 +445,7 @@ namespace Dotmim.Sync.SqlServer.Scope
             p = command.CreateParameter();
             p.ParameterName = "@sync_scope_parameters";
             p.DbType = DbType.String;
-            p.Size = -1;
+            p.Size = int.MaxValue;
             command.Parameters.Add(p);
 
             p = command.CreateParameter();

@@ -1,10 +1,12 @@
-﻿using System;
+﻿using Dotmim.Sync.Extensions;
+using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Dotmim.Sync.Serialization;
+using System.Linq;
 
 namespace Dotmim.Sync
 {
@@ -15,6 +17,8 @@ namespace Dotmim.Sync
     [DataContract(Name = "scope"), Serializable]
     public class ScopeInfo
     {
+        internal static ISerializer Serializer => SerializersFactory.JsonSerializerFactory.GetSerializer();
+        
         /// <summary>
         /// Initializes a new instance of the <see cref="ScopeInfo"/> class.
         /// For serialization purpose.
@@ -108,23 +112,43 @@ namespace Dotmim.Sync
         /// <summary>
         /// Set server capabilities from dictionary.
         /// </summary>
-        public void SetServerCapabilities(Dictionary<string, object> capabilities)
+        public void SetServerCapabilities(IDictionary<string, object> capabilities)
         {
             if (capabilities == null)
             {
                 ServerCapabilities = null;
                 return;
             }
+            var changed = HaveCapabilitiesChanged(capabilities);
 
-            try
+            if (changed)
             {
                 ServerCapabilities = JsonSerializer.Serialize(capabilities);
                 CapabilitiesLastUpdated = DateTime.UtcNow;
             }
-            catch
+        }
+
+        private bool HaveCapabilitiesChanged(IDictionary<string, object> capabilities)
+        {
+            var oldCapabilities = this.GetServerCapabilities() ??  new Dictionary<string, object>();
+            
+            // compare capabilities to only update the "last udpated" if it actually changed
+            var changed = false;
+            if (capabilities.Keys.OrderBy(k => k).SequenceEqual(oldCapabilities.Keys.OrderBy(k => k)))
             {
-                ServerCapabilities = null;
+                foreach (var k in capabilities.Keys)
+                {
+                    if (!object.Equals(oldCapabilities[k], capabilities[k]))
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
             }
+            else
+                changed = true;
+
+            return changed;
         }
 
         /// <summary>
@@ -140,6 +164,20 @@ namespace Dotmim.Sync
             return false;
         }
 
+        /// <summary>
+        /// Update schema hash when schema changes.
+        /// </summary>
+        public void UpdateSchemaHash(string schemaJson)
+        {
+            if (string.IsNullOrEmpty(schemaJson))
+            {
+                SchemaHash = null;
+                return;
+            }
+
+            SchemaHash = GenerateSchemaHash(schemaJson);
+        }
+        
         /// <summary>
         /// Update schema hash when schema changes.
         /// </summary>
@@ -159,23 +197,18 @@ namespace Dotmim.Sync
         /// </summary>
         private static string GenerateSchemaHash(SyncSet schema)
         {
-            try
-            {
-                // Use consistent serialization options for reproducible hash
-                var options = new JsonSerializerOptions
-                {
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                    WriteIndented = false
-                };
-
-                var schemaJson = JsonSerializer.Serialize(schema, options);
-                var hash = HashAlgorithm.SHA256.Create(schemaJson);
-                return Convert.ToBase64String(hash);
-            }
-            catch
-            {
-                return null;
-            }
+            var schemaJson = Serializer.Serialize(schema).ToUtf8String();
+            return GenerateSchemaHash(schemaJson);
+        }
+    
+        /// <summary>
+        /// Generate consistent schema hash.
+        /// </summary>
+        private static string GenerateSchemaHash(string schemaJson)
+        {
+            
+            var hash = HashAlgorithm.SHA256.Create(Encoding.UTF8.GetBytes(schemaJson));
+            return Convert.ToBase64String(hash);
         }
 
         /// <summary>

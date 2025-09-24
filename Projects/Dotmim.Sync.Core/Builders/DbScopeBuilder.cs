@@ -193,7 +193,7 @@ namespace Dotmim.Sync.Builders
 
             // Testing The Prepare() performance increase
             command.Prepare();
-
+            
             // Adding this command as prepared
             lazyCommand.Value.IsPrepared = true;
 

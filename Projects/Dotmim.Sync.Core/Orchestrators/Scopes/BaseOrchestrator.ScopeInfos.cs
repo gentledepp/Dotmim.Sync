@@ -466,12 +466,32 @@ namespace Dotmim.Sync
 
         private static DbCommand InternalSetSaveScopeInfoParameters(ScopeInfo scopeInfo, DbCommand command)
         {
+            var schemaJson = Serializer.Serialize(scopeInfo.Schema).ToUtf8String();
             InternalSetParameterValue(command, "sync_scope_name", scopeInfo.Name);
-            InternalSetParameterValue(command, "sync_scope_schema", scopeInfo.Schema == null ? DBNull.Value : Serializer.Serialize(scopeInfo.Schema).ToUtf8String());
+            InternalSetParameterValue(command, "sync_scope_schema", scopeInfo.Schema == null ? DBNull.Value : schemaJson);
             InternalSetParameterValue(command, "sync_scope_setup", scopeInfo.Setup == null ? DBNull.Value : Serializer.Serialize(scopeInfo.Setup).ToUtf8String());
             InternalSetParameterValue(command, "sync_scope_version", scopeInfo.Version);
             InternalSetParameterValue(command, "sync_scope_last_clean_timestamp", !scopeInfo.LastCleanupTimestamp.HasValue ? DBNull.Value : scopeInfo.LastCleanupTimestamp);
             InternalSetParameterValue(command, "sync_scope_properties", scopeInfo.Properties == null ? DBNull.Value : scopeInfo.Properties);
+
+            // ensure capablities are set
+            if (scopeInfo.ServerCapabilities is null)
+            {
+                var capabilities = ServerCapabilities.GetServerCapabilities();
+                scopeInfo.SetServerCapabilities(capabilities);
+            }
+            
+            // ensure schema hash
+            if (string.IsNullOrEmpty(scopeInfo.SchemaHash))
+            {
+                scopeInfo.UpdateSchemaHash(schemaJson);
+            }
+            
+            InternalSetParameterValue(command, "sync_scope_server_capabilities", scopeInfo.ServerCapabilities == null ? DBNull.Value : scopeInfo.ServerCapabilities);
+            InternalSetParameterValue(command, "sync_scope_schema_hash", scopeInfo.SchemaHash == null ? DBNull.Value : scopeInfo.SchemaHash);
+            InternalSetParameterValue(command, "sync_scope_server_version", scopeInfo.Properties == null ? DBNull.Value : scopeInfo.Properties);
+            InternalSetParameterValue(command, "sync_scope_capabilities_last_updated", scopeInfo.CapabilitiesLastUpdated == null ? DBNull.Value : scopeInfo.CapabilitiesLastUpdated);
+
 
             return command;
         }
