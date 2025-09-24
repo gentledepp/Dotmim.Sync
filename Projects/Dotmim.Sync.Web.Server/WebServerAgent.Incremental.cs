@@ -221,6 +221,11 @@ namespace Dotmim.Sync.Web.Server
                     ServerChangesSelected = serverChangesSelected,
                     ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
 
+                    // Server capabilities for optimization
+                    ServerCapabilities = serverScopeInfo.ServerCapabilities,
+                    ServerVersion = serverScopeInfo.ServerVersion,
+                    CapabilitiesLastUpdated = serverScopeInfo.CapabilitiesLastUpdated,
+
                     // Base properties
                     SyncContext = context,
                     Step = HttpStep.SendChangesIncremental

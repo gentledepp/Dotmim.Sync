@@ -632,6 +632,24 @@ namespace Dotmim.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "ssi", IsRequired = false, Order = 22)]
         public ScopeInfo ServerScopeInfo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server capabilities for HTTP protocol optimization.
+        /// </summary>
+        [DataMember(Name = "scap", IsRequired = false, Order = 23)]
+        public string ServerCapabilities { get; set; }
+
+        /// <summary>
+        /// Gets or sets the server version for capability tracking.
+        /// </summary>
+        [DataMember(Name = "sver", IsRequired = false, Order = 24)]
+        public string ServerVersion { get; set; }
+
+        /// <summary>
+        /// Gets or sets the timestamp when capabilities were last updated.
+        /// </summary>
+        [DataMember(Name = "cu", IsRequired = false, Order = 25)]
+        public DateTime? CapabilitiesLastUpdated { get; set; }
     }
 
     /// <summary>

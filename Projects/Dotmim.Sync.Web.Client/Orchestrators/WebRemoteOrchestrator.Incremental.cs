@@ -98,7 +98,7 @@ namespace Dotmim.Sync.Web.Client
 
                     await this.InterceptAsync(new HttpSendingClientChangesRequestArgs(firstRequest, 0, 0, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
-                    firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context,firstRequest, HttpStep.SendChangesInProgress, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
+                    firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context,firstRequest, HttpStep.SendChangesIncremental, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
                     if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                         return (context, firstResponse.SchemaValid, firstResponse.Operation,
@@ -221,7 +221,7 @@ namespace Dotmim.Sync.Web.Client
 
             // Create the BatchInfo
             var serverBatchInfo = new BatchInfo();
-
+            
             try
             {
                 context.SyncStage = SyncStage.ChangesSelecting;
@@ -251,9 +251,14 @@ namespace Dotmim.Sync.Web.Client
                     }
                 }
 
-                await this.InterceptAsync(
-                    new HttpGettingResponseMessageArgs(response, this.ServiceUri,
-                        HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
+                // if the response is null, this means we got a single respose: firstRespose
+                // and that was already intercepted by the call to  await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(...)
+                var wasAlreadyIntercepted = response is null;
+
+                if (!wasAlreadyIntercepted) 
+                    await this.InterceptAsync(
+                        new HttpGettingResponseMessageArgs(response, this.ServiceUri,
+                            HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
 
                 // Handle first batch data included directly in response (optimized protocol)
@@ -353,6 +358,19 @@ namespace Dotmim.Sync.Web.Client
 
                 // generate the new scope item
                 this.CompleteTime = DateTime.UtcNow;
+
+                // Update local client scope with server capabilities if available
+                if (!string.IsNullOrEmpty(firstResponse.ServerCapabilities) ||
+                    !string.IsNullOrEmpty(firstResponse.ServerVersion) ||
+                    firstResponse.CapabilitiesLastUpdated.HasValue)
+                {
+                    cScopeInfo.ServerCapabilities = firstResponse.ServerCapabilities ?? cScopeInfo.ServerCapabilities;
+                    cScopeInfo.ServerVersion = firstResponse.ServerVersion ?? cScopeInfo.ServerVersion;
+                    cScopeInfo.CapabilitiesLastUpdated = firstResponse.CapabilitiesLastUpdated ?? cScopeInfo.CapabilitiesLastUpdated;
+
+                    // Save updated scope info with server capabilities
+                    // await this.SaveScopeInfoAsync(cScopeInfo).ConfigureAwait(false);
+                }
 
                 var serverSyncChanges = new ServerSyncChanges(
                     summaryResponseContent.RemoteClientTimestamp,
