@@ -2581,7 +2581,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
         [Theory]
         [ClassData(typeof(SyncOptionsData))]
-        public async Task WhenServerSupportsIt_AndClientSynchronizedBefore_CanUseOptimizedSync(SyncOptions options)
+        public async Task OptimizedSync_IfChangesFitIntoSingleRequestAndResponse_SynchronizesUsingASingleRequest(SyncOptions options)
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
@@ -2605,6 +2605,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             var download = 0;
             // Execute a sync on all clients and check results
+            // NOTE: the optimized sync is ONLY supported for incremental synchronizations
             foreach (var clientProvider in clientsProvider)
             {
                 var proxy = new WebRemoteOrchestrator(serviceUri);
@@ -2612,21 +2613,10 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
                 var allSentRequests = new List<HttpRequestMessage>();
                 var allReceivedResponses = new List<HttpResponseMessage>();
-                var sessionBegun = false;
-                var endSessionRequestWasSent = false;
                 
-                proxy.OnHttpSendingChangesRequest(r =>
-                {
-                    sentChangesRequests.Add(r.Request);
-                });
-                proxy.OnHttpSendingRequest(r =>
-                {
-                    allSentRequests.Add(r.Request);
-                });
-                proxy.OnHttpGettingResponse(r =>
-                {
-                    allReceivedResponses.Add(r.Response);
-                });
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
                 
                 var agent = new SyncAgent(clientProvider, proxy, options);
 
@@ -2635,7 +2625,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count);
-                Assert.Equal(2, allSentRequests.Count); // only 2 requests should be sent
+                Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
+                Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
                 
                 Assert.Equal((download*clientChangeCount + serverChangeCount), s.TotalChangesDownloadedFromServer);
                 Assert.Equal(100, s.TotalChangesUploadedToServer);

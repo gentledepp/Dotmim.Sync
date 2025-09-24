@@ -170,7 +170,42 @@ namespace Dotmim.Sync.Web.Server
                         serverSyncChanges.ServerBatchInfo.BatchPartsInfo = [];
                 }
 
-                // Build optimized response - now inherits from HttpMessageSummaryResponse so we can include server changes
+                // Build optimized response - always include first batch data if available
+                ContainerSet firstBatchChanges = null;
+                BatchInfo adjustedBatchInfo = serverBatchInfo;
+
+                // Always include first batch data in Changes property for optimized clients
+                var isOptimizedClient = TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out var optimizedValue) &&
+                                       bool.TryParse(optimizedValue, out var isOptimized) && isOptimized;
+
+                if (isOptimizedClient && serverBatchInfo?.BatchPartsInfo?.Count > 0)
+                {
+                    // Get the first batch data to include directly in response
+                    var firstBatchPartInfo = serverBatchInfo.BatchPartsInfo.FirstOrDefault();
+                    if (firstBatchPartInfo != null)
+                    {
+                        firstBatchChanges = await this.GetBatchDataAsync(context, serverScopeInfo.Schema, serverBatchInfo, firstBatchPartInfo);
+
+                        // Adjust BatchInfo for remaining batches (excluding first batch)
+                        if (serverBatchInfo.BatchPartsInfo.Count > 1)
+                        {
+                            // Create new BatchInfo with remaining batches
+                            adjustedBatchInfo = new BatchInfo
+                            {
+                                BatchPartsInfo = [.. serverBatchInfo.BatchPartsInfo.Skip(1)],
+                                DirectoryName = serverBatchInfo.DirectoryName,
+                                DirectoryRoot = serverBatchInfo.DirectoryRoot,
+                                RowsCount = serverBatchInfo.RowsCount - firstBatchPartInfo.RowsCount
+                            };
+                        }
+                        else
+                        {
+                            // Single batch - no more downloads needed
+                            adjustedBatchInfo = null;
+                        }
+                    }
+                }
+
                 var response = new HttpMessageSendChangesIncrementalResponse
                 {
                     // Incremental-specific properties
@@ -179,7 +214,8 @@ namespace Dotmim.Sync.Web.Server
                     ServerScopeInfo = schemaValid ? null : serverScopeInfo, // Only send schema if invalid
 
                     // Summary response properties (inherited from HttpMessageSummaryResponse)
-                    BatchInfo = serverBatchInfo,
+                    BatchInfo = adjustedBatchInfo, // Remaining batches to download (null if single batch)
+                    Changes = firstBatchChanges, // First batch data included directly
                     RemoteClientTimestamp = remoteClientTimestamp,
                     ClientChangesApplied = clientChangesApplied,
                     ServerChangesSelected = serverChangesSelected,
@@ -189,8 +225,9 @@ namespace Dotmim.Sync.Web.Server
                     SyncContext = context,
                     Step = HttpStep.SendChangesIncremental
                 };
-                
-                if(serverBatchInfo.BatchPartsInfo.Count <= 1)
+
+                // Auto-end session for single batch scenarios
+                if(adjustedBatchInfo == null || adjustedBatchInfo.BatchPartsInfo?.Count == 0)
                     await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
 
                 return response;
@@ -374,6 +411,36 @@ namespace Dotmim.Sync.Web.Server
             }
 
             return messages;
+        }
+
+        /// <summary>
+        /// Get batch data for a specific batch part info to include directly in response.
+        /// </summary>
+        private async Task<ContainerSet> GetBatchDataAsync(SyncContext context, SyncSet schema, BatchInfo serverBatchInfo, BatchPartInfo batchPartInfo)
+        {
+            if (batchPartInfo == null)
+                return null;
+
+            // Get the updatable schema for the only table contained in the batchpartinfo
+            var schemaTable = BaseOrchestrator.CreateChangesTable(schema.Tables[batchPartInfo.TableName, batchPartInfo.SchemaName]);
+
+            // Generate the ContainerSet containing rows to send to the user
+            var containerSet = new ContainerSet();
+            var containerTable = new ContainerTable(schemaTable);
+            var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), batchPartInfo.FileName);
+            containerSet.Tables.Add(containerTable);
+
+            // Read rows from file
+            using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
+            foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
+            {
+                if (row != null && row.Length > 0 && this.clientConverter != null)
+                    this.clientConverter.BeforeSerialize(row, schemaTable);
+
+                containerTable.Rows.Add(row.ToArray());
+            }
+
+            return containerSet;
         }
     }
 

@@ -256,26 +256,100 @@ namespace Dotmim.Sync.Web.Client
                         HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
 
-                serverBatchInfo.RowsCount = summaryResponseContent.BatchInfo.RowsCount;
-                serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
-
-                if (summaryResponseContent.BatchInfo.BatchPartsInfo != null)
+                // Handle first batch data included directly in response (optimized protocol)
+                if (summaryResponseContent.Changes != null && summaryResponseContent.Changes.HasRows)
                 {
-                    foreach (var bpi in summaryResponseContent.BatchInfo.BatchPartsInfo)
-                        serverBatchInfo.BatchPartsInfo.Add(bpi);
+                    // First batch data is included directly - save it to disk
+                    var batchDirectoryRoot = this.Options.BatchDirectory;
+                    var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
+                        Path.GetRandomFileName().Replace(".", string.Empty));
+
+                    serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
+                    serverBatchInfo.DirectoryName = batchDirectoryName;
+
+                    if (!Directory.Exists(serverBatchInfo.GetDirectoryFullPath()))
+                        Directory.CreateDirectory(serverBatchInfo.GetDirectoryFullPath());
+
+                    // Process the first batch data from Changes property
+                    using var localSerializer = new LocalJsonSerializer(this, context);
+                    foreach (var containerTable in summaryResponseContent.Changes.Tables)
+                    {
+                        var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+                        var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
+                        var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
+
+                        // Create first batch part info (index 0)
+                        var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
+                        var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
+
+                        SyncRowState syncRowState = SyncRowState.None;
+                        if (containerTable.Rows != null && containerTable.Rows.Count > 0)
+                        {
+                            var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
+                            syncRowState = sr.RowState;
+                        }
+
+                        // Save first batch data to file
+                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+
+                        foreach (var row in containerTable.Rows)
+                        {
+                            var syncRow = new SyncRow(schemaTable, row);
+                            if (this.Converter != null && syncRow.Length > 0)
+                                this.Converter.AfterDeserialized(syncRow, schemaTable);
+
+                            await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                        }
+
+                        // Create batch part info for first batch
+                        var firstBpi = new BatchPartInfo
+                        {
+                            FileName = fileName,
+                            TableName = containerTable.TableName,
+                            SchemaName = containerTable.SchemaName,
+                            RowsCount = containerTable.Rows.Count,
+                            IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
+                            Index = 0,
+                        };
+
+                        serverBatchInfo.BatchPartsInfo.Add(firstBpi);
+                        serverBatchInfo.RowsCount += firstBpi.RowsCount;
+                    }
                 }
 
-                // From here, we need to serialize everything on disk
+                // Add remaining batch info (if any)
+                serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
+                if (summaryResponseContent.BatchInfo?.BatchPartsInfo != null)
+                {
+                    // Add remaining batches (starting from index 1 since index 0 is already handled above)
+                    foreach (var bpi in summaryResponseContent.BatchInfo.BatchPartsInfo)
+                    {
+                        // Adjust index to continue from where first batch left off
+                        bpi.Index = bpi.Index + (serverBatchInfo.BatchPartsInfo.Count > 0 ? 1 : 0);
+                        serverBatchInfo.BatchPartsInfo.Add(bpi);
+                    }
+                    serverBatchInfo.RowsCount += summaryResponseContent.BatchInfo.RowsCount;
+                }
 
-                // Generate the batch directory
-                var batchDirectoryRoot = this.Options.BatchDirectory;
-                var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
-                    Path.GetRandomFileName().Replace(".", string.Empty));
+                // Only download remaining batches if any exist
+                if (summaryResponseContent.BatchInfo?.BatchPartsInfo?.Count > 0)
+                {
+                    // Generate the batch directory if not already created
+                    if (serverBatchInfo.DirectoryRoot == null)
+                    {
+                        var batchDirectoryRoot = this.Options.BatchDirectory;
+                        var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
+                            Path.GetRandomFileName().Replace(".", string.Empty));
 
-                serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
-                serverBatchInfo.DirectoryName = batchDirectoryName;
+                        serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
+                        serverBatchInfo.DirectoryName = batchDirectoryName;
 
-                await this.DownladBatchInfoAsync(context, schema, serverBatchInfo, summaryResponseContent, progress, cancellationToken).ConfigureAwait(false);
+                        if (!Directory.Exists(serverBatchInfo.GetDirectoryFullPath()))
+                            Directory.CreateDirectory(serverBatchInfo.GetDirectoryFullPath());
+                    }
+
+                    await this.DownladBatchInfoAsync(context, schema, serverBatchInfo, summaryResponseContent, progress, cancellationToken).ConfigureAwait(false);
+                }
 
                 // generate the new scope item
                 this.CompleteTime = DateTime.UtcNow;
