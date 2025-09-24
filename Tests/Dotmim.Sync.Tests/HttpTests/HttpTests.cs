@@ -2683,7 +2683,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         
         [Theory]
         [ClassData(typeof(SyncOptionsData))]
-        public async Task OptimizedSync_IfChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)
+        public async Task OptimizedSync_IfClientChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
@@ -2729,8 +2729,71 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
 
                 Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(clientChangeCount, s.TotalChangesUploadedToServer);
                 Assert.Equal(clientChangeCount, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+            }
+        }
+        
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task OptimizedSync_IfServerChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)
+        {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+            {
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+            }
+
+            var serverChangeCount = 2000;
+
+            // Add many rows on the server to trigger batching
+            for (int i = 0; i < serverChangeCount; i++)
+                await this.serverProvider.AddProductCategoryAsync();
+
+            
+            foreach(var clientProvider in this.clientsProvider)
+            {
+                // interestingly, the batch counts (i.e what fits into one batch) are different per provider..
+                var expectedBatches = clientProvider switch
+                {
+                    SqliteSyncProvider sqlite => 2,
+                    SqlSyncProvider mssql => 3
+                };
+                
+                // Execute a sync on all clients and check results
+                // NOTE: the optimized sync is ONLY supported for incremental synchronizations
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
+
+                proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
+                proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
+                proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+                proxy.OnHttpGettingChangesRequest(r => getChangesRequests.Add(r));
+
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count); // only one changeset is sent but...
+                Assert.Equal(expectedBatches - 1 /*first batch in first request*/,getChangesRequests.Count);
+                Assert.Equal(expectedBatches, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+
+                Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(2000, s.TotalChangesAppliedOnClient);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
             }
         }
