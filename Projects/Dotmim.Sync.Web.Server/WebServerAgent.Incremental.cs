@@ -68,69 +68,94 @@ namespace Dotmim.Sync.Web.Server
                 BatchInfo serverBatchInfo = null;
                 long remoteClientTimestamp = 0;
 
-                if (operation == SyncOperation.Normal && httpMessage.IsLastBatch && httpMessage.Changes != null)
+                // Get batch info from session cache if exists, otherwise create it
+                sessionCache.ClientBatchInfo ??= new BatchInfo(this.Options.BatchDirectory, info: "REMOTEGETCHANGES");
+
+                // ------------------------------------------------------------
+                // FIRST STEP : receive client changes (from ApplyThenGetChangesAsync2 logic)
+                // ------------------------------------------------------------
+
+                if (httpMessage.Changes != null && httpMessage.Changes.HasRows)
                 {
-                    // ------------------------------------------------------------
-                    // FIRST STEP : receive client changes (from ApplyThenGetChangesAsync2 logic)
-                    // ------------------------------------------------------------
+                    using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
 
-                    // Get batch info from session cache if exists, otherwise create it
-                    sessionCache.ClientBatchInfo ??= new BatchInfo(this.Options.BatchDirectory, info: "REMOTEGETCHANGES");
+                    // we have only one table here
+                    var containerTable = httpMessage.Changes.Tables[0];
+                    var schemaTable = BaseOrchestrator.CreateChangesTable(serverScopeInfo.Schema.Tables[containerTable.TableName, containerTable.SchemaName]);
 
-                    if (httpMessage.Changes.HasRows)
+                    var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
+                    var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
+                    var fileName = BatchInfo.GenerateNewFileName(httpMessage.BatchIndex.ToString(System.Globalization.CultureInfo.InvariantCulture), tableName, LocalJsonSerializer.Extension, "CLICHANGES");
+                    var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
+
+                    SyncRowState syncRowState = SyncRowState.None;
+                    if (containerTable.Rows != null && containerTable.Rows.Count > 0)
                     {
-                        using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
-
-                        // we have only one table here
-                        var containerTable = httpMessage.Changes.Tables[0];
-                        var schemaTable = BaseOrchestrator.CreateChangesTable(serverScopeInfo.Schema.Tables[containerTable.TableName, containerTable.SchemaName]);
-
-                        var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
-                        var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
-                        var fileName = BatchInfo.GenerateNewFileName(httpMessage.BatchIndex.ToString(System.Globalization.CultureInfo.InvariantCulture), tableName, LocalJsonSerializer.Extension, "CLICHANGES");
-                        var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
-
-                        SyncRowState syncRowState = SyncRowState.None;
-                        if (containerTable.Rows != null && containerTable.Rows.Count > 0)
-                        {
-                            var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
-                            syncRowState = sr.RowState;
-                        }
-
-                        // open the file and write table header
-                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState);
-
-                        foreach (var row in containerTable.Rows)
-                        {
-                            var syncRow = new SyncRow(schemaTable, row);
-
-                            if (this.clientConverter != null && syncRow.Length > 0)
-                                this.clientConverter.AfterDeserialized(syncRow, schemaTable);
-
-                            await localSerializer.WriteRowToFileAsync(syncRow, schemaTable);
-                        }
-
-                        var bpi = new BatchPartInfo
-                        {
-                            FileName = fileName,
-                            TableName = containerTable.TableName,
-                            SchemaName = containerTable.SchemaName,
-                            RowsCount = containerTable.Rows.Count,
-                            IsLastBatch = httpMessage.IsLastBatch,
-                            Index = httpMessage.BatchIndex,
-                        };
-
-                        sessionCache.ClientBatchInfo.RowsCount += bpi.RowsCount;
-                        sessionCache.ClientBatchInfo.BatchPartsInfo.Add(bpi);
+                        var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
+                        syncRowState = sr.RowState;
                     }
 
-                    // Clear the httpMessage set
-                    if (httpMessage.Changes != null)
-                        httpMessage.Changes.Clear();
+                    // open the file and write table header
+                    await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState);
 
-                    // ------------------------------------------------------------
-                    // SECOND STEP : apply then return server changes
-                    // ------------------------------------------------------------
+                    foreach (var row in containerTable.Rows)
+                    {
+                        var syncRow = new SyncRow(schemaTable, row);
+
+                        if (this.clientConverter != null && syncRow.Length > 0)
+                            this.clientConverter.AfterDeserialized(syncRow, schemaTable);
+
+                        await localSerializer.WriteRowToFileAsync(syncRow, schemaTable);
+                    }
+
+                    var bpi = new BatchPartInfo
+                    {
+                        FileName = fileName,
+                        TableName = containerTable.TableName,
+                        SchemaName = containerTable.SchemaName,
+                        RowsCount = containerTable.Rows.Count,
+                        IsLastBatch = httpMessage.IsLastBatch,
+                        Index = httpMessage.BatchIndex,
+                    };
+
+                    sessionCache.ClientBatchInfo.RowsCount += bpi.RowsCount;
+                    sessionCache.ClientBatchInfo.BatchPartsInfo.Add(bpi);
+                }
+
+                // Clear the httpMessage set
+                if (httpMessage.Changes != null)
+                    httpMessage.Changes.Clear();
+                
+                
+                // Until we don't have received all the batches, wait for more
+                if (!httpMessage.IsLastBatch)
+                    return new HttpMessageSendChangesIncrementalResponse
+                    {
+                        // Incremental-specific properties
+                        Operation = operation,
+                        SchemaValid = schemaValid,
+                        ServerScopeInfo = schemaValid ? null : serverScopeInfo, // Only send schema if invalid
+
+                        RemoteClientTimestamp = remoteClientTimestamp,
+                        ClientChangesApplied = clientChangesApplied,
+                        ServerChangesSelected = serverChangesSelected,
+                        ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+
+                        // Server capabilities for optimization
+                        ServerCapabilities = serverScopeInfo.ServerCapabilities,
+                        ServerVersion = serverScopeInfo.ServerVersion,
+                        CapabilitiesLastUpdated = serverScopeInfo.CapabilitiesLastUpdated,
+
+                        // Base properties
+                        SyncContext = context,
+                        Step = HttpStep.SendChangesInProgress
+                    };
+                
+                // ------------------------------------------------------------
+                // SECOND STEP : were all changes sent in one batch? Then we can apply and return server changes
+                // ------------------------------------------------------------
+                if (httpMessage.IsLastBatch)
+                {
                     var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
 
                     // Apply client changes and get server changes
@@ -178,7 +203,11 @@ namespace Dotmim.Sync.Web.Server
                 var isOptimizedClient = TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out var optimizedValue) &&
                                        bool.TryParse(optimizedValue, out var isOptimized) && isOptimized;
 
-                if (isOptimizedClient && serverBatchInfo?.BatchPartsInfo?.Count > 0)
+                if (isOptimizedClient && 
+                    // the last changeset was uploaded
+                    httpMessage.IsLastBatch && 
+                    // and there are server changes
+                    serverBatchInfo?.BatchPartsInfo?.Count > 0)
                 {
                     // Get the first batch data to include directly in response
                     var firstBatchPartInfo = serverBatchInfo.BatchPartsInfo.FirstOrDefault();

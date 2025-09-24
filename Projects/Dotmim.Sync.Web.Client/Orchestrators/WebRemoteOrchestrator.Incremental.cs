@@ -87,6 +87,8 @@ namespace Dotmim.Sync.Web.Client
             // --------------------------------------------------------------
             HttpResponseMessage response = null;
             HttpMessageSendChangesIncrementalResponse firstResponse = null;
+            HttpMessageSummaryResponse summaryResponseContent = null;
+
 
             // If not in memory and BatchPartsInfo.Count == 0, nothing to send.
             // But we need to send something, so generate a little batch part
@@ -100,6 +102,8 @@ namespace Dotmim.Sync.Web.Client
 
                     firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context,firstRequest, HttpStep.SendChangesIncremental, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
+                    summaryResponseContent = firstResponse;
+                    
                     if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                         return (context, firstResponse.SchemaValid, firstResponse.Operation,
                             firstResponse.ServerScopeInfo, null, firstResponse.ConflictResolutionPolicy);
@@ -157,6 +161,8 @@ namespace Dotmim.Sync.Web.Client
                             await this.InterceptAsync(new HttpSendingClientChangesRequestArgs(firstRequest, tmpRowsSendedCount, clientChanges.ClientBatchInfo.RowsCount, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
                             firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context, firstRequest, HttpStep.SendChangesIncremental, 0, progress, cancellationToken).ConfigureAwait(false);
+
+                            summaryResponseContent = firstResponse;
                             
                             if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                                 return (context, firstResponse.SchemaValid, firstResponse.Operation,
@@ -194,6 +200,23 @@ namespace Dotmim.Sync.Web.Client
 
                             response = await this.ProcessRequestAsync(changesToSend, HttpStep.SendChangesInProgress, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
+                            // Deserialize last response incoming from server after uploading changes
+#if NET6_0_OR_GREATER
+                            using (var streamResponse = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+#else
+                            using (var streamResponse = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+#endif
+                            {
+                                var responseSerializer = this.SerializerFactory.GetSerializer();
+                                summaryResponseContent = await responseSerializer
+                                    .DeserializeAsync<HttpMessageSummaryResponse>(streamResponse).ConfigureAwait(false);
+                                context = summaryResponseContent.SyncContext;
+                            }
+                            
+                            await this.InterceptAsync(
+                                new HttpGettingResponseMessageArgs(response, this.ServiceUri,
+                                    HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
+                            
                             // See #721 for issue and #721 for PR from slagtejn
                             if (!bpi.IsLastBatch)
                                 response.Dispose();
@@ -227,39 +250,6 @@ namespace Dotmim.Sync.Web.Client
                 context.SyncStage = SyncStage.ChangesSelecting;
                 var initialPctProgress = 0.55;
                 context.ProgressPercentage = initialPctProgress;
-
-                HttpMessageSummaryResponse summaryResponseContent = null;
-
-                // if we already got a response in the first, optimized request
-                if (response is null && firstResponse != null)
-                    summaryResponseContent = firstResponse;
-
-                if (response is not null)
-                {
-                    // Deserialize last response incoming from server after uploading changes
-#if NET6_0_OR_GREATER
-                using (var streamResponse =
- await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-#else
-                    using (var streamResponse = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-#endif
-                    {
-                        var responseSerializer = this.SerializerFactory.GetSerializer();
-                        summaryResponseContent = await responseSerializer
-                            .DeserializeAsync<HttpMessageSummaryResponse>(streamResponse).ConfigureAwait(false);
-                        context = summaryResponseContent.SyncContext;
-                    }
-                }
-
-                // if the response is null, this means we got a single respose: firstRespose
-                // and that was already intercepted by the call to  await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(...)
-                var wasAlreadyIntercepted = response is null;
-
-                if (!wasAlreadyIntercepted) 
-                    await this.InterceptAsync(
-                        new HttpGettingResponseMessageArgs(response, this.ServiceUri,
-                            HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
-
 
                 // Handle first batch data included directly in response (optimized protocol)
                 if (summaryResponseContent.Changes != null && summaryResponseContent.Changes.HasRows)
@@ -324,16 +314,13 @@ namespace Dotmim.Sync.Web.Client
 
                 // Add remaining batch info (if any)
                 serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
+                serverBatchInfo.RowsCount += summaryResponseContent.BatchInfo?.RowsCount??0;
+                
                 if (summaryResponseContent.BatchInfo?.BatchPartsInfo != null)
                 {
                     // Add remaining batches (starting from index 1 since index 0 is already handled above)
                     foreach (var bpi in summaryResponseContent.BatchInfo.BatchPartsInfo)
-                    {
-                        // Adjust index to continue from where first batch left off
-                        bpi.Index = bpi.Index + (serverBatchInfo.BatchPartsInfo.Count > 0 ? 1 : 0);
                         serverBatchInfo.BatchPartsInfo.Add(bpi);
-                    }
-                    serverBatchInfo.RowsCount += summaryResponseContent.BatchInfo.RowsCount;
                 }
 
                 // Only download remaining batches if any exist
