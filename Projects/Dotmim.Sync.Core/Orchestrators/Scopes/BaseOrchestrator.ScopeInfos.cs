@@ -466,7 +466,7 @@ namespace Dotmim.Sync
 
         private static DbCommand InternalSetSaveScopeInfoParameters(ScopeInfo scopeInfo, DbCommand command)
         {
-            var schemaJson = Serializer.Serialize(scopeInfo.Schema).ToUtf8String();
+            var schemaJson = scopeInfo.Schema == null ? null : Serializer.Serialize(scopeInfo.Schema).ToUtf8String();
             InternalSetParameterValue(command, "sync_scope_name", scopeInfo.Name);
             InternalSetParameterValue(command, "sync_scope_schema", scopeInfo.Schema == null ? DBNull.Value : schemaJson);
             InternalSetParameterValue(command, "sync_scope_setup", scopeInfo.Setup == null ? DBNull.Value : Serializer.Serialize(scopeInfo.Setup).ToUtf8String());
@@ -482,9 +482,9 @@ namespace Dotmim.Sync
             }
             
             // ensure schema hash
-            if (string.IsNullOrEmpty(scopeInfo.SchemaHash))
+            if (string.IsNullOrEmpty(scopeInfo.SchemaHash) && schemaJson is {} json)
             {
-                scopeInfo.UpdateSchemaHash(schemaJson);
+                scopeInfo.UpdateSchemaHash(json);
             }
             
             InternalSetParameterValue(command, "sync_scope_server_capabilities", scopeInfo.ServerCapabilities == null ? DBNull.Value : scopeInfo.ServerCapabilities);
@@ -513,7 +513,12 @@ namespace Dotmim.Sync
                 Version = reader["sync_scope_version"] as string,
                 LastCleanupTimestamp = reader["sync_scope_last_clean_timestamp"] != DBNull.Value ? reader.GetInt64(reader.GetOrdinal("sync_scope_last_clean_timestamp")) : null,
                 Properties = reader["sync_scope_properties"] as string,
+                ServerCapabilities = reader["sync_scope_server_capabilities"] as string,
+                SchemaHash = reader["sync_scope_schema_hash"] as string,
+                ServerVersion = reader["sync_scope_server_version"] as string,
+                CapabilitiesLastUpdated = reader["sync_scope_capabilities_last_updated"] == DBNull.Value ? null : (DateTime?)reader.GetDateTime(reader.GetOrdinal("sync_scope_capabilities_last_updated")),
             };
+            
             return clientScopeInfo;
         }
     }

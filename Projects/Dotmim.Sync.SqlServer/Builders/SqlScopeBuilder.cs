@@ -602,5 +602,19 @@ namespace Dotmim.Sync.SqlServer.Scope
 
             return command;
         }
+
+        /// <inheritdoc/>
+        public override DbCommand GetMigrateScopeInfoTableCommand(DbConnection connection, DbTransaction transaction)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $@"
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_capabilities] NVARCHAR(MAX) NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_schema_hash] NVARCHAR(64) NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_version] NVARCHAR(50) NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_capabilities_last_updated] DATETIME2 NULL;
+            ";
+            return command;
+        }
     }
 }

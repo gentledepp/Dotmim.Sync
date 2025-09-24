@@ -27,19 +27,18 @@ namespace Dotmim.Sync.Web.Server
             IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
             try
-            {
+            {   
                 // Overriding batch size options value, coming from client
                 this.Options.BatchSize = clientBatchSize;
 
                 var context = httpMessage.SyncContext;
 
                 // Step 1: Begin session (allow interceptors to handle begin session event)
-                await this.RemoteOrchestrator.BeginSessionAsync();
+                await this.RemoteOrchestrator.BeginSessionAsync().ConfigureAwait(false);
 
                 // Step 2: Ensure scope info and fast schema validation using stored hash
                 ScopeInfo serverScopeInfo;
-                (context, serverScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(
-                    context, this.Setup, false, default, default, progress, cancellationToken);
+                (context, serverScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
                 // Set session cache info for the schema
                 httpContext.Session.Set(context.ScopeName, serverScopeInfo.Schema);
@@ -48,7 +47,7 @@ namespace Dotmim.Sync.Web.Server
                 if (string.IsNullOrEmpty(serverScopeInfo.SchemaHash) && serverScopeInfo.Schema != null)
                 {
                     serverScopeInfo.UpdateSchemaHash(serverScopeInfo.Schema);
-                    await this.RemoteOrchestrator.SaveScopeInfoAsync(serverScopeInfo);
+                    await this.RemoteOrchestrator.SaveScopeInfoAsync(serverScopeInfo).ConfigureAwait(false);
                 }
 
                 // Fast hash comparison (O(1) instead of O(n) schema comparison)
@@ -190,6 +189,9 @@ namespace Dotmim.Sync.Web.Server
                     SyncContext = context,
                     Step = HttpStep.SendChangesIncremental
                 };
+                
+                if(serverBatchInfo.BatchPartsInfo.Count <= 1)
+                    await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
 
                 return response;
             }

@@ -317,7 +317,7 @@ namespace Dotmim.Sync.Web.Server
                 // HttpStep.EnsureScopes is the first call from client when client is not new
                 // This is the only moment where we are initializing the sessionCache and store it in session
                 if (sessionCache == null &&
-                    (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp))
+                    (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp || step == HttpStep.SendChangesIncremental))
                 {
                     sessionCache = new SessionCache();
                     httpContext.Session.Set(sessionId, sessionCache);
@@ -455,6 +455,8 @@ namespace Dotmim.Sync.Web.Server
                         messageResponse = await this.EndSessionAsync(httpContext, (HttpMessageEndSessionRequest)messsageRequest, progress, cancellationToken).ConfigureAwait(false);
                         break;
                     case HttpStep.SendChangesIncremental:
+                        var sendChangesRequest2 = (HttpMessageSendChangesRequest)messsageRequest;
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest2, httpContext.Request.Host.Host, sessionCache), progress, cancellationToken).ConfigureAwait(false);
                         messageResponse = await this.SendChangesIncrementalAsync(httpContext, (HttpMessageSendChangesIncrementalRequest)messsageRequest, sessionCache, clientBatchSize, progress, cancellationToken).ConfigureAwait(false);
                         break;
                     case HttpStep.SendSyncErrors:
@@ -996,30 +998,28 @@ namespace Dotmim.Sync.Web.Server
                 sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
                 sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
 
-            // Handle session close integration
-            if (httpMessage.CloseSession == true)
-            {
-                // If this is the last batch and client requested session close, execute EndSession logic
-                var isLastBatch = response.BatchIndex >= response.BatchCount - 1;
-                if (isLastBatch)
-                {
-                    // Create EndSession request to reuse existing logic
-                    var endSessionRequest = new HttpMessageEndSessionRequest(httpMessage.SyncContext)
-                    {
-                        ChangesAppliedOnClient = sessionCache.ClientChangesApplied,
-                        ServerChangesSelected = sessionCache.ServerChangesSelected
-                    };
-
-                    // Execute EndSession logic
-                    var endSessionResponse = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
-
-                    // Update response to include EndSession data
-                    response.ServerStep = HttpStep.EndSession;
-                    response.SessionEnded = true;
-                }
-            }
+            if(response.IsLastBatch)
+                await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
 
             return response;
+        }
+
+        private async Task AutomaticallyEndSession(HttpContext httpContext, SyncContext context,
+            SessionCache sessionCache, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            // Handle session close integration
+            if (TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-auto-sessionend", out string autoEnd) && bool.TryParse(autoEnd, out var b) & b)
+            {
+                // Create EndSession request to reuse existing logic
+                var endSessionRequest = new HttpMessageEndSessionRequest(context)
+                {
+                    ChangesAppliedOnClient = sessionCache.ClientChangesApplied,
+                    ServerChangesSelected = sessionCache.ServerChangesSelected
+                };
+
+                // Execute EndSession logic
+                var endSessionResponse = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
+            }
         }
 
         /// <summary>

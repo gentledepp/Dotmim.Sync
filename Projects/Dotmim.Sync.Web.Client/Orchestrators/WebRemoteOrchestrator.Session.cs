@@ -30,25 +30,32 @@ namespace Dotmim.Sync.Web.Client
             {
                 await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo).ConfigureAwait(false);
 
-                // Create the message to be sent
-                var httpMessage = new HttpMessageEndSessionRequest(context)
+                var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-auto-sessionend", out var se) &&
+                                  bool.TryParse(se, out var seb) && seb;
+                if (!optimizedFlow)
                 {
-                    ChangesAppliedOnClient = result.ChangesAppliedOnClient,
-                    ClientChangesSelected = result.ClientChangesSelected,
-                    ChangesAppliedOnServer = result.ChangesAppliedOnServer,
-                    CompleteTime = result.CompleteTime,
-                    ServerChangesSelected = result.ServerChangesSelected,
-                    SnapshotChangesAppliedOnClient = result.SnapshotChangesAppliedOnClient,
-                    StartTime = result.StartTime,
-                    SyncExceptionMessage = syncException?.Message,
-                };
+                    // Create the message to be sent
+                    var httpMessage = new HttpMessageEndSessionRequest(context)
+                    {
+                        ChangesAppliedOnClient = result.ChangesAppliedOnClient,
+                        ClientChangesSelected = result.ClientChangesSelected,
+                        ChangesAppliedOnServer = result.ChangesAppliedOnServer,
+                        CompleteTime = result.CompleteTime,
+                        ServerChangesSelected = result.ServerChangesSelected,
+                        SnapshotChangesAppliedOnClient = result.SnapshotChangesAppliedOnClient,
+                        StartTime = result.StartTime,
+                        SyncExceptionMessage = syncException?.Message,
+                    };
 
-                // No batch size submitted here, because the schema will be generated in memory and send back to the user.
-                var endSessionResponse = await this.ProcessRequestAsync<HttpMessageEndSessionResponse>(
-                    context, httpMessage, HttpStep.EndSession, 0, progress, cancellationToken).ConfigureAwait(false);
+                    // No batch size submitted here, because the schema will be generated in memory and send back to the user.
+                    var endSessionResponse = await this.ProcessRequestAsync<HttpMessageEndSessionResponse>(
+                        context, httpMessage, HttpStep.EndSession, 0, progress,
+                        cancellationToken).ConfigureAwait(false);
+                    
+                    if (endSessionResponse == null)
+                        throw new ArgumentException("Http Message content for End session can't be null");
+                }
 
-                if (endSessionResponse == null)
-                    throw new ArgumentException("Http Message content for End session can't be null");
 
                 // Progress & interceptor
                 var sessionEnd = new SessionEndArgs(context, result, syncException, null) { Source = this.GetServiceHost() };

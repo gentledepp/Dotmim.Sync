@@ -72,12 +72,16 @@ namespace Dotmim.Sync.PostgreSql.Scope
         public override DbCommand GetAllScopeInfosCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                $@"SELECT sync_scope_name, 
-                          sync_scope_schema, 
-                          sync_scope_setup, 
+                $@"SELECT sync_scope_name,
+                          sync_scope_schema,
+                          sync_scope_setup,
                           sync_scope_version,
                           sync_scope_last_clean_timestamp,
-                          sync_scope_properties
+                          sync_scope_properties,
+                          sync_scope_server_capabilities,
+                          sync_scope_schema_hash,
+                          sync_scope_server_version,
+                          sync_scope_capabilities_last_updated
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}";
 
             var command = connection.CreateCommand();
@@ -124,7 +128,11 @@ namespace Dotmim.Sync.PostgreSql.Scope
                     sync_scope_version varchar(10) NULL,
                     sync_scope_last_clean_timestamp bigint NULL,
                     sync_scope_properties varchar NULL,
-                    CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedFullName} 
+                    sync_scope_server_capabilities varchar NULL,
+                    sync_scope_schema_hash varchar(64) NULL,
+                    sync_scope_server_version varchar(50) NULL,
+                    sync_scope_capabilities_last_updated timestamp NULL,
+                    CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedFullName}
                     PRIMARY KEY (sync_scope_name)
                     )";
 
@@ -377,12 +385,16 @@ namespace Dotmim.Sync.PostgreSql.Scope
         public override DbCommand GetScopeInfoCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                    $@"SELECT sync_scope_name, 
-                          sync_scope_schema, 
-                          sync_scope_setup, 
+                    $@"SELECT sync_scope_name,
+                          sync_scope_schema,
+                          sync_scope_setup,
                           sync_scope_version,
                           sync_scope_last_clean_timestamp,
-                          sync_scope_properties
+                          sync_scope_properties,
+                          sync_scope_server_capabilities,
+                          sync_scope_schema_hash,
+                          sync_scope_server_version,
+                          sync_scope_capabilities_last_updated
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}
                     WHERE sync_scope_name = @sync_scope_name";
 
@@ -503,18 +515,26 @@ namespace Dotmim.Sync.PostgreSql.Scope
                                                     @sync_scope_setup AS sync_scope_setup,
                                                     @sync_scope_version AS sync_scope_version,
                                                     @sync_scope_last_clean_timestamp AS sync_scope_last_clean_timestamp,
-                                                    @sync_scope_properties as sync_scope_properties
+                                                    @sync_scope_properties as sync_scope_properties,
+                                                    @sync_scope_server_capabilities as sync_scope_server_capabilities,
+                                                    @sync_scope_schema_hash as sync_scope_schema_hash,
+                                                    @sync_scope_server_version as sync_scope_server_version,
+                                                    @sync_scope_capabilities_last_updated as sync_scope_capabilities_last_updated
                                                  )
-                                insert into  {this.ScopeInfoTableNames.QuotedFullName} (sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, sync_scope_last_clean_timestamp, sync_scope_properties)
-                                                  SELECT sync_scope_name,sync_scope_schema,sync_scope_setup,sync_scope_version,sync_scope_last_clean_timestamp,sync_scope_properties from changes
-                                on conflict (sync_scope_name)								
-                                DO UPDATE SET 
-                                                sync_scope_name = EXCLUDED.sync_scope_name, 
-                                                sync_scope_schema = EXCLUDED.sync_scope_schema, 
-                                                sync_scope_setup = EXCLUDED.sync_scope_setup, 
+                                insert into  {this.ScopeInfoTableNames.QuotedFullName} (sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, sync_scope_last_clean_timestamp, sync_scope_properties, sync_scope_server_capabilities, sync_scope_schema_hash, sync_scope_server_version, sync_scope_capabilities_last_updated)
+                                                  SELECT sync_scope_name,sync_scope_schema,sync_scope_setup,sync_scope_version,sync_scope_last_clean_timestamp,sync_scope_properties,sync_scope_server_capabilities,sync_scope_schema_hash,sync_scope_server_version,sync_scope_capabilities_last_updated from changes
+                                on conflict (sync_scope_name)
+                                DO UPDATE SET
+                                                sync_scope_name = EXCLUDED.sync_scope_name,
+                                                sync_scope_schema = EXCLUDED.sync_scope_schema,
+                                                sync_scope_setup = EXCLUDED.sync_scope_setup,
                                                 sync_scope_version = EXCLUDED.sync_scope_version,
                                                 sync_scope_last_clean_timestamp = EXCLUDED.sync_scope_last_clean_timestamp,
-                                                sync_scope_properties = EXCLUDED.sync_scope_properties
+                                                sync_scope_properties = EXCLUDED.sync_scope_properties,
+                                                sync_scope_server_capabilities = EXCLUDED.sync_scope_server_capabilities,
+                                                sync_scope_schema_hash = EXCLUDED.sync_scope_schema_hash,
+                                                sync_scope_server_version = EXCLUDED.sync_scope_server_version,
+                                                sync_scope_capabilities_last_updated = EXCLUDED.sync_scope_capabilities_last_updated
                                     returning	* ";
 
             var command = connection.CreateCommand();
@@ -556,6 +576,43 @@ namespace Dotmim.Sync.PostgreSql.Scope
             p.Size = -1;
             command.Parameters.Add(p);
 
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_server_capabilities";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_schema_hash";
+            p.DbType = DbType.String;
+            p.Size = 64;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_server_version";
+            p.DbType = DbType.String;
+            p.Size = 50;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_capabilities_last_updated";
+            p.DbType = DbType.DateTime;
+            command.Parameters.Add(p);
+
+            return command;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetMigrateScopeInfoTableCommand(DbConnection connection, DbTransaction transaction)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $@"
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD COLUMN sync_scope_server_capabilities TEXT NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD COLUMN sync_scope_schema_hash VARCHAR(64) NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD COLUMN sync_scope_server_version VARCHAR(50) NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD COLUMN sync_scope_capabilities_last_updated TIMESTAMP NULL;
+            ";
             return command;
         }
     }

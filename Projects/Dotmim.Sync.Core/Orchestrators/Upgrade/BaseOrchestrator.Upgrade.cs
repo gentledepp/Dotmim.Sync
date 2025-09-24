@@ -284,26 +284,10 @@ namespace Dotmim.Sync
                 
                 if (columns.Count == 6) // Legacy schema
                 {
-                    var dbBuilder = this.Provider.GetDatabaseBuilder();
-                    var scopeInfoTableName = scopeBuilder.GetParsedScopeInfoTableNames().QuotedFullName;
-
-                    // Add new columns for incremental sync optimization
-                    var alterCommands = new[]
-                    {
-                        $"ALTER TABLE {scopeInfoTableName} ADD [sync_scope_server_capabilities] NVARCHAR(MAX) NULL",
-                        $"ALTER TABLE {scopeInfoTableName} ADD [sync_scope_schema_hash] NVARCHAR(64) NULL", 
-                        $"ALTER TABLE {scopeInfoTableName} ADD [sync_scope_server_version] NVARCHAR(50) NULL",
-                        $"ALTER TABLE {scopeInfoTableName} ADD [sync_scope_capabilities_last_updated] DATETIME2 NULL"
-                    };
-
-                    foreach (var alterCommand in alterCommands)
-                    {
-                        var command = runner.Connection.CreateCommand();
-                        command.Transaction = runner.Transaction;
-                        command.CommandText = alterCommand;
-                        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                    }
-
+                    // Use the database-specific migration method implemented in each provider
+                    var cmd = scopeBuilder.GetMigrateScopeInfoTableCommand(runner.Connection, runner.Transaction);
+                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    
                     var message = "- Upgraded scope_info table with new columns for HTTP protocol optimization.";
                     await this.InterceptAsync(new UpgradeProgressArgs(context, message, SyncVersion.Current, 
                         runner.Connection, runner.Transaction), progress, cancellationToken).ConfigureAwait(false);

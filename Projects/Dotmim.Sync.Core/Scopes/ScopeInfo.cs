@@ -157,11 +157,7 @@ namespace Dotmim.Sync
         public bool SupportsCapability(string capabilityKey)
         {
             var capabilities = GetServerCapabilities();
-            if (capabilities?.TryGetValue(capabilityKey, out var value) == true)
-            {
-                return value is bool boolValue ? boolValue : false;
-            }
-            return false;
+            return capabilities?.ContainsKey(capabilityKey) ?? false;
         }
 
         /// <summary>
@@ -174,6 +170,9 @@ namespace Dotmim.Sync
                 SchemaHash = null;
                 return;
             }
+
+            if (!schemaJson.StartsWith("{"))
+                throw new ArgumentException($"{nameof(schemaJson)} must be valid json");
 
             SchemaHash = GenerateSchemaHash(schemaJson);
         }

@@ -120,6 +120,12 @@ namespace Dotmim.Sync.Builders
         public abstract DbCommand GetExistsScopeInfoClientCommand(DbConnection connection, DbTransaction transaction);
 
         /// <summary>
+        /// Migrates the scope_info table schema by adding missing columns for HTTP protocol optimization.
+        /// This method checks the current table schema and adds any missing columns using database-specific syntax.
+        /// </summary>
+        public abstract DbCommand GetMigrateScopeInfoTableCommand(DbConnection connection, DbTransaction transaction);
+
+        /// <summary>
         /// Remove a Command from internal shared dictionary.
         /// </summary>
         internal void RemoveCommands() => this.commands.Clear();

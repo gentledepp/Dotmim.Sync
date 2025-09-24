@@ -131,12 +131,6 @@ namespace Dotmim.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "bireq", IsRequired = true, Order = 2)]
         public int BatchIndexRequested { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether to close the session with this request.
-        /// </summary>
-        [DataMember(Name = "cls", IsRequired = false, Order = 3)]
-        public bool? CloseSession { get; set; }
     }
 
     /// <summary>

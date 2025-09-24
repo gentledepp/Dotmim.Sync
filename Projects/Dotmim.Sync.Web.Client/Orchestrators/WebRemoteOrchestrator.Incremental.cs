@@ -42,6 +42,15 @@ namespace Dotmim.Sync.Web.Client
             return true;
         }
 
+        public static bool IsOperationSupportedForOptimizedSync(SyncOperation operation)
+            => operation switch
+            {
+                SyncOperation.Normal => true,
+                SyncOperation.Reinitialize => true,
+                SyncOperation.ReinitializeWithUpload => true,
+                _ => false
+            };
+
         /// <summary>
         /// Performs an optimized sync that combines multiple protocol steps into fewer HTTP requests.
         /// Skips BeginSession, EnsureScopes, and GetOperation by using cached capabilities.
@@ -52,7 +61,9 @@ namespace Dotmim.Sync.Web.Client
             DbConnection connection = default, DbTransaction transaction = default,
             IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
-
+            // inform server that it can close the session implicitly
+            this.AddCustomHeader("dotmim-sync-auto-sessionend", "true");
+            
             SyncSet schema = cScopeInfo.Schema;
             schema.EnsureSchema();
 
@@ -89,7 +100,7 @@ namespace Dotmim.Sync.Web.Client
 
                     firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context,firstRequest, HttpStep.SendChangesInProgress, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
-                    if (!firstResponse.SchemaValid || firstResponse.Operation != SyncOperation.Normal)
+                    if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                         return (context, firstResponse.SchemaValid, firstResponse.Operation,
                             firstResponse.ServerScopeInfo, null, firstResponse.ConflictResolutionPolicy);
                 }
@@ -117,7 +128,6 @@ namespace Dotmim.Sync.Web.Client
                     {
                         // Get the updatable schema for the only table contained in the batchpartinfo
                         var schemaTable = CreateChangesTable(schema.Tables[bpi.TableName, bpi.SchemaName]);
-
 
                         if (bpi.Index == 0)
                         {
@@ -148,7 +158,7 @@ namespace Dotmim.Sync.Web.Client
 
                             firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context, firstRequest, HttpStep.SendChangesIncremental, 0, progress, cancellationToken).ConfigureAwait(false);
                             
-                            if (!firstResponse.SchemaValid || firstResponse.Operation != SyncOperation.Normal)
+                            if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                                 return (context, firstResponse.SchemaValid, firstResponse.Operation,
                                     firstResponse.ServerScopeInfo, null, firstResponse.ConflictResolutionPolicy);
                         }
@@ -291,12 +301,7 @@ namespace Dotmim.Sync.Web.Client
                 await this.WebRemoteCleanFolderAsync(context, serverBatchInfo).ConfigureAwait(false);
 
                 throw this.GetSyncError(context, ex);
-            } // throw client error
-            
-            //
-            // // Handle response
-            // return (response.SyncContext, response.SchemaValid, response.Operation, response.ServerScopeInfo,
-            //     response.ServerChangesSelected, response.ClientChangesApplied);
+            }
         }
 
 

@@ -2578,5 +2578,67 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Clean up
             this.Kestrel.IsAuthorisationEnabled = false;
         }
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task WhenServerSupportsIt_AndClientSynchronizedBefore_CanUseOptimizedSync(SyncOptions options)
+        {
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+            var clientChangeCount = 100;
+            var serverChangeCount = 100;
+            
+            // Add many rows on the client to trigger batching
+            foreach (var clientProvider in clientsProvider)
+            {
+                for (int i = 0; i < clientChangeCount; i++)
+                    await clientProvider.AddProductCategoryAsync();
+            }
+            // also add data on server
+            for (int i = 0; i < serverChangeCount; i++)
+                await this.serverProvider.AddProductCategoryAsync();
+
+            var download = 0;
+            // Execute a sync on all clients and check results
+            foreach (var clientProvider in clientsProvider)
+            {
+                var proxy = new WebRemoteOrchestrator(serviceUri);
+
+                var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
+                var allSentRequests = new List<HttpRequestMessage>();
+                var allReceivedResponses = new List<HttpResponseMessage>();
+                var sessionBegun = false;
+                var endSessionRequestWasSent = false;
+                
+                proxy.OnHttpSendingChangesRequest(r =>
+                {
+                    sentChangesRequests.Add(r.Request);
+                });
+                proxy.OnHttpSendingRequest(r =>
+                {
+                    allSentRequests.Add(r.Request);
+                });
+                proxy.OnHttpGettingResponse(r =>
+                {
+                    allReceivedResponses.Add(r.Response);
+                });
+                
+                var agent = new SyncAgent(clientProvider, proxy, options);
+
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count);
+                
+                Assert.Equal((download*clientChangeCount + serverChangeCount), s.TotalChangesDownloadedFromServer);
+                Assert.Equal(100, s.TotalChangesUploadedToServer);
+                Assert.Equal(100, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+                download++;
+            }
+        }
     }
 }

@@ -143,6 +143,7 @@ namespace Dotmim.Sync
             ClientSyncChanges clientSyncChanges = null;
             ServerSyncChanges serverSyncChanges = null;
             SyncException syncException = null;
+            var useOptimizedFlow = false;
 
             // checkpoints dates
             var startTime = DateTime.UtcNow;
@@ -174,6 +175,7 @@ namespace Dotmim.Sync
 
             this.SessionState = SyncSessionState.Synchronizing;
             this.SessionStateChanged?.Invoke(this, new SyncSessionStateEventArgs(this.SessionState));
+
 
             // await Task.Run(async () =>
             // {
@@ -245,7 +247,7 @@ namespace Dotmim.Sync
                 }
 
                 var clientIsNew = cScopeInfoClient.IsNewScope || cScopeInfo.Schema == null;
-                var useOptimizedFlow = !clientIsNew && canUseOptimizedFlow && syncType == SyncType.Normal;
+                useOptimizedFlow = !clientIsNew && canUseOptimizedFlow && syncType == SyncType.Normal;
 
                 if (useOptimizedFlow)
                 {
