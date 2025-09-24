@@ -2583,6 +2583,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         [ClassData(typeof(SyncOptionsData))]
         public async Task WhenServerSupportsIt_AndClientSynchronizedBefore_CanUseOptimizedSync(SyncOptions options)
         {
+            // since we are testing batched downloads, reduce the batchSize to a fixed minimum
+            options.BatchSize = 100;
+            
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
                 await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
@@ -2632,6 +2635,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(2, allSentRequests.Count); // only 2 requests should be sent
                 
                 Assert.Equal((download*clientChangeCount + serverChangeCount), s.TotalChangesDownloadedFromServer);
                 Assert.Equal(100, s.TotalChangesUploadedToServer);

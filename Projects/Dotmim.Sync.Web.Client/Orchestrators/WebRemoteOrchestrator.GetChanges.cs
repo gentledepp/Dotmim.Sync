@@ -156,15 +156,34 @@ namespace Dotmim.Sync.Web.Client
 
             lstbpi ??= serverBatchInfo.BatchPartsInfo.OrderByDescending(bpi => bpi.Index).FirstOrDefault();
 
-            // Parrallel download of all bpis except the last one (which will launch the delete directory on the server side)
-            await bpis.ForEachAsync(bpi => this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, bpi, HttpStep.GetMoreChanges, progress, cancellationToken), this.MaxDownladingDegreeOfParallelism).ConfigureAwait(false);
+            var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-optimized", out var se) &&
+                                bool.TryParse(se, out var seb) && seb;
 
-            // Download last batch part that will launch the server deletion of the tmp dir
-            await this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, lstbpi, HttpStep.GetMoreChanges, progress, cancellationToken).ConfigureAwait(false);
+            if (optimizedFlow)
+            {
+                // Parrallel download of all bpis except the last one
+                await bpis.ForEachAsync(
+                        bpi => this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, bpi,
+                            HttpStep.GetMoreChanges, progress, cancellationToken),
+                        this.MaxDownladingDegreeOfParallelism)
+                    .ConfigureAwait(false);
 
-            // Send end of download
-            await this.ProcessRequestAsync<HttpMessageSendChangesResponse>(context, new HttpMessageGetMoreChangesRequest(context, lstbpi == null ? 0 : lstbpi.Index),
-                HttpStep.SendEndDownloadChanges, 0, progress, cancellationToken).ConfigureAwait(false);
+                // Download last batch part with cleanup - the method will detect it's the last batch and use SendEndDownloadChanges
+                await this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, lstbpi, HttpStep.SendEndDownloadChanges , progress, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                // Parrallel download of all bpis except the last one (which will launch the delete directory on the server side)
+                await bpis.ForEachAsync(bpi => this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, bpi, HttpStep.GetMoreChanges, progress, cancellationToken), this.MaxDownladingDegreeOfParallelism).ConfigureAwait(false);
+
+                // Download last batch part that will launch the server deletion of the tmp dir
+                await this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, lstbpi, HttpStep.GetMoreChanges, progress, cancellationToken).ConfigureAwait(false);
+
+                // Send end of download
+                await this.ProcessRequestAsync<HttpMessageSendChangesResponse>(context, new HttpMessageGetMoreChangesRequest(context, lstbpi == null ? 0 : lstbpi.Index),
+                    HttpStep.SendEndDownloadChanges, 0, progress, cancellationToken).ConfigureAwait(false);
+
+            }
 
             await this.InterceptAsync(new HttpBatchesDownloadedArgs(summary, context, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
         }
@@ -185,7 +204,7 @@ namespace Dotmim.Sync.Web.Client
 
             // Raise get changes request
             context.ProgressPercentage = initialPctProgress + ((bpi.Index + 1) * 0.2d / serverBatchInfo.BatchPartsInfo.Count);
-
+            
             var response = await this.ProcessRequestAsync(changesToSend, step, 0, progress, cancellationToken).ConfigureAwait(false);
 
             // If we are using a serializer that is not JSON, need to load in memory, then serialize to JSON

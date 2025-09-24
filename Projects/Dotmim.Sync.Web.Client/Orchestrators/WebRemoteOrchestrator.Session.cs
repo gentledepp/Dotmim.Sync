@@ -30,7 +30,7 @@ namespace Dotmim.Sync.Web.Client
             {
                 await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo).ConfigureAwait(false);
 
-                var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-auto-sessionend", out var se) &&
+                var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-optimized", out var se) &&
                                   bool.TryParse(se, out var seb) && seb;
                 if (!optimizedFlow)
                 {

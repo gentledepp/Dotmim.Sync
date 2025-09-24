@@ -62,7 +62,7 @@ namespace Dotmim.Sync.Web.Client
             IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
             // inform server that it can close the session implicitly
-            this.AddCustomHeader("dotmim-sync-auto-sessionend", "true");
+            this.AddCustomHeader("dotmim-sync-optimized", "true");
             
             SyncSet schema = cScopeInfo.Schema;
             schema.EnsureSchema();

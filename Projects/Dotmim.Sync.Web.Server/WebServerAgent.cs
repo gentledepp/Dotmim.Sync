@@ -1008,7 +1008,7 @@ namespace Dotmim.Sync.Web.Server
             SessionCache sessionCache, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
             // Handle session close integration
-            if (TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-auto-sessionend", out string autoEnd) && bool.TryParse(autoEnd, out var b) & b)
+            if (TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out string autoEnd) && bool.TryParse(autoEnd, out var b) & b)
             {
                 // Create EndSession request to reuse existing logic
                 var endSessionRequest = new HttpMessageEndSessionRequest(context)
@@ -1093,15 +1093,35 @@ namespace Dotmim.Sync.Web.Server
         }
 
         /// <summary>
-        /// Send an end download changes message.
+        /// Send an end download changes message - combines batch data retrieval with cleanup for optimized clients.
         /// </summary>
         protected internal virtual async Task<HttpMessageSendChangesResponse> SendEndDownloadChangesAsync(
             HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
             SessionCache sessionCache, IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
+            // Check if client is using optimized protocol
+            var isOptimizedClient = TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out var optimizedValue) &&
+                                   bool.TryParse(optimizedValue, out var isOptimized) && isOptimized;
+
+            HttpMessageSendChangesResponse response;
+
+            if (isOptimizedClient)
+            {
+                // New optimized protocol: return batch data + cleanup
+                response = await this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
+                    sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
+                    sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
+            }
+            else
+            {
+                // Legacy protocol: return empty response (cleanup only)
+                response = new HttpMessageSendChangesResponse(httpMessage.SyncContext);
+            }
+
+            // Perform cleanup logic for both protocols
             var batchPartInfo = sessionCache.ServerBatchInfo.BatchPartsInfo.FirstOrDefault(d => d.Index == httpMessage.BatchIndexRequested);
 
-            // we can try to clean if batchinfo is empty of if we found the last one AND we have the option.
+            // we can try to clean if batchinfo is empty or if we found the last one AND we have the option.
             var cleanFolder = (batchPartInfo == null || batchPartInfo.IsLastBatch) && this.Options.CleanFolder;
 
             if (cleanFolder)
@@ -1109,7 +1129,15 @@ namespace Dotmim.Sync.Web.Server
 
             if (cleanFolder)
                 sessionCache.ServerBatchInfo.TryRemoveDirectory();
-            return new HttpMessageSendChangesResponse(httpMessage.SyncContext) { ServerStep = HttpStep.SendEndDownloadChanges };
+
+            // Update the response to indicate this was the end download step
+            response.ServerStep = HttpStep.SendEndDownloadChanges;
+
+            // Handle automatic session end for optimized clients
+            if(isOptimizedClient && response.IsLastBatch)
+                await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
+
+            return response;
         }
 
         private static async Task UpgradeAsync(RemoteOrchestrator remoteOrchestrator)
