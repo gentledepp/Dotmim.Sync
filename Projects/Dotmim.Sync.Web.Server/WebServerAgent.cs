@@ -1018,7 +1018,7 @@ namespace Dotmim.Sync.Web.Server
                 };
 
                 // Execute EndSession logic
-                var endSessionResponse = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
+                var _ = await this.EndSessionAsync(httpContext, endSessionRequest, progress, cancellationToken);
             }
         }
 

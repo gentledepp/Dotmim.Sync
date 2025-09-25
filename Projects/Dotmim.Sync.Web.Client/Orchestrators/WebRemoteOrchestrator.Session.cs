@@ -28,12 +28,12 @@ namespace Dotmim.Sync.Web.Client
         {
             try
             {
-                await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo).ConfigureAwait(false);
-
                 var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-optimized", out var se) &&
                                   bool.TryParse(se, out var seb) && seb;
                 if (!optimizedFlow)
                 {
+                    await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo).ConfigureAwait(false);
+                    
                     // Create the message to be sent
                     var httpMessage = new HttpMessageEndSessionRequest(context)
                     {
