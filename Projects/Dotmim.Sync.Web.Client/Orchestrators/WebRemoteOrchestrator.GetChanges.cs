@@ -151,7 +151,7 @@ namespace Dotmim.Sync.Web.Client
             await this.InterceptAsync(new HttpBatchesDownloadingArgs(context, serverBatchInfo, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
             // hook to get the last batch part info at the end
-            var bpis = serverBatchInfo.BatchPartsInfo.Where(bpi => !bpi.IsLastBatch);
+            var bpis = serverBatchInfo.BatchPartsInfo.Where(bpi => !bpi.IsLastBatch).ToList();
             var lstbpi = serverBatchInfo.BatchPartsInfo.FirstOrDefault(bpi => bpi.IsLastBatch);
 
             lstbpi ??= serverBatchInfo.BatchPartsInfo.OrderByDescending(bpi => bpi.Index).FirstOrDefault();
@@ -161,10 +161,14 @@ namespace Dotmim.Sync.Web.Client
 
             if (optimizedFlow)
             {
+                // in optimized flow, the first batch is automatically downloaded in the response of the last "SendChanges" request
+                var firstBpi = bpis.Single(b => b.Index == 0);
+                var alreadyDownloaded = File.Exists(Path.Combine(serverBatchInfo.GetDirectoryFullPath(), firstBpi.FileName));
+                if (alreadyDownloaded)
+                    bpis.Remove(firstBpi);
+                
                 // Parrallel download of all bpis except the last one
                 await bpis
-                    // in optimized flow, the first batch is automatically downloaded in the response of the last "SendChanges" request
-                    .Where(bpi => bpi.Index != 0)
                     .ForEachAsync(
                         bpi => this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, bpi,
                             HttpStep.GetMoreChanges, progress, cancellationToken),

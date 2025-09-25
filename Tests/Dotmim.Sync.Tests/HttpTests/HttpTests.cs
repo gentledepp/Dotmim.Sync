@@ -603,6 +603,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         [ClassData(typeof(SyncOptionsData))]
         public async Task InsertOneRowInOneTableOnClientSideThenInsertAgainDuringGetChanges(SyncOptions options)
         {
+            options.OptimizedFlowEnabled = true;
+            
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
                 await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
@@ -651,7 +653,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 agent.LocalOrchestrator.ClearInterceptors();
 
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(download, s.TotalChangesAppliedOnClient);
                 Assert.Equal(3, s.TotalChangesUploadedToServer);
+                Assert.Equal(3, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download += 3;
 
@@ -668,7 +672,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var s = await agent.SynchronizeAsync();
 
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(download, s.TotalChangesAppliedOnClient);
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
+                Assert.Equal(1, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download -= 2;
             }
