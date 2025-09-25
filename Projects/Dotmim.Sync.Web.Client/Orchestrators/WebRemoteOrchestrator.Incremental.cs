@@ -55,7 +55,7 @@ namespace Dotmim.Sync.Web.Client
         /// Performs an optimized sync that combines multiple protocol steps into fewer HTTP requests.
         /// Skips BeginSession, EnsureScopes, and GetOperation by using cached capabilities.
         /// </summary>
-        public async Task<(SyncContext, bool, SyncOperation, ScopeInfo?, ServerSyncChanges, ConflictResolutionPolicy)> 
+        public async Task<(SyncContext, bool, SyncOperation, ScopeInfo?, ScopeInfo, ServerSyncChanges, ConflictResolutionPolicy)>
             SynchronizeOptimizedAsync(ScopeInfoClient cScopeInfoClient, ScopeInfo cScopeInfo,
                SyncContext context, ClientSyncChanges clientChanges,
             DbConnection connection = default, DbTransaction transaction = default,
@@ -106,7 +106,7 @@ namespace Dotmim.Sync.Web.Client
                     
                     if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                         return (context, firstResponse.SchemaValid, firstResponse.Operation,
-                            firstResponse.ServerScopeInfo, null, firstResponse.ConflictResolutionPolicy);
+                            firstResponse.ServerScopeInfo, cScopeInfo, null, firstResponse.ConflictResolutionPolicy);
                 }
                 catch (HttpSyncWebException)
                 {
@@ -166,7 +166,7 @@ namespace Dotmim.Sync.Web.Client
                             
                             if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
                                 return (context, firstResponse.SchemaValid, firstResponse.Operation,
-                                    firstResponse.ServerScopeInfo, null, firstResponse.ConflictResolutionPolicy);
+                                    firstResponse.ServerScopeInfo, cScopeInfo, null, firstResponse.ConflictResolutionPolicy);
                         }
                         else
                         {
@@ -354,9 +354,6 @@ namespace Dotmim.Sync.Web.Client
                     cScopeInfo.ServerCapabilities = firstResponse.ServerCapabilities ?? cScopeInfo.ServerCapabilities;
                     cScopeInfo.ServerVersion = firstResponse.ServerVersion ?? cScopeInfo.ServerVersion;
                     cScopeInfo.CapabilitiesLastUpdated = firstResponse.CapabilitiesLastUpdated ?? cScopeInfo.CapabilitiesLastUpdated;
-
-                    // Save updated scope info with server capabilities
-                    // await this.SaveScopeInfoAsync(cScopeInfo).ConfigureAwait(false);
                 }
 
                 var serverSyncChanges = new ServerSyncChanges(
@@ -365,7 +362,7 @@ namespace Dotmim.Sync.Web.Client
                     summaryResponseContent.ServerChangesSelected,
                     summaryResponseContent.ClientChangesApplied);
 
-                return (context, true, firstResponse.Operation, firstResponse.ServerScopeInfo, serverSyncChanges, summaryResponseContent.ConflictResolutionPolicy);
+                return (context, true, firstResponse.Operation, firstResponse.ServerScopeInfo, cScopeInfo, serverSyncChanges, summaryResponseContent.ConflictResolutionPolicy);
             }
             catch (HttpSyncWebException)
             {

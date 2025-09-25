@@ -256,7 +256,7 @@ namespace Dotmim.Sync
                         default, default, progress, cancellationToken).ConfigureAwait(false);
                  
                     // send optimized
-                    (context, isClientSchemaValid, operation, sScopeInfo, serverSyncChanges, serverResolutionPolicy) =
+                    (context, isClientSchemaValid, operation, sScopeInfo, cScopeInfo, serverSyncChanges, serverResolutionPolicy) =
                         await ((IIncrementalSyncOrchestrator)this.RemoteOrchestrator).SynchronizeOptimizedAsync(
                             cScopeInfoClient, cScopeInfo, context, clientSyncChanges, default, default, progress, cancellationToken).ConfigureAwait(false);
                     

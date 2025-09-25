@@ -32,8 +32,8 @@ namespace Dotmim.Sync
         /// <param name="transaction">Database transaction</param>
         /// <param name="progress">Progress reporter</param>
         /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>Server sync changes and conflict resolution policy</returns>
-        Task<(SyncContext Context, bool isSchemaValid, SyncOperation, ScopeInfo?, ServerSyncChanges ServerSyncChanges, ConflictResolutionPolicy ServerResolutionPolicy)>
+        /// <returns>Context, schema validity, operation type, server scope info, updated client scope info, server sync changes, and conflict resolution policy</returns>
+        Task<(SyncContext Context, bool isSchemaValid, SyncOperation Operation, ScopeInfo? ServerScopeInfo, ScopeInfo UpdatedClientScopeInfo, ServerSyncChanges ServerSyncChanges, ConflictResolutionPolicy ServerResolutionPolicy)>
             SynchronizeOptimizedAsync(ScopeInfoClient scopeInfoClient, ScopeInfo scopeInfo,
             SyncContext context, ClientSyncChanges clientChanges,
             System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,

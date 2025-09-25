@@ -2677,6 +2677,22 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(100, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download++;
+                
+                
+                sentChangesRequests.Clear();
+                allSentRequests.Clear();
+                allReceivedResponses.Clear();
+
+                // ensure client timestamp is handled correctly
+                var s2 = await agent.SynchronizeAsync();
+                Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(1, allSentRequests.Count); 
+                Assert.Equal(1, allReceivedResponses.Count);
+                
+                Assert.Equal(0, s2.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s2.TotalChangesUploadedToServer);
+                Assert.Equal(0, s2.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s2.TotalResolvedConflicts);
             }
         }
         
