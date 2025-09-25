@@ -143,8 +143,6 @@ namespace Dotmim.Sync.Web.Client
 
                     foreach (var bpi in clientChanges.ClientBatchInfo.BatchPartsInfo.OrderBy(bpi => bpi.Index))
                     {
-                        // Get the updatable schema for the only table contained in the batchpartinfo
-                        var schemaTable = CreateChangesTable(schema.Tables[bpi.TableName, bpi.SchemaName]);
 
                         if (bpi.Index == 0)
                         {
@@ -153,21 +151,9 @@ namespace Dotmim.Sync.Web.Client
                             firstRequest.BatchCount = clientChanges.ClientBatchInfo.BatchPartsInfo.Count;
                             firstRequest.ClientLastSyncTimestamp = clientChanges.ClientTimestamp;
 
-                            // Generate the ContainerSet containing rows to send to the user
-                            var containerTable = new ContainerTable(schemaTable);
-                            firstRequest.Changes.Tables.Add(containerTable);
-
-                            // read rows from file
                             var fullPath = Path.Combine(clientChanges.ClientBatchInfo.GetDirectoryFullPath(), bpi.FileName);
-                            foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
-                            {
-                                if (this.Converter != null && row.Length > 0)
-                                    this.Converter.BeforeSerialize(row, schemaTable);
 
-                                containerTable.Rows.Add(row.ToArray());
-                            }
-
-                            tmpRowsSendedCount += containerTable.Rows.Count;
+                            tmpRowsSendedCount += await this.LoadChangesFromBatch(bpi, schema, fullPath, firstRequest, localSerializer).ConfigureAwait(false);
 
                             context.ProgressPercentage = initialPctProgress1 + ((firstRequest.BatchIndex + 1) * 0.2d / firstRequest.BatchCount);
                             
@@ -202,21 +188,10 @@ namespace Dotmim.Sync.Web.Client
                                 ClientLastSyncTimestamp = clientChanges.ClientTimestamp,
                             };
 
-                            // Generate the ContainerSet containing rows to send to the user
-                            var containerTable = new ContainerTable(schemaTable);
-                            changesToSend.Changes.Tables.Add(containerTable);
-
                             // read rows from file
                             var fullPath = Path.Combine(clientChanges.ClientBatchInfo.GetDirectoryFullPath(), bpi.FileName);
-                            foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
-                            {
-                                if (this.Converter != null && row.Length > 0)
-                                    this.Converter.BeforeSerialize(row, schemaTable);
 
-                                containerTable.Rows.Add(row.ToArray());
-                            }
-
-                            tmpRowsSendedCount += containerTable.Rows.Count;
+                            tmpRowsSendedCount += await this.LoadChangesFromBatch(bpi, schema, fullPath, changesToSend, localSerializer).ConfigureAwait(false);
 
                             context.ProgressPercentage = initialPctProgress1 + ((changesToSend.BatchIndex + 1) * 0.2d / changesToSend.BatchCount);
                             await this.InterceptAsync(new HttpSendingClientChangesRequestArgs(changesToSend, tmpRowsSendedCount, clientChanges.ClientBatchInfo.RowsCount, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
@@ -342,6 +317,79 @@ namespace Dotmim.Sync.Web.Client
             }
         }
 
+        private async Task<int> LoadChangesFromBatch(BatchPartInfo bpi, SyncSet schema, string fullPath,
+            HttpMessageSendChangesRequest firstRequest, LocalJsonSerializer localSerializer)
+        {
+            var tmpRowsSendedCount = 0;
+            // For unified batches, we don't need a specific schema table since it contains multiple tables
+            SyncTable schemaTable = null;
+            if (bpi.TableName != "UNIFIED")
+            {
+                // Get the updatable schema for the only table contained in the batchpartinfo
+                schemaTable = CreateChangesTable(schema.Tables[bpi.TableName, bpi.SchemaName]);
+            }
+
+            if (bpi.TableName == "UNIFIED")
+            {
+                // Handle unified batch file - deserialize the entire ContainerSet directly
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                try
+                {
+                    using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read))
+                    {
+                        firstRequest.Changes = await serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false);
+                    }
+
+                    // Apply converter if needed after deserialization
+                    if (this.Converter != null && firstRequest.Changes.HasRows)
+                    {
+                        foreach (var containerTable in firstRequest.Changes.Tables)
+                        {
+                            if (containerTable.HasRows)
+                            {
+                                var schemaTable2 = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+
+                                for (int i = 0; i < containerTable.Rows.Count; i++)
+                                {
+                                    var row = containerTable.Rows[i];
+                                    // Row format is always: [state, col1, col2, ..., colN]
+                                    var syncRow = new SyncRow(schemaTable2, row);
+                                    this.Converter.BeforeSerialize(syncRow, schemaTable2);
+                                    // Note: row is a reference to the same array in SyncRow, so modifications are reflected
+                                }
+                            }
+                        }
+                    }
+
+                    // Count total rows in all tables
+                    tmpRowsSendedCount = firstRequest.Changes?.Tables?.Sum(t => t.Rows.Count) ?? 0;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Failed to deserialize unified batch file '{fullPath}'. Error: {ex.Message}", ex);
+                }
+            }
+            else
+            {
+                // Handle traditional single-table batch file
+                var containerTable = new ContainerTable(schemaTable);
+                firstRequest.Changes.Tables.Add(containerTable);
+
+                // read rows from file
+                foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
+                {
+                    if (this.Converter != null && row.Length > 0)
+                        this.Converter.BeforeSerialize(row, schemaTable);
+
+                    containerTable.Rows.Add(row.ToArray());
+                }
+
+                tmpRowsSendedCount += containerTable.Rows.Count;
+            }
+
+            return tmpRowsSendedCount;
+        }
+
         private async Task<BatchInfo> ReconstructFirstBatchInfoFromChangeSet(SyncContext context,
             HttpMessageSummaryResponse summaryResponseContent, SyncSet schema)
         {
@@ -358,50 +406,102 @@ namespace Dotmim.Sync.Web.Client
             if (!Directory.Exists(serverBatchInfo.GetDirectoryFullPath()))
                 Directory.CreateDirectory(serverBatchInfo.GetDirectoryFullPath());
 
-            // Process the first batch data from Changes property
-            using var localSerializer = new LocalJsonSerializer(this, context);
-            foreach (var containerTable in summaryResponseContent.Changes.Tables)
+            // Check if this is a unified batch response
+            if (context.UseUnifiedBatching && summaryResponseContent.Changes.Tables.Count >= 1)
             {
-                var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
-                var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
-                var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
-
-                // Create first batch part info (index 0)
-                var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
+                // Handle unified batch - serialize the entire ContainerSet directly
+                var fileName = BatchInfo.GenerateNewFileName("0", "UNIFIED", "json", "");
                 var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
 
-                SyncRowState syncRowState = SyncRowState.None;
-                if (containerTable.Rows != null && containerTable.Rows.Count > 0)
+                // Apply converter if needed before serialization
+                if (this.Converter != null && summaryResponseContent.Changes.HasRows)
                 {
-                    var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
-                    syncRowState = sr.RowState;
+                    foreach (var containerTable in summaryResponseContent.Changes.Tables)
+                    {
+                        if (containerTable.HasRows)
+                        {
+                            var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+
+                            foreach (var row in containerTable.Rows)
+                            {
+                                var syncRow = new SyncRow(schemaTable, row);
+
+                                this.Converter.AfterDeserialized(syncRow, schemaTable);
+                            }
+                        }
+                    }
                 }
 
-                // Save first batch data to file
-                await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
-
-                foreach (var row in containerTable.Rows)
+                // Serialize the entire ContainerSet to one unified file
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
                 {
-                    var syncRow = new SyncRow(schemaTable, row);
-                    if (this.Converter != null && syncRow.Length > 0)
-                        this.Converter.AfterDeserialized(syncRow, schemaTable);
-
-                    await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                    var data = await serializer.SerializeAsync(summaryResponseContent.Changes).ConfigureAwait(false);
+                    await fileStream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
                 }
 
-                // Create batch part info for first batch
+                // Create single BatchPartInfo for the unified batch
+                var totalRowsCount = summaryResponseContent.Changes.Tables.Sum(t => t.Rows?.Count ?? 0);
                 var firstBpi = new BatchPartInfo
                 {
                     FileName = fileName,
-                    TableName = containerTable.TableName,
-                    SchemaName = containerTable.SchemaName,
-                    RowsCount = containerTable.Rows.Count,
+                    TableName = "UNIFIED",
+                    SchemaName = null,
+                    RowsCount = totalRowsCount,
                     IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
                     Index = 0,
                 };
 
                 serverBatchInfo.BatchPartsInfo.Add(firstBpi);
                 serverBatchInfo.RowsCount += firstBpi.RowsCount;
+            }
+            else
+            {
+                // Traditional batch processing - handle each table separately
+                using var localSerializer = new LocalJsonSerializer(this, context);
+                foreach (var containerTable in summaryResponseContent.Changes.Tables)
+                {
+                    var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+                    var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
+                    var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
+
+                    // Create first batch part info (index 0)
+                    var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
+                    var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
+
+                    SyncRowState syncRowState = SyncRowState.None;
+                    if (containerTable.Rows != null && containerTable.Rows.Count > 0)
+                    {
+                        var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
+                        syncRowState = sr.RowState;
+                    }
+
+                    // Save first batch data to file
+                    await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+
+                    foreach (var row in containerTable.Rows)
+                    {
+                        var syncRow = new SyncRow(schemaTable, row);
+                        if (this.Converter != null && syncRow.Length > 0)
+                            this.Converter.AfterDeserialized(syncRow, schemaTable);
+
+                        await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                    }
+
+                    // Create batch part info for first batch
+                    var firstBpi = new BatchPartInfo
+                    {
+                        FileName = fileName,
+                        TableName = containerTable.TableName,
+                        SchemaName = containerTable.SchemaName,
+                        RowsCount = containerTable.Rows.Count,
+                        IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
+                        Index = 0,
+                    };
+
+                    serverBatchInfo.BatchPartsInfo.Add(firstBpi);
+                    serverBatchInfo.RowsCount += firstBpi.RowsCount;
+                }
             }
 
             return serverBatchInfo;

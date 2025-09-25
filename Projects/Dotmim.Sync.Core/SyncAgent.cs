@@ -162,7 +162,7 @@ namespace Dotmim.Sync
                 Parameters = parameters,
 
                 // set sync type (Normal, Reinitialize, ReinitializeWithUpload)
-                SyncType = syncType,
+                SyncType = syncType
             };
 
             // Result, with sync results stats.
@@ -234,6 +234,10 @@ namespace Dotmim.Sync
                     (context, cScopeInfo) = await this.LocalOrchestrator.InternalEnsureScopeInfoAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
                     (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalEnsureScopeInfoClientAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
 
+                    // check if the server supports unified batching
+                    if (this.Options.UseUnifiedBatching)
+                        context.UseUnifiedBatching = true;
+                    
                     // Check if remote orchestrator supports optimization
                     if (this.Options.OptimizedFlowEnabled && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
                     {

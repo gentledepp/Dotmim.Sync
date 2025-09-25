@@ -73,9 +73,6 @@ namespace Dotmim.Sync.Web.Client
 
                     foreach (var bpi in clientChanges.ClientBatchInfo.BatchPartsInfo.OrderBy(bpi => bpi.Index))
                     {
-                        // Get the updatable schema for the only table contained in the batchpartinfo
-                        var schemaTable = CreateChangesTable(schema.Tables[bpi.TableName, bpi.SchemaName]);
-
                         // Create the send changes request
                         var changesToSend = new HttpMessageSendChangesRequest(context, cScopeInfoClient)
                         {
@@ -85,21 +82,9 @@ namespace Dotmim.Sync.Web.Client
                             ClientLastSyncTimestamp = clientChanges.ClientTimestamp,
                         };
 
-                        // Generate the ContainerSet containing rows to send to the user
-                        var containerTable = new ContainerTable(schemaTable);
-                        changesToSend.Changes.Tables.Add(containerTable);
-
-                        // read rows from file
                         var fullPath = Path.Combine(clientChanges.ClientBatchInfo.GetDirectoryFullPath(), bpi.FileName);
-                        foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
-                        {
-                            if (this.Converter != null && row.Length > 0)
-                                this.Converter.BeforeSerialize(row, schemaTable);
+                        tmpRowsSendedCount += await this.LoadChangesFromBatch(bpi, schema, fullPath, changesToSend, localSerializer).ConfigureAwait(false);
 
-                            containerTable.Rows.Add(row.ToArray());
-                        }
-
-                        tmpRowsSendedCount += containerTable.Rows.Count;
 
                         context.ProgressPercentage = initialPctProgress1 + ((changesToSend.BatchIndex + 1) * 0.2d / changesToSend.BatchCount);
                         await this.InterceptAsync(new HttpSendingClientChangesRequestArgs(changesToSend, tmpRowsSendedCount, clientChanges.ClientBatchInfo.RowsCount, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);

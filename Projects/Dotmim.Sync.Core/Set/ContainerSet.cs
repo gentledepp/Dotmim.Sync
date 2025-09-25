@@ -62,5 +62,24 @@ namespace Dotmim.Sync
 
             this.Tables.Clear();
         }
+        
+        /// <summary>
+        /// Gets or creates a container table with batching support for the specified SyncTable.
+        /// </summary>
+        /// <param name="syncTable">The sync table</param>
+        /// <returns>The container table with batching column support</returns>
+        public ContainerTable GetOrCreateBatchingTable(SyncTable syncTable)
+        {
+            var existingTable = this.Tables.FirstOrDefault(t =>
+                string.Equals(t.TableName, syncTable.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName, syncTable.SchemaName, StringComparison.OrdinalIgnoreCase));
+
+            if (existingTable != null)
+                return existingTable;
+
+            var containerTable = new ContainerTable(syncTable, includeBatchingColumn: true);
+            this.Tables.Add(containerTable);
+            return containerTable;
+        }
     }
 }
