@@ -236,12 +236,16 @@ namespace Dotmim.Sync
                 if (!File.Exists(fullPath))
                     continue;
 
-                // Get table from file
+                // For unified batches, create a filter table with the requested name
+                // so GetRowsFromFile knows which table to extract
                 if (syncTable == null)
-                    (syncTable, _, _) = LocalJsonSerializer.GetSchemaTableFromFile(fullPath);
+                    syncTable = new SyncTable(tableName, schemaName);
 
                 foreach (var syncRow in localSerializer.GetRowsFromFile(fullPath, syncTable))
                 {
+                    // Update syncTable reference to use the one with full schema from the first row
+                    if (syncTable.Columns.Count == 0 && syncRow.SchemaTable != null)
+                        syncTable = syncRow.SchemaTable;
 
                     if (!syncRowState.HasValue || syncRowState == default || (syncRowState.HasValue && syncRowState.Value.HasFlag(syncRow.RowState)))
                         syncTable.Rows.Add(syncRow);

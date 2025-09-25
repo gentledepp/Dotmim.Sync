@@ -44,17 +44,18 @@ namespace Dotmim.Sync.Serialization
         {
             Guard.ThrowIfNull(writer);
 
-            if (value == null || value.Count == 0)
-                return;
-
             writer.WriteStartArray();
-            foreach (var valueArray in value)
-            {
-                writer.WriteStartArray();
-                foreach (var v in valueArray)
-                    ObjectToInferredTypesConverter.WriteValue(writer, v, options);
 
-                writer.WriteEndArray();
+            if (value != null && value.Count > 0)
+            {
+                foreach (var valueArray in value)
+                {
+                    writer.WriteStartArray();
+                    foreach (var v in valueArray)
+                        ObjectToInferredTypesConverter.WriteValue(writer, v, options);
+
+                    writer.WriteEndArray();
+                }
             }
 
             writer.WriteEndArray();

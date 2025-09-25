@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace Dotmim.Sync
@@ -34,7 +35,7 @@ namespace Dotmim.Sync
         [DataMember(Name = "r", IsRequired = false, Order = 4)]
 
         // [JsonConverter(typeof(ArrayJsonConverter))]
-        public List<object[]> Rows { get; set; } = new List<dynamic[]>();
+        public List<object[]> Rows { get; set; } = new List<object[]>();
 
         /// <inheritdoc cref="ContainerTable"/>
         public ContainerTable()
@@ -51,6 +52,22 @@ namespace Dotmim.Sync
             {
                 this.Columns.Add(new ContainerTableColum { ColumnName = column.ColumnName, TypeName = column.DataType, IsPrimaryKey = table.IsPrimaryKey(column) ? 1 : null });
             }
+        }
+
+        /// <inheritdoc cref="ContainerTable"/>
+        public ContainerTable(SyncTable table, bool includeBatchingColumn)
+        {
+            this.TableName = table.TableName;
+            this.SchemaName = table.SchemaName;
+            this.Columns = [];
+
+            foreach (var column in table.Columns)
+            {
+                this.Columns.Add(new ContainerTableColum { ColumnName = column.ColumnName, TypeName = column.DataType, IsPrimaryKey = table.IsPrimaryKey(column) ? 1 : null });
+            }
+
+            // Note: includeBatchingColumn parameter is kept for backward compatibility but ignored
+            // RowState is now serialized at position 0 of each row, not as a separate column
         }
 
         /// <summary>

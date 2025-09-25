@@ -21,6 +21,160 @@ namespace Dotmim.Sync
     {
 
         /// <summary>
+        /// Gets a batch of changes using unified multi-table batching optimization.
+        /// Creates a single ContainerSet instead of separate files per table/operation.
+        /// </summary>
+        /// <returns>A DbSyncContext object that will be used to retrieve the modified data.</returns>
+        internal virtual async Task<DatabaseChangesSelected> InternalGetChangesUnifiedAsync(
+                             ScopeInfo scopeInfo, SyncContext context, bool isNew, long? fromLastTimestamp, Guid? excludingScopeId,
+                             bool supportsMultiActiveResultSets, BatchInfo batchInfo,
+                             DbConnection connection, DbTransaction transaction,
+                             IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Statistics about changes that are selected
+                DatabaseChangesSelected changesSelected;
+
+                context.SyncStage = SyncStage.ChangesSelecting;
+
+                // Create a new empty in-memory batch info
+                if (context.SyncWay == SyncWay.Upload && context.SyncType == SyncType.Reinitialize)
+                    return new DatabaseChangesSelected();
+
+                // create local directory
+                if (!string.IsNullOrEmpty(batchInfo.DirectoryRoot) && !Directory.Exists(batchInfo.DirectoryRoot))
+                    Directory.CreateDirectory(batchInfo.DirectoryRoot);
+
+                changesSelected = new DatabaseChangesSelected();
+
+                var cptSyncTable = 0;
+                var currentProgress = context.ProgressPercentage;
+
+                var schemaTables = scopeInfo.Schema.Tables.SortByDependencies(tab => tab.GetRelations().Select(r => r.GetParentTable()));
+
+                var lstTableChangesSelected = new ConcurrentBag<TableChangesSelected>();
+
+                var totalRowsCount = 0;
+                var batchPartInfos = new List<BatchPartInfo>();
+
+                var threadNumberLimits = supportsMultiActiveResultSets ? 16 : 1;
+
+                // Semaphore to ensure only one thread at a time can add rows and create batch files
+                using var batchingLock = new SemaphoreSlim(1, 1);
+
+                // Unified batch serializer for incremental writing
+                var unifiedSerializer = new Serialization.UnifiedBatchSerializer();
+                var currentBatchRowCount = 0;
+
+                if (supportsMultiActiveResultSets)
+                {
+                    await schemaTables.ForEachAsync(
+                        async syncTable =>
+                        {
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
+
+                            // tmp count of table for report progress pct
+                            cptSyncTable++;
+
+                            TableChangesSelected tableChangesSelected;
+                            (context, tableChangesSelected, currentBatchRowCount) = await this.InternalReadSyncTableChangesUnifiedAsync(
+                                    scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                            if (tableChangesSelected != null && (tableChangesSelected.Deletes > 0 || tableChangesSelected.Upserts > 0))
+                            {
+                                lstTableChangesSelected.Add(tableChangesSelected);
+                                Interlocked.Add(ref totalRowsCount, tableChangesSelected.TotalChanges);
+                            }
+
+                            context.ProgressPercentage = currentProgress + (cptSyncTable * 0.2d / scopeInfo.Schema.Tables.Count);
+                        }, threadNumberLimits).ConfigureAwait(false);
+                }
+                else
+                {
+                    foreach (var syncTable in schemaTables)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            continue;
+
+                        // tmp count of table for report progress pct
+                        cptSyncTable++;
+
+                        TableChangesSelected tableChangesSelected;
+                        (context, tableChangesSelected, currentBatchRowCount) = await this.InternalReadSyncTableChangesUnifiedAsync(
+                                scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                        if (tableChangesSelected != null && (tableChangesSelected.Deletes > 0 || tableChangesSelected.Upserts > 0))
+                        {
+                            lstTableChangesSelected.Add(tableChangesSelected);
+                            totalRowsCount += tableChangesSelected.TotalChanges;
+                        }
+
+                        context.ProgressPercentage = currentProgress + (cptSyncTable * 0.2d / scopeInfo.Schema.Tables.Count);
+                    }
+                }
+
+                while (!lstTableChangesSelected.IsEmpty)
+                {
+                    if (lstTableChangesSelected.TryTake(out var tableChangesSelected))
+                        changesSelected.TableChangesSelected.Add(tableChangesSelected);
+                }
+
+                // Close any remaining open batch file
+                if (unifiedSerializer.IsOpen)
+                {
+                    await unifiedSerializer.CloseFileAsync().ConfigureAwait(false);
+
+                    if (currentBatchRowCount > 0)
+                    {
+                        var batchIndex = batchPartInfos.Count - 1;
+                        if (batchIndex >= 0)
+                        {
+                            var lastBatchInfo = batchPartInfos[batchIndex];
+                            await this.InterceptAsync(new BatchChangesCreatedArgs(context, lastBatchInfo, null, null, SyncRowState.None, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                }
+
+                // Dispose the serializer
+                await unifiedSerializer.DisposeAsync().ConfigureAwait(false);
+
+                // Add all batch part infos created during the process
+                foreach (var batchPartInfo in batchPartInfos)
+                {
+                    batchInfo.BatchPartsInfo.Add(batchPartInfo);
+                }
+
+                batchInfo.RowsCount = totalRowsCount;
+                batchInfo.EnsureLastBatch();
+
+                if (batchInfo.RowsCount <= 0)
+                {
+                    var cleanFolder = await this.InternalCanCleanFolderAsync(scopeInfo.Name, context.Parameters, batchInfo, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                    if (cleanFolder)
+                        batchInfo.TryRemoveDirectory();
+                }
+
+                return changesSelected;
+            }
+            catch (Exception ex)
+            {
+                string message = null;
+
+                if (batchInfo != null && batchInfo.DirectoryRoot != null)
+                    message += $"Directory:{batchInfo.DirectoryRoot}.";
+
+                message += $"Supports MultiActiveResultSets:{supportsMultiActiveResultSets}.";
+                message += $"Is New:{isNew}.";
+                message += $"From:{fromLastTimestamp}.";
+
+                throw this.GetSyncError(context, ex, message);
+            }
+        }
+
+        /// <summary>
         /// Gets a batch of changes to synchronize when given batch size,
         /// destination knowledge, and change data retriever parameters.
         /// </summary>
@@ -31,6 +185,14 @@ namespace Dotmim.Sync
                              DbConnection connection, DbTransaction transaction,
                              IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
+            // Use unified batching if enabled by the client
+            if (context.UseUnifiedBatching)
+            {
+                return await this.InternalGetChangesUnifiedAsync(scopeInfo, context, isNew, fromLastTimestamp, excludingScopeId,
+                    supportsMultiActiveResultSets, batchInfo, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Fall back to traditional batching
             try
             {
                 // Statistics about changes that are selected
@@ -147,6 +309,245 @@ namespace Dotmim.Sync
                 message += $"From:{fromLastTimestamp}.";
 
                 throw this.GetSyncError(context, ex, message);
+            }
+        }
+
+        /// <summary>
+        /// Read changes from a sync table and add to unified batch file incrementally.
+        /// </summary>
+        internal virtual async Task<(SyncContext Context, TableChangesSelected TableChangesSelected, int CurrentBatchRowCount)> InternalReadSyncTableChangesUnifiedAsync(
+            ScopeInfo scopeInfo, SyncContext context, Guid? excludintScopeId, SyncTable syncTable,
+            Serialization.UnifiedBatchSerializer unifiedSerializer, BatchInfo batchInfo, List<BatchPartInfo> batchPartInfos,
+            SemaphoreSlim batchingLock, bool isNew, long? lastTimestamp,
+            DbConnection connection, DbTransaction transaction,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return default;
+
+            DbCommand selectIncrementalChangesCommand = null;
+
+            var currentBatchRowCount = 0;
+
+            try
+            {
+                var setupTable = scopeInfo.Setup.Tables[syncTable.TableName, syncTable.SchemaName];
+
+                if (setupTable == null)
+                    return (context, default, 0);
+
+                // Only table schema is replicated, no datas are applied
+                if (setupTable.SyncDirection == SyncDirection.None)
+                    return (context, default, 0);
+
+                // if we are in upload stage, so check if table is not download only
+                if (context.SyncWay == SyncWay.Upload && setupTable.SyncDirection == SyncDirection.DownloadOnly)
+                    return (context, default, 0);
+
+                // if we are in download stage, so check if table is not download only
+                if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
+                    return (context, default, 0);
+
+                DbCommandType dbCommandType;
+                (selectIncrementalChangesCommand, dbCommandType) = await this.InternalGetSelectChangesCommandAsync(scopeInfo, context, syncTable, isNew,
+                        connection, transaction).ConfigureAwait(false);
+
+                if (selectIncrementalChangesCommand == null)
+                    return (context, default, 0);
+
+                // Get correct adapter
+                var syncAdapter = this.GetSyncAdapter(syncTable, scopeInfo);
+
+                this.InternalSetCommandParametersValues(context, selectIncrementalChangesCommand, dbCommandType, syncAdapter, connection, transaction,
+                    sync_scope_id: excludintScopeId, sync_min_timestamp: lastTimestamp, progress: progress, cancellationToken: cancellationToken);
+
+                var schemaChangesTable = CreateChangesTable(syncTable);
+
+                // Statistics
+                var tableChangesSelected = new TableChangesSelected(schemaChangesTable.TableName, schemaChangesTable.SchemaName);
+                var tableRowCount = 0;
+
+                // launch interceptor if any
+                var args = await this.InterceptAsync(new TableChangesSelectingArgs(context, schemaChangesTable, selectIncrementalChangesCommand, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+
+                if (!args.Cancel && args.Command != null)
+                {
+                    await this.InterceptAsync(new ExecuteCommandArgs(context, args.Command, dbCommandType, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+
+                    // Get the reader
+                    using var dataReader = await args.Command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+                    // Lock to ensure only one table's rows are written at a time (prevents mixing rows from different tables)
+                    await batchingLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        // Check if the correct table is open in the serializer
+                        var requiredTableKey = $"{schemaChangesTable.SchemaName}.{schemaChangesTable.TableName}";
+
+                        while (await dataReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                        {
+                            // Create a row from dataReader
+                            var syncRow = this.CreateSyncRowFromReader(context, dataReader, schemaChangesTable);
+
+                            var tableChangesSelectedSyncRowArgs = await this.InterceptAsync(new RowsChangesSelectedArgs(context, syncRow, schemaChangesTable, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+                            syncRow = tableChangesSelectedSyncRowArgs.SyncRow;
+
+                            if (syncRow == null)
+                                continue;
+
+                            // Open batch file if not yet open
+                            if (!unifiedSerializer.IsOpen)
+                            {
+                                var batchIndex = batchPartInfos.Count;
+                                var batchPartFileName = $"BATCH_{batchIndex:0000}.json";
+                                var batchPartFullPath = Path.Combine(batchInfo.GetDirectoryFullPath(), batchPartFileName);
+
+                                // Ensure directory exists
+                                var directoryPath = batchInfo.GetDirectoryFullPath();
+                                if (!Directory.Exists(directoryPath))
+                                    Directory.CreateDirectory(directoryPath);
+
+                                await unifiedSerializer.OpenFileAsync(batchPartFullPath).ConfigureAwait(false);
+
+                                var batchPartInfo = new BatchPartInfo(batchPartFileName, "UNIFIED", string.Empty, SyncRowState.None, 0, batchIndex)
+                                {
+                                    IsLastBatch = false,
+                                    TableRowCounts = new Dictionary<string, int>()
+                                };
+                                batchPartInfos.Add(batchPartInfo);
+                                currentBatchRowCount = 0;
+                            }
+
+                            var currentTableKeyInSerializer = unifiedSerializer.CurrentTableKey;
+                            if (currentTableKeyInSerializer != requiredTableKey)
+                            {
+                                // Close previous table if a different table was open
+                                if (unifiedSerializer.HasCurrentTable)
+                                    await unifiedSerializer.CloseCurrentTableAsync().ConfigureAwait(false);
+
+                                // Open the correct table for this row
+                                await unifiedSerializer.OpenTableAsync(schemaChangesTable).ConfigureAwait(false);
+                            }
+
+                            // Write row with RowState included at position 0
+                            var batchSizeInBytes = await unifiedSerializer.WriteRowAsync(syncRow, schemaChangesTable).ConfigureAwait(false);
+
+                            // Update statistics
+                            if (syncRow.RowState == SyncRowState.Deleted)
+                                tableChangesSelected.Deletes++;
+                            else
+                                tableChangesSelected.Upserts++;
+
+                            tableRowCount++;
+                            currentBatchRowCount++;
+
+                            // Update row count in current batch part info
+                            if (batchPartInfos.Count > 0)
+                            {
+                                var currentBatchPartInfo = batchPartInfos[batchPartInfos.Count - 1];
+                                currentBatchPartInfo.RowsCount = currentBatchRowCount;
+
+                                // Update per-table row count for unified batches
+                                if (currentBatchPartInfo.TableRowCounts != null)
+                                {
+                                    if (!currentBatchPartInfo.TableRowCounts.ContainsKey(requiredTableKey))
+                                        currentBatchPartInfo.TableRowCounts[requiredTableKey] = 0;
+
+                                    currentBatchPartInfo.TableRowCounts[requiredTableKey]++;
+                                }
+                            }
+
+                            var newSizeKB = batchSizeInBytes / 1024L;
+                            // Check if we exceeded the batch size limit
+                            if (newSizeKB > this.Options.BatchSize)
+                            {
+                                // Close current table and file
+                                await unifiedSerializer.CloseCurrentTableAsync().ConfigureAwait(false);
+                                await unifiedSerializer.CloseFileAsync().ConfigureAwait(false);
+
+                                // Fire interceptor for completed batch
+                                if (batchPartInfos.Count > 0)
+                                {
+                                    var completedBatchPartInfo = batchPartInfos[batchPartInfos.Count - 1];
+                                    await this.InterceptAsync(new BatchChangesCreatedArgs(context, completedBatchPartInfo, null, null, SyncRowState.None, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        batchingLock.Release();
+                    }
+
+#if NET6_0_OR_GREATER
+                    await dataReader.CloseAsync().ConfigureAwait(false);
+#else
+                    dataReader.Close();
+#endif
+                }
+
+                var tableChangesSelectedArgs = new TableChangesSelectedArgs(context, null, null, syncTable, tableChangesSelected, connection, transaction);
+                await this.InterceptAsync(tableChangesSelectedArgs, progress, cancellationToken).ConfigureAwait(false);
+
+                return (context, tableChangesSelected, currentBatchRowCount);
+            }
+            catch (Exception ex)
+            {
+                string message = null;
+
+                if (selectIncrementalChangesCommand != null)
+                    message += $"SelectChangesCommand:{selectIncrementalChangesCommand.CommandText}.";
+
+                if (syncTable != null)
+                    message += $"Table:{syncTable.GetFullName()}.";
+
+                message += $"Is New:{isNew}.";
+
+                message += $"LastTimestamp:{lastTimestamp}.";
+
+                throw this.GetSyncError(context, ex, message);
+            }
+        }
+
+        /// <summary>
+        /// Create unified batch file from ContainerSet.
+        /// </summary>
+        internal virtual async Task<BatchPartInfo> InternalCreateUnifiedBatchFileAsync(SyncContext context, BatchInfo batchInfo, ContainerSet containerSet, int rowsCount, int batchIndex,
+            DbConnection connection, DbTransaction transaction,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var batchPartFileName = $"BATCH_{batchIndex:0000}.json";
+                var batchPartFullPath = Path.Combine(batchInfo.GetDirectoryFullPath(), batchPartFileName);
+
+                // Ensure directory exists
+                var directoryPath = batchInfo.GetDirectoryFullPath();
+                if (!Directory.Exists(directoryPath))
+                    Directory.CreateDirectory(directoryPath);
+
+                // Serialize the unified container set to file
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+
+                using (var fs = new FileStream(batchPartFullPath, FileMode.Create, FileAccess.Write))
+                {
+                    var data = await serializer.SerializeAsync(containerSet).ConfigureAwait(false);
+                    await fs.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
+                }
+
+                // Create batch part info for the unified batch1
+                var batchPartInfo = new BatchPartInfo(batchPartFileName, "UNIFIED", string.Empty, SyncRowState.None, rowsCount, batchIndex)
+                {
+                    IsLastBatch = true
+                };
+
+                await this.InterceptAsync(new BatchChangesCreatedArgs(context, batchPartInfo, null, null, SyncRowState.None, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+
+                return batchPartInfo;
+            }
+            catch (Exception ex)
+            {
+                throw this.GetSyncError(context, ex, "Error creating unified batch file");
             }
         }
 
@@ -320,6 +721,22 @@ namespace Dotmim.Sync
                 await localSerializerModified.DisposeAsync().ConfigureAwait(false);
                 await localSerializerDeleted.DisposeAsync().ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        /// Add a row to unified batch using ContainerSet for multi-table batching optimization.
+        /// </summary>
+        internal void InternalAddRowToUnifiedBatch(ContainerTable containerTable, SyncRow syncRow, SyncTable schemaChangesTable, TableChangesSelected tableChangesSelected)
+        {
+            // Add the entire SyncRow buffer (including state at position 0) to the container table
+            // Format: [state, col1, col2, ..., colN]
+            containerTable.Rows.Add(syncRow.ToArray());
+
+            // Update statistics
+            if (syncRow.RowState == SyncRowState.Deleted)
+                tableChangesSelected.Deletes++;
+            else
+                tableChangesSelected.Upserts++;
         }
 
         /// <summary>

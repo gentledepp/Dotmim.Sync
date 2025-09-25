@@ -1351,7 +1351,7 @@ namespace Dotmim.Sync.SqlServer.Builders
                 comma = ", ";
             }
 
-            stringBuilder.AppendLine($"\t, 0 as [sync_row_is_tombstone]");
+            stringBuilder.AppendLine($"\t, [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
 
             // ----------------------------------

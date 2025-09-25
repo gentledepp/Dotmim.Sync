@@ -20,7 +20,7 @@ namespace Dotmim.Sync.Web.Client
         /// <inheritdoc cref="RemoteOrchestrator.GetChangesAsync(ScopeInfoClient, DbConnection, DbTransaction)"/>
         public override async Task<ServerSyncChanges> GetChangesAsync(ScopeInfoClient cScopeInfoClient, DbConnection connection = null, DbTransaction transaction = null)
         {
-            var context = new SyncContext(Guid.NewGuid(), cScopeInfoClient.Name, cScopeInfoClient.Parameters) { ClientId = cScopeInfoClient.Id };
+            var context = new SyncContext(Guid.NewGuid(), cScopeInfoClient.Name, cScopeInfoClient.Parameters) { ClientId = cScopeInfoClient.Id, UseUnifiedBatching = this.Options.UseUnifiedBatching };
 
             // Create the BatchInfo
             var serverBatchInfo = new BatchInfo();
@@ -111,7 +111,7 @@ namespace Dotmim.Sync.Web.Client
         ///
         public override async Task<ServerSyncChanges> GetEstimatedChangesCountAsync(ScopeInfoClient cScopeInfoClient, DbConnection connection = null, DbTransaction transaction = null)
         {
-            var context = new SyncContext(Guid.NewGuid(), cScopeInfoClient.Name, cScopeInfoClient.Parameters) { ClientId = cScopeInfoClient.Id };
+            var context = new SyncContext(Guid.NewGuid(), cScopeInfoClient.Name, cScopeInfoClient.Parameters) { ClientId = cScopeInfoClient.Id, UseUnifiedBatching = this.Options.UseUnifiedBatching };
 
             try
             {
@@ -238,38 +238,152 @@ namespace Dotmim.Sync.Web.Client
 
                 if (getMoreChanges != null && getMoreChanges.Changes != null && getMoreChanges.Changes.HasRows)
                 {
-                    using var localSerializer = new LocalJsonSerializer(this, context);
-
-                    // Should have only one table
-                    var table = getMoreChanges.Changes.Tables[0];
-                    var schemaTable = CreateChangesTable(schema.Tables[table.TableName, table.SchemaName]);
-
                     var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), bpi.FileName);
 
-                    SyncRowState syncRowState = SyncRowState.None;
-                    if (table.Rows != null && table.Rows.Count > 0)
+                    // Check if this is a unified batch (multiple tables or tables with _rs column)
+                    var isUnifiedBatch = context.UseUnifiedBatching;
+
+                    if (isUnifiedBatch)
                     {
-                        var sr = new SyncRow(schemaTable, table.Rows[0]);
-                        syncRowState = sr.RowState;
+                        // Apply converter if needed before serialization
+                        if (this.Converter != null && getMoreChanges.Changes.HasRows)
+                        {
+                            foreach (var containerTable in getMoreChanges.Changes.Tables)
+                            {
+                                if (containerTable.HasRows)
+                                {
+                                    var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+
+                                    for (int i = 0; i < containerTable.Rows.Count; i++)
+                                    {
+                                        var row = containerTable.Rows[i];
+                                        // Row format is always: [state, col1, col2, ..., colN]
+                                        var syncRow = new SyncRow(schemaTable, row);
+                                        this.Converter.AfterDeserialized(syncRow, schemaTable);
+                                        // Note: row is a reference to the same array in SyncRow, so modifications are reflected
+                                    }
+                                }
+                            }
+                        }
+
+                        // Handle unified batch - serialize the entire ContainerSet directly
+                        var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                        using (var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                        {
+                            var data = await serializer.SerializeAsync(getMoreChanges.Changes).ConfigureAwait(false);
+                            await fs.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
+                        }
                     }
-
-                    // open the file and write table header
-                    await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
-
-                    foreach (var row in table.Rows)
+                    else
                     {
-                        var syncRow = new SyncRow(schemaTable, row);
+                        // Handle traditional single-table batch
+                        using var localSerializer = new LocalJsonSerializer(this, context);
 
-                        if (this.Converter != null && syncRow.Length > 0)
-                            this.Converter.AfterDeserialized(syncRow, schemaTable);
+                        // Should have only one table
+                        var table = getMoreChanges.Changes.Tables[0];
+                        var schemaTable = CreateChangesTable(schema.Tables[table.TableName, table.SchemaName]);
 
-                        await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                        SyncRowState syncRowState = SyncRowState.None;
+                        if (table.Rows != null && table.Rows.Count > 0)
+                        {
+                            var sr = new SyncRow(schemaTable, table.Rows[0]);
+                            syncRowState = sr.RowState;
+                        }
+
+                        // open the file and write table header
+                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+
+                        foreach (var row in table.Rows)
+                        {
+                            var syncRow = new SyncRow(schemaTable, row);
+
+                            if (this.Converter != null && syncRow.Length > 0)
+                                this.Converter.AfterDeserialized(syncRow, schemaTable);
+
+                            await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                        }
                     }
                 }
             }
             else
             {
-                await SerializeAsync(response, bpi.FileName, serverBatchInfo.GetDirectoryFullPath(), this).ConfigureAwait(false);
+                // Even with JSON serializer and no interceptors/converters, we still need to extract the Changes property
+                var webSerializer = this.SerializerFactory.GetSerializer();
+#if NET6_0_OR_GREATER
+                using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+                using var responseStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
+                var getMoreChanges = await webSerializer.DeserializeAsync<HttpMessageSendChangesResponse>(responseStream).ConfigureAwait(false);
+                context = getMoreChanges.SyncContext;
+
+                if (getMoreChanges != null && getMoreChanges.Changes != null && getMoreChanges.Changes.HasRows)
+                {
+                    var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), bpi.FileName);
+
+                    // Check if this is a unified batch (multiple tables or tables with _rs column)
+                    var isUnifiedBatch = context.UseUnifiedBatching;
+
+                    if (isUnifiedBatch)
+                    {
+                        // Apply converter if needed before serialization
+                        if (this.Converter != null && getMoreChanges.Changes.HasRows)
+                        {
+                            foreach (var containerTable in getMoreChanges.Changes.Tables)
+                            {
+                                if (containerTable.HasRows)
+                                {
+                                    var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+
+                                    for (int i = 0; i < containerTable.Rows.Count; i++)
+                                    {
+                                        var row = containerTable.Rows[i];
+                                        // Row format is always: [state, col1, col2, ..., colN]
+                                        var syncRow = new SyncRow(schemaTable, row);
+                                        this.Converter.AfterDeserialized(syncRow, schemaTable);
+                                        // Note: row is a reference to the same array in SyncRow, so modifications are reflected
+                                    }
+                                }
+                            }
+                        }
+
+                        // Handle unified batch - serialize the entire ContainerSet directly
+                        var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                        var dirPath = Path.GetDirectoryName(fullPath);
+                        if (!Directory.Exists(dirPath))
+                            Directory.CreateDirectory(dirPath);
+                        using (var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                        {
+                            var data = await serializer.SerializeAsync(getMoreChanges.Changes).ConfigureAwait(false);
+                            await fs.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                    else
+                    {
+                        // Handle traditional single-table batch
+                        using var localSerializer = new LocalJsonSerializer(this, context);
+
+                        // Should have only one table
+                        var table = getMoreChanges.Changes.Tables[0];
+                        var schemaTable = CreateChangesTable(schema.Tables[table.TableName, table.SchemaName]);
+
+                        SyncRowState syncRowState = SyncRowState.None;
+                        if (table.Rows != null && table.Rows.Count > 0)
+                        {
+                            var sr = new SyncRow(schemaTable, table.Rows[0]);
+                            syncRowState = sr.RowState;
+                        }
+
+                        // open the file and write table header
+                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+
+                        foreach (var row in table.Rows)
+                        {
+                            var syncRow = new SyncRow(schemaTable, row);
+                            await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                        }
+                    }
+                }
             }
 
             response.Dispose();

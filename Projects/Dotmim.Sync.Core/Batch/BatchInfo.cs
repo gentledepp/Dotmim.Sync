@@ -151,9 +151,20 @@ namespace Dotmim.Sync.Batch
         {
             if (this.BatchPartsInfo != null && this.BatchPartsInfo.Count > 0)
             {
-                // fake batchpartinfo just for comparison
-                var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
+                // Check if this is a unified batch
+                var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableRowCounts is { Count: > 0 } && bpi.RowsCount > 0).ToList();
+                if (unifiedBatchParts.Count != 0)
+                {
+                    // For unified batches, check TableRowCounts dictionary
+                    var tableKey = $"{schemaName}.{tableName}";
+                    return unifiedBatchParts.Any(bpi =>
+                        bpi.TableRowCounts != null &&
+                        bpi.TableRowCounts.TryGetValue(tableKey, out var count) &&
+                        count > 0);
+                }
 
+                // Traditional batch processing - check by table name
+                var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
                 var bptis = this.BatchPartsInfo.Where(bpi => bpi.EqualsByName(tmpBpi));
 
                 return bptis != null && bptis.Sum(bpti => bpti.RowsCount) > 0;
@@ -176,14 +187,26 @@ namespace Dotmim.Sync.Batch
             if (this.BatchPartsInfo == null)
                 return [];
 
-            // fake for comparison
+            // Check if this is a unified batch
+            var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableRowCounts is { Count: > 0 } && bpi.RowsCount > 0).ToList();
+            if (unifiedBatchParts.Count != 0)
+            {
+                // For unified batches, filter by table using TableRowCounts dictionary
+                var tableKey = $"{schemaName}.{tableName}";
+                var filteredBatchParts = unifiedBatchParts
+                    .Where(bpi => bpi.TableRowCounts != null &&
+                                  bpi.TableRowCounts.TryGetValue(tableKey, out var count) &&
+                                  count > 0)
+                    .OrderBy(bpi => bpi.Index);
+
+                return filteredBatchParts;
+            }
+
+            // Traditional batch processing - filter by table name
             var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
+            var bpiTables = this.BatchPartsInfo.Where(bpi => bpi.RowsCount > 0 && bpi.EqualsByName(tmpBpi)).OrderBy(bpi => bpi.Index);
 
-            IEnumerable<BatchPartInfo> bpiTables = null;
-
-            bpiTables = this.BatchPartsInfo.Where(bpi => bpi.RowsCount > 0 && bpi.EqualsByName(tmpBpi)).OrderBy(bpi => bpi.Index);
-
-            return bpiTables ?? [];
+            return bpiTables;
         }
 
         /// <summary>
