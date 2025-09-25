@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Dotmim.Sync.Serialization;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace Dotmim.Sync
@@ -80,18 +81,18 @@ namespace Dotmim.Sync
         /// <summary>
         /// Get server capabilities as strongly-typed object.
         /// </summary>
-        public Dictionary<string, object> GetServerCapabilities()
+        public ReadOnlyDictionary<string, object> GetServerCapabilities()
         {
             if (string.IsNullOrEmpty(ServerCapabilities))
-                return null;
+                return new (new Dictionary<string, object>());
 
             try
             {
-                return JsonSerializer.Deserialize<Dictionary<string, object>>(ServerCapabilities);
+                return new(JsonSerializer.Deserialize<Dictionary<string, object>>(ServerCapabilities));
             }
             catch
             {
-                return null;
+                return new (new Dictionary<string, object>());
             }
         }
 
@@ -115,7 +116,7 @@ namespace Dotmim.Sync
 
         private bool HaveCapabilitiesChanged(IDictionary<string, object> capabilities)
         {
-            var oldCapabilities = this.GetServerCapabilities() ??  new Dictionary<string, object>();
+            var oldCapabilities = this.GetServerCapabilities() ??  new(new Dictionary<string, object>());
             
             // compare capabilities to only update the "last udpated" if it actually changed
             var changed = false;
