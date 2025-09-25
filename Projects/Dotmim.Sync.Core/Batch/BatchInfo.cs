@@ -148,9 +148,18 @@ namespace Dotmim.Sync.Batch
         {
             if (this.BatchPartsInfo != null && this.BatchPartsInfo.Count > 0)
             {
-                // fake batchpartinfo just for comparison
-                var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
+                // Check if this is a unified batch
+                var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableName == "UNIFIED" && bpi.RowsCount > 0);
+                if (unifiedBatchParts.Any())
+                {
+                    // For unified batches, we need to check if the unified batch contains data for the requested table
+                    // Since we can't easily inspect the file contents here, we assume unified batches contain data for all tables
+                    // This is a conservative approach - the actual table-specific check happens during batch processing
+                    return true;
+                }
 
+                // Traditional batch processing - check by table name
+                var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
                 var bptis = this.BatchPartsInfo.Where(bpi => bpi.EqualsByName(tmpBpi));
 
                 return bptis != null && bptis.Sum(bpti => bpti.RowsCount) > 0;
@@ -173,14 +182,20 @@ namespace Dotmim.Sync.Batch
             if (this.BatchPartsInfo == null)
                 return [];
 
-            // fake for comparison
+            // Check if this is a unified batch
+            var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableName == "UNIFIED" && bpi.RowsCount > 0);
+            if (unifiedBatchParts.Any())
+            {
+                // For unified batches, return the unified batch parts since they contain data for all tables
+                // The actual table-specific filtering happens during batch processing
+                return unifiedBatchParts.OrderBy(bpi => bpi.Index);
+            }
+
+            // Traditional batch processing - filter by table name
             var tmpBpi = new BatchPartInfo { TableName = tableName, SchemaName = schemaName };
+            var bpiTables = this.BatchPartsInfo.Where(bpi => bpi.RowsCount > 0 && bpi.EqualsByName(tmpBpi)).OrderBy(bpi => bpi.Index);
 
-            IEnumerable<BatchPartInfo> bpiTables = null;
-
-            bpiTables = this.BatchPartsInfo.Where(bpi => bpi.RowsCount > 0 && bpi.EqualsByName(tmpBpi)).OrderBy(bpi => bpi.Index);
-
-            return bpiTables ?? [];
+            return bpiTables;
         }
 
         /// <summary>

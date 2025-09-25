@@ -105,6 +105,14 @@ namespace Dotmim.Sync
         public TransactionMode TransactionMode { get; set; }
 
         /// <summary>
+        /// Gets or Sets a value indicating whether to use unified multi-table batching optimization.
+        /// When enabled, creates a single batch file with all tables instead of separate files per table/operation.
+        /// This significantly reduces HTTP requests and file I/O overhead for scenarios with changes across many tables.
+        /// Default is false for backward compatibility.
+        /// </summary>
+        public bool UseUnifiedBatching { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.
         /// Create a new instance of options with default values.
         /// </summary>

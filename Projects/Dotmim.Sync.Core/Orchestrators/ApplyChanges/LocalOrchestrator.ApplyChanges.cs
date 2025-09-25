@@ -25,6 +25,8 @@ namespace Dotmim.Sync
                               DbConnection connection = default, DbTransaction transaction = default,
                               IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
+            using var _ = context.UsingBatchCache();
+
             // If we have a transient error happening, and we are rerunning the tranaction,
             // raising an interceptor
             var onRetry = new Func<Exception, int, TimeSpan, object, Task>((ex, cpt, ts, arg) =>

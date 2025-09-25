@@ -2593,6 +2593,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
+            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -2618,16 +2620,17 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 // don' need to specify scope name (default will be used) nor setup, since it already exists
                 var s = await agent.SynchronizeAsync();
 
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+                
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count);
                 Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
                 Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
                 Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
-                
-                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
-                Assert.Equal(0, s.TotalChangesUploadedToServer);
-                Assert.Equal(0, s.TotalChangesAppliedOnServer);
-                Assert.Equal(0, s.TotalResolvedConflicts);
+
             }
         }
         
@@ -2637,6 +2640,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
+            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -2649,11 +2654,31 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             foreach (var clientProvider in clientsProvider)
             {
                 for (int i = 0; i < clientChangeCount; i++)
-                    await clientProvider.AddProductCategoryAsync();
+                {
+                    var m = i % 4;
+                    if(m == 0)
+                        await clientProvider.AddProductCategoryAsync();
+                    if(m == 1)  
+                        await clientProvider.AddCustomerAsync();
+                    if(m == 2)
+                        await clientProvider.AddPriceListAsync();
+                    if(m == 3)
+                        await clientProvider.AddProductAsync();
+                }   
             }
             // also add data on server
             for (int i = 0; i < serverChangeCount; i++)
-                await this.serverProvider.AddProductCategoryAsync();
+            {
+                var m = i % 4;
+                if(m == 0)
+                    await this.serverProvider.AddProductCategoryAsync();
+                if(m == 1)  
+                    await this.serverProvider.AddCustomerAsync();
+                if(m == 2)
+                    await this.serverProvider.AddPriceListAsync();
+                if(m == 3)
+                    await this.serverProvider.AddProductAsync();
+            }
 
             var download = 0;
             // Execute a sync on all clients and check results
@@ -2677,11 +2702,6 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 // don' need to specify scope name (default will be used) nor setup, since it already exists
                 var s = await agent.SynchronizeAsync();
 
-                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
-                Assert.Equal(1, sentChangesRequests.Count);
-                Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
-                Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
-                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
                 
                 Assert.Equal(download*clientChangeCount + serverChangeCount, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(100, s.TotalChangesUploadedToServer);
@@ -2689,6 +2709,12 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download++;
                 
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(1, sentChangesRequests.Count);
+                Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
+                Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
+                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
+
                 
                 sentChangesRequests.Clear();
                 allSentRequests.Clear();
@@ -2714,6 +2740,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
+            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -2724,7 +2752,17 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
                 // Add many rows on the client to trigger batching
                 for (int i = 0; i < clientChangeCount; i++)
-                    await clientProvider.AddProductCategoryAsync();
+                {
+                    var m = i % 4;
+                    if(m == 0)
+                        await clientProvider.AddProductCategoryAsync();
+                    if(m == 1)  
+                        await clientProvider.AddCustomerAsync();
+                    if(m == 2)
+                        await clientProvider.AddPriceListAsync();
+                    if(m == 3)
+                        await clientProvider.AddProductAsync();
+                }   
 
                 // interestingly, the batch counts (i.e what fits into one batch) are different per provider..
                 var expectedBatches = clientProvider switch
@@ -2750,16 +2788,17 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 // don' need to specify scope name (default will be used) nor setup, since it already exists
                 var s = await agent.SynchronizeAsync();
 
-                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
-                Assert.Equal(expectedBatches, sentChangesRequests.Count); // N batches expected
-                Assert.Equal(expectedBatches, allSentRequests.Count); // only N requests should be sent
-                Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
-
                 Assert.Equal(0, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(clientChangeCount, s.TotalChangesUploadedToServer);
                 Assert.Equal(clientChangeCount, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
+                
+                Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
+                Assert.Equal(expectedBatches, sentChangesRequests.Count); // N batches expected
+                Assert.Equal(expectedBatches, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+
             }
         }
         
@@ -2769,7 +2808,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
-            
+            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseUnifiedBatching = true; // tests only work with unified batching enabled
+
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
             {
@@ -2780,7 +2821,17 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             // Add many rows on the server to trigger batching
             for (int i = 0; i < serverChangeCount; i++)
-                await this.serverProvider.AddProductCategoryAsync();
+            {
+                var m = i % 4;
+                if(m == 0)
+                    await this.serverProvider.AddProductCategoryAsync();
+                if(m == 1)  
+                    await this.serverProvider.AddCustomerAsync();
+                if(m == 2)
+                    await this.serverProvider.AddPriceListAsync();
+                if(m == 3)
+                    await this.serverProvider.AddProductAsync();
+            }   
 
             
             foreach(var clientProvider in this.clientsProvider)
@@ -2804,17 +2855,18 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 // don' need to specify scope name (default will be used) nor setup, since it already exists
                 var s = await agent.SynchronizeAsync();
 
+                Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(2000, s.TotalChangesAppliedOnClient);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+                
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count); // only one changeset is sent but...
                 Assert.Equal(3 - 1 /*first batch in first request*/,getChangesRequests.Count);
                 Assert.Equal(3, allSentRequests.Count); // only N requests should be sent
                 Assert.Equal(3, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
 
-                Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
-                Assert.Equal(2000, s.TotalChangesAppliedOnClient);
-                Assert.Equal(0, s.TotalChangesUploadedToServer);
-                Assert.Equal(0, s.TotalChangesAppliedOnServer);
-                Assert.Equal(0, s.TotalResolvedConflicts);
             }
         }
     }

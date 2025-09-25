@@ -21,6 +21,187 @@ namespace Dotmim.Sync
     public abstract partial class BaseOrchestrator
     {
         /// <summary>
+        /// Get all rows from a unified batch file for a specific table, regardless of operation type, with caching support.
+        /// Used for error recovery scenarios.
+        /// </summary>
+        internal virtual IEnumerable<SyncRow> GetAllRowsFromUnifiedBatchFile(string filePath, SyncTable schemaTable, Dictionary<string, ContainerSet> cache)
+        {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"Unified batch file not found: {filePath}");
+
+            ContainerSet containerSet;
+
+            // Check cache first if provided
+            if (cache != null && cache.TryGetValue(filePath, out containerSet))
+            {
+                // Use cached version
+            }
+            else
+            {
+                // Deserialize the unified ContainerSet
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    containerSet = serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false).GetAwaiter().GetResult();
+                }
+
+                // Cache it if cache is provided
+                if (cache != null)
+                {
+                    cache[filePath] = containerSet;
+                }
+            }
+
+            if (containerSet?.Tables == null)
+                yield break;
+
+            // Find the table that matches our schema table
+            var containerTable = containerSet.Tables.FirstOrDefault(t =>
+                string.Equals(t.TableName, schemaTable.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
+
+            if (containerTable == null || !containerTable.HasBatchingColumn)
+                yield break;
+
+            // Return all rows for this table, converting to SyncRow
+            for (int i = 0; i < containerTable.Rows.Count; i++)
+            {
+                SyncRow syncRow = null;
+                try
+                {
+                    var operationType = containerTable.GetRowOperationType(i);
+                    var rowData = containerTable.Rows[i];
+
+                    // Determine the appropriate row state based on operation type
+                    var rowState = operationType switch
+                    {
+                        BatchOperationType.Delete => SyncRowState.Deleted,
+                        BatchOperationType.Insert => SyncRowState.Modified, // Inserts are treated as Modified for upserts
+                        BatchOperationType.Update => SyncRowState.Modified,
+                        _ => SyncRowState.Modified
+                    };
+
+                    // Create SyncRow with proper buffer layout: [state, ...data columns]
+                    // rowData contains: [...data columns, operation_type]
+                    var syncRowBuffer = new object[rowData.Length]; // Same size, we'll replace _rs with state
+                    syncRowBuffer[0] = (int)rowState; // Set state at position 0
+
+                    // Copy data columns (excluding the _rs column at the end)
+                    for (int j = 0; j < rowData.Length - 1; j++)
+                    {
+                        syncRowBuffer[j + 1] = rowData[j]; // Data starts at position 1 in SyncRow
+                    }
+
+                    syncRow = new SyncRow(schemaTable, syncRowBuffer);
+                }
+                catch (Exception ex)
+                {
+                    // Log and skip problematic rows
+                    this.Logger?.LogWarning(ex, "Error processing unified batch row {RowIndex} for table {TableName}", i, schemaTable.GetFullName());
+                    continue;
+                }
+                if(syncRow != null)
+                    yield return syncRow;
+            }
+        }
+
+        /// <summary>
+        /// Get rows from a unified batch file, filtered by table and operation type, with caching support.
+        /// </summary>
+        internal virtual IEnumerable<SyncRow> GetRowsFromUnifiedBatchFile(string filePath, SyncTable schemaTable, SyncRowState applyType, Dictionary<string, ContainerSet> cache)
+        {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"Unified batch file not found: {filePath}");
+
+            ContainerSet containerSet;
+
+            // Check cache first if provided
+            if (cache != null && cache.TryGetValue(filePath, out containerSet))
+            {
+                // Use cached version
+            }
+            else
+            {
+                // Deserialize the unified ContainerSet
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    containerSet = serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false).GetAwaiter().GetResult();
+                }
+
+                // Cache it if cache is provided
+                if (cache != null)
+                {
+                    cache[filePath] = containerSet;
+                }
+            }
+
+            if (containerSet?.Tables == null)
+                yield break;
+
+            // Find the table that matches our schema table
+            var containerTable = containerSet.Tables.FirstOrDefault(t =>
+                string.Equals(t.TableName, schemaTable.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
+
+            if (containerTable == null || !containerTable.HasBatchingColumn)
+                yield break;
+
+            // Determine which operation type to filter for
+            string targetOperationType = applyType switch
+            {
+                SyncRowState.Modified => "u", // Updates (including inserts for upserts)
+                SyncRowState.Deleted => "d",  // Deletes
+                _ => null
+            };
+
+            if (targetOperationType == null)
+                yield break;
+
+            // Filter rows by operation type and convert to SyncRow
+            for (int i = 0; i < containerTable.Rows.Count; i++)
+            {
+                SyncRow syncRow = null;
+                try
+                {
+                    var operationType = containerTable.GetRowOperationType(i);
+                    var operationString = ContainerTable.OperationTypeToString(operationType);
+
+                    // Skip rows that don't match our target operation type
+                    if (operationString != targetOperationType)
+                        continue;
+
+                    // Create SyncRow from the container table row
+                    var rowData = containerTable.Rows[i];
+
+                    // Create SyncRow with proper buffer layout: [state, ...data columns]
+                    // rowData contains: [...data columns, operation_type]
+                    var syncRowBuffer = new object[rowData.Length]; // Same size, we'll replace _rs with state
+                    syncRowBuffer[0] = (int)applyType; // Set state at position 0
+
+                    // Copy data columns (excluding the _rs column at the end)
+                    for (int j = 0; j < rowData.Length - 1; j++)
+                    {
+                        syncRowBuffer[j + 1] = rowData[j]; // Data starts at position 1 in SyncRow
+                    }
+
+                    syncRow = new SyncRow(schemaTable, syncRowBuffer);
+
+                }
+                catch (Exception ex)
+                {
+                    // Log and skip problematic rows
+                    this.Logger?.LogWarning(ex, "Error processing unified batch row {RowIndex} for table {TableName}", i, schemaTable.GetFullName());
+                    continue;
+                }
+                if(syncRow != null)
+                    yield return syncRow;
+            }
+        }
+
+        /// <summary>
         /// Apply changes : Delete / Insert / Update
         /// the fromScope is local client scope when this method is called from server
         /// the fromScope is server scope when this method is called from client.
@@ -156,6 +337,9 @@ namespace Dotmim.Sync
             if (this.Provider == null)
                 return default;
 
+            // Method-level cache for unified batch files - automatically cleaned up when method exits
+            var unifiedBatchCache = context.UnifiedBatchCache;
+            
             context.SyncStage = SyncStage.ChangesApplying;
 
             var setupTable = scopeInfo.Setup.Tables[schemaTable.TableName, schemaTable.SchemaName];
@@ -309,7 +493,21 @@ namespace Dotmim.Sync
 
                         if (isBatch)
                         {
-                            foreach (var syncRow in localSerializer.GetRowsFromFile(fullPath, schemaChangesTable))
+                            var expectedRowCount = batchPartInfo.RowsCount;
+                            IEnumerable<SyncRow> rowsEnumerable;
+
+                            // Check if this is a unified batch file
+                            if (context.UseUnifiedBatching)
+                            {
+                                var rows = this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType,
+                                    unifiedBatchCache).ToList();
+                                rowsEnumerable = rows;
+                                expectedRowCount = rows.Count;
+                            }
+                            else
+                               rowsEnumerable = localSerializer.GetRowsFromFile(fullPath, schemaChangesTable);
+
+                            foreach (var syncRow in rowsEnumerable)
                             {
                                 rowsFetched++;
 
@@ -323,7 +521,7 @@ namespace Dotmim.Sync
                                     else if (syncRow.RowState is SyncRowState.ApplyModifiedFailed or SyncRowState.ApplyDeletedFailed)
                                         errorsRows.Add((syncRow, new Exception("Row failed to be applied on last sync")));
 
-                                    if (rowsFetched < batchPartInfo.RowsCount && batchRows.Count < this.Provider.BulkBatchMaxLinesCount)
+                                    if (rowsFetched < expectedRowCount && batchRows.Count < this.Provider.BulkBatchMaxLinesCount)
                                         continue;
                                 }
 
@@ -417,7 +615,12 @@ namespace Dotmim.Sync
                             command.Connection = runner.Connection;
                             command.Transaction = runner.Transaction;
 
-                            foreach (var syncRow in localSerializer.GetRowsFromFile(fullPath, schemaChangesTable))
+                            // Check if this is a unified batch file
+                            var rowsEnumerable = context.UseUnifiedBatching
+                                ? this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType, unifiedBatchCache)
+                                : localSerializer.GetRowsFromFile(fullPath, schemaChangesTable);
+
+                            foreach (var syncRow in rowsEnumerable)
                             {
                                 if (syncRow.RowState is SyncRowState.ApplyModifiedFailed or SyncRowState.ApplyDeletedFailed)
                                 {
@@ -773,6 +976,9 @@ namespace Dotmim.Sync
             if (lastSyncErrorsBatchInfo == null)
                 return;
 
+            // Access to the unified batch cache from the context (may be null if not in scope)
+            var unifiedBatchCache = context.UnifiedBatchCache;
+
             LocalJsonSerializer localSerializerReader = null;
 
             LocalJsonSerializer localSerializerWriter = null;
@@ -837,7 +1043,12 @@ namespace Dotmim.Sync
                         // Get full path of my batchpartinfo
                         var fullPath = message.Changes.GetBatchPartInfoFullPath(batchPartInfo);
 
-                        foreach (var syncRow in localSerializerReader.GetRowsFromFile(fullPath, schemaChangesTable))
+                        // Check if this is a unified batch file - for error recovery we need all operations
+                        var rowsEnumerable = batchPartInfo.TableName == "UNIFIED"
+                            ? this.GetAllRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, unifiedBatchCache)
+                            : localSerializerReader.GetRowsFromFile(fullPath, schemaChangesTable);
+
+                        foreach (var syncRow in rowsEnumerable)
                         {
                             var rowIsInBatch = SyncRows.GetRowByPrimaryKeys(syncRow, failedRows, schemaTable);
 

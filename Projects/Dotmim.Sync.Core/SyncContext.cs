@@ -122,6 +122,20 @@ namespace Dotmim.Sync
         public double ProgressPercentage { get; set; }
 
         /// <summary>
+        /// Gets or Sets whether unified batching should be used for this sync session.
+        /// When true, multiple tables are combined into a single batch file with operation type indicators.
+        /// </summary>
+        [DataMember(Name = "ub", IsRequired = false, EmitDefaultValue = false, Order = 10)]
+        public bool UseUnifiedBatching { get; set; }
+
+        /// <summary>
+        /// Temporary unified batch cache used during BatchOrchestrator.InternalApplyChangesAsync scope.
+        /// This is not serialized and only exists during the lifetime of the using block.
+        /// </summary>
+        [IgnoreDataMember]
+        internal Dictionary<string, ContainerSet> UnifiedBatchCache { get; private set; }
+
+        /// <summary>
         /// Copy local properties to another syncContext instance.
         /// </summary>
         public void CopyTo(SyncContext otherSyncContext)
@@ -136,6 +150,7 @@ namespace Dotmim.Sync
             otherSyncContext.SyncType = this.SyncType;
             otherSyncContext.SyncWay = this.SyncWay;
             otherSyncContext.ProgressPercentage = this.ProgressPercentage;
+            otherSyncContext.UseUnifiedBatching = this.UseUnifiedBatching;
 
             if (this.AdditionalProperties != null)
             {
@@ -146,8 +161,43 @@ namespace Dotmim.Sync
         }
 
         /// <summary>
+        /// Temporarily enable the unified batch cache for the duration of the returned disposable.
+        /// The cache will be automatically cleared when the disposable is disposed.
+        /// </summary>
+        /// <returns>A disposable that manages the batch cache lifetime.</returns>
+        internal IDisposable UsingBatchCache()
+        {
+            return new BatchCacheScope(this);
+        }
+
+        /// <summary>
         /// Get the result if sync session is ended.
         /// </summary>
         public override string ToString() => this.ScopeName;
+
+        /// <summary>
+        /// Internal disposable class to manage the unified batch cache lifetime.
+        /// </summary>
+        private class BatchCacheScope : IDisposable
+        {
+            private readonly SyncContext syncContext;
+            private bool disposed = false;
+
+            public BatchCacheScope(SyncContext syncContext)
+            {
+                this.syncContext = syncContext;
+                this.syncContext.UnifiedBatchCache = new Dictionary<string, ContainerSet>();
+            }
+
+            public void Dispose()
+            {
+                if (!disposed)
+                {
+                    syncContext.UnifiedBatchCache = null;
+                    disposed = true;
+                }
+            }
+        }
+
     }
 }
