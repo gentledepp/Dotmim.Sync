@@ -162,11 +162,15 @@ namespace Dotmim.Sync.Web.Client
             if (optimizedFlow)
             {
                 // in optimized flow, the first batch is automatically downloaded in the response of the last "SendChanges" request
-                var firstBpi = bpis.Single(b => b.Index == 0);
-                var alreadyDownloaded = File.Exists(Path.Combine(serverBatchInfo.GetDirectoryFullPath(), firstBpi.FileName));
-                if (alreadyDownloaded)
-                    bpis.Remove(firstBpi);
-                
+                var firstBpinf = bpis.FirstOrDefault(b => b.Index == 0);
+                if (firstBpinf is { } firstBpi)
+                {
+                    var alreadyDownloaded =
+                        File.Exists(Path.Combine(serverBatchInfo.GetDirectoryFullPath(), firstBpi.FileName));
+                    if (alreadyDownloaded)
+                        bpis.Remove(firstBpi);
+                }
+
                 // Parrallel download of all bpis except the last one
                 await bpis
                     .ForEachAsync(
