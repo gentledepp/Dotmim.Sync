@@ -523,7 +523,7 @@ namespace Dotmim.Sync
         private async Task ReportErrorsToServerAsync(IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
             SyncContext context, Exception exception)
         {
-            if( this.RemoteOrchestrator is IIncrementalSyncOrchestrator incremental)
+            if(this.RemoteOrchestrator is IIncrementalSyncOrchestrator incremental && exception is not null)
             {
                 try
                 {

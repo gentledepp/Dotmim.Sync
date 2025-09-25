@@ -162,7 +162,10 @@ namespace Dotmim.Sync.Web.Client
             if (optimizedFlow)
             {
                 // Parrallel download of all bpis except the last one
-                await bpis.ForEachAsync(
+                await bpis
+                    // in optimized flow, the first batch is automatically downloaded in the response of the last "SendChanges" request
+                    .Where(bpi => bpi.Index != 0)
+                    .ForEachAsync(
                         bpi => this.DownloadBatchPartInfoAsync(context, schema, serverBatchInfo, bpi,
                             HttpStep.GetMoreChanges, progress, cancellationToken),
                         this.MaxDownladingDegreeOfParallelism)

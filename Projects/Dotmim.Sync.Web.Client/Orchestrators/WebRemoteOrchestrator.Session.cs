@@ -29,11 +29,12 @@ namespace Dotmim.Sync.Web.Client
             try
             {
                 var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-optimized", out var se) &&
-                                  bool.TryParse(se, out var seb) && seb;
+                                    bool.TryParse(se, out var seb) && seb;
                 if (!optimizedFlow)
                 {
-                    await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo).ConfigureAwait(false);
-                    
+                    await this.WebRemoteCleanFolderAsync(context, serverSyncChanges?.ServerBatchInfo)
+                        .ConfigureAwait(false);
+
                     // Create the message to be sent
                     var httpMessage = new HttpMessageEndSessionRequest(context)
                     {
@@ -51,16 +52,18 @@ namespace Dotmim.Sync.Web.Client
                     var endSessionResponse = await this.ProcessRequestAsync<HttpMessageEndSessionResponse>(
                         context, httpMessage, HttpStep.EndSession, 0, progress,
                         cancellationToken).ConfigureAwait(false);
-                    
+
                     if (endSessionResponse == null)
                         throw new ArgumentException("Http Message content for End session can't be null");
                 }
 
 
                 // Progress & interceptor
-                var sessionEnd = new SessionEndArgs(context, result, syncException, null) { Source = this.GetServiceHost() };
+                var sessionEnd =
+                    new SessionEndArgs(context, result, syncException, null) { Source = this.GetServiceHost() };
 
                 await this.InterceptAsync(sessionEnd, progress, cancellationToken).ConfigureAwait(false);
+
 
                 // Return scopes and new shema
                 return context;
@@ -73,6 +76,11 @@ namespace Dotmim.Sync.Web.Client
             {
                 throw this.GetSyncError(context, ex);
             } // throw client error
+            finally
+            {
+                if(this._optimized is {} o)
+                    o.Dispose();
+            }
         }
 
         private async Task WebRemoteCleanFolderAsync(SyncContext context, BatchInfo changes)

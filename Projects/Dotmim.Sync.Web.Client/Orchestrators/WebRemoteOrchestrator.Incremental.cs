@@ -50,6 +50,8 @@ namespace Dotmim.Sync.Web.Client
                 SyncOperation.ReinitializeWithUpload => true,
                 _ => false
             };
+
+        private IDisposable _optimized = null;
         
         /// <summary>
         /// Performs an optimized sync that combines multiple protocol steps into fewer HTTP requests.
@@ -63,8 +65,8 @@ namespace Dotmim.Sync.Web.Client
         {
             // set the "optimized sync" header only for the duration of this flow
             // because in case we detect any error (wrong schema, etc.) we need to fall-back to the legacy flow
-            using var _ = this.SetOptimizedSyncHeader();
-            
+            _optimized = this.SetOptimizedSyncHeader();
+
             SyncSet schema = cScopeInfo.Schema;
             schema.EnsureSchema();
 
@@ -104,10 +106,15 @@ namespace Dotmim.Sync.Web.Client
                     firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context,firstRequest, HttpStep.SendChangesIncremental, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
                     summaryResponseContent = firstResponse;
-                    
+
                     if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
+                    {
+                        this._optimized.Dispose();
+                        this._optimized = null;
+                     
                         return (context, firstResponse.SchemaValid, firstResponse.Operation,
                             firstResponse.ServerScopeInfo, cScopeInfo, null, firstResponse.ConflictResolutionPolicy);
+                    }
                 }
                 catch (HttpSyncWebException)
                 {
@@ -166,8 +173,13 @@ namespace Dotmim.Sync.Web.Client
                             summaryResponseContent = firstResponse;
                             
                             if (!firstResponse.SchemaValid || !IsOperationSupportedForOptimizedSync(firstResponse.Operation))
+                            {
+                                this._optimized.Dispose();
+                                this._optimized = null;
+                                
                                 return (context, firstResponse.SchemaValid, firstResponse.Operation,
                                     firstResponse.ServerScopeInfo, cScopeInfo, null, firstResponse.ConflictResolutionPolicy);
+                            }
                         }
                         else
                         {
@@ -242,76 +254,17 @@ namespace Dotmim.Sync.Web.Client
             // We have a FIRST response from the server with new datas
             // 1) Could be the only one response
             // 2) Could be the first response and we need to download all batchs
-
-            // Create the BatchInfo
-            var serverBatchInfo = new BatchInfo();
-            
+            BatchInfo serverBatchInfo = new BatchInfo();
             try
             {
                 context.SyncStage = SyncStage.ChangesSelecting;
                 var initialPctProgress = 0.55;
                 context.ProgressPercentage = initialPctProgress;
 
+                // Create the BatchInfo
                 // Handle first batch data included directly in response (optimized protocol)
                 if (summaryResponseContent.Changes != null && summaryResponseContent.Changes.HasRows)
-                {
-                    // First batch data is included directly - save it to disk
-                    var batchDirectoryRoot = this.Options.BatchDirectory;
-                    var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
-                        Path.GetRandomFileName().Replace(".", string.Empty));
-
-                    serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
-                    serverBatchInfo.DirectoryName = batchDirectoryName;
-
-                    if (!Directory.Exists(serverBatchInfo.GetDirectoryFullPath()))
-                        Directory.CreateDirectory(serverBatchInfo.GetDirectoryFullPath());
-
-                    // Process the first batch data from Changes property
-                    using var localSerializer = new LocalJsonSerializer(this, context);
-                    foreach (var containerTable in summaryResponseContent.Changes.Tables)
-                    {
-                        var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
-                        var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
-                        var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
-
-                        // Create first batch part info (index 0)
-                        var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
-                        var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
-
-                        SyncRowState syncRowState = SyncRowState.None;
-                        if (containerTable.Rows != null && containerTable.Rows.Count > 0)
-                        {
-                            var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
-                            syncRowState = sr.RowState;
-                        }
-
-                        // Save first batch data to file
-                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
-
-                        foreach (var row in containerTable.Rows)
-                        {
-                            var syncRow = new SyncRow(schemaTable, row);
-                            if (this.Converter != null && syncRow.Length > 0)
-                                this.Converter.AfterDeserialized(syncRow, schemaTable);
-
-                            await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
-                        }
-
-                        // Create batch part info for first batch
-                        var firstBpi = new BatchPartInfo
-                        {
-                            FileName = fileName,
-                            TableName = containerTable.TableName,
-                            SchemaName = containerTable.SchemaName,
-                            RowsCount = containerTable.Rows.Count,
-                            IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
-                            Index = 0,
-                        };
-
-                        serverBatchInfo.BatchPartsInfo.Add(firstBpi);
-                        serverBatchInfo.RowsCount += firstBpi.RowsCount;
-                    }
-                }
+                    serverBatchInfo = await this.ReconstructFirstBatchInfoFromChangeSet(context, summaryResponseContent, schema);
 
                 // Add remaining batch info (if any)
                 serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
@@ -379,6 +332,71 @@ namespace Dotmim.Sync.Web.Client
 
                 throw this.GetSyncError(context, ex);
             }
+        }
+
+        private async Task<BatchInfo> ReconstructFirstBatchInfoFromChangeSet(SyncContext context,
+            HttpMessageSummaryResponse summaryResponseContent, SyncSet schema)
+        {
+            BatchInfo serverBatchInfo = new();
+            
+            // First batch data is included directly - save it to disk
+            var batchDirectoryRoot = this.Options.BatchDirectory;
+            var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
+                Path.GetRandomFileName().Replace(".", string.Empty));
+
+            serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
+            serverBatchInfo.DirectoryName = batchDirectoryName;
+
+            if (!Directory.Exists(serverBatchInfo.GetDirectoryFullPath()))
+                Directory.CreateDirectory(serverBatchInfo.GetDirectoryFullPath());
+
+            // Process the first batch data from Changes property
+            using var localSerializer = new LocalJsonSerializer(this, context);
+            foreach (var containerTable in summaryResponseContent.Changes.Tables)
+            {
+                var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
+                var setupTable = new SetupTable(containerTable.TableName, containerTable.SchemaName);
+                var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
+
+                // Create first batch part info (index 0)
+                var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
+                var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
+
+                SyncRowState syncRowState = SyncRowState.None;
+                if (containerTable.Rows != null && containerTable.Rows.Count > 0)
+                {
+                    var sr = new SyncRow(schemaTable, containerTable.Rows[0]);
+                    syncRowState = sr.RowState;
+                }
+
+                // Save first batch data to file
+                await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+
+                foreach (var row in containerTable.Rows)
+                {
+                    var syncRow = new SyncRow(schemaTable, row);
+                    if (this.Converter != null && syncRow.Length > 0)
+                        this.Converter.AfterDeserialized(syncRow, schemaTable);
+
+                    await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
+                }
+
+                // Create batch part info for first batch
+                var firstBpi = new BatchPartInfo
+                {
+                    FileName = fileName,
+                    TableName = containerTable.TableName,
+                    SchemaName = containerTable.SchemaName,
+                    RowsCount = containerTable.Rows.Count,
+                    IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
+                    Index = 0,
+                };
+
+                serverBatchInfo.BatchPartsInfo.Add(firstBpi);
+                serverBatchInfo.RowsCount += firstBpi.RowsCount;
+            }
+
+            return serverBatchInfo;
         }
 
 

@@ -2601,6 +2601,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
                 var allSentRequests = new List<HttpRequestMessage>();
                 var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
                 
                 proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
                 proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
@@ -2615,6 +2616,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(1, sentChangesRequests.Count);
                 Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
                 Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
+                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
                 
                 Assert.Equal(0, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(0, s.TotalChangesUploadedToServer);
@@ -2657,10 +2659,12 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var sentChangesRequests = new List<HttpMessageSendChangesRequest>();
                 var allSentRequests = new List<HttpRequestMessage>();
                 var allReceivedResponses = new List<HttpResponseMessage>();
+                var getChangesRequests = new List<HttpGettingServerChangesRequestArgs>();
                 
                 proxy.OnHttpSendingChangesRequest(r => sentChangesRequests.Add(r.Request));
                 proxy.OnHttpSendingRequest(r => allSentRequests.Add(r.Request));
                 proxy.OnHttpGettingResponse(r => allReceivedResponses.Add(r.Response));
+                proxy.OnHttpGettingChangesRequest(r => getChangesRequests.Add(r));
                 
                 var agent = new SyncAgent(clientProvider, proxy, options);
 
@@ -2671,6 +2675,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(1, sentChangesRequests.Count);
                 Assert.Equal(1, allSentRequests.Count); // only 1 request should be sent since all client-changes fit into a single request, and all server changes into a single response!
                 Assert.Equal(1, allReceivedResponses.Count); // only 1 response should be received since all server changes fit into a single batch and the session is cleaned up automatically.
+                Assert.Equal(0, getChangesRequests.Count); // not needed as the first and single batch is downloaded in the response of the last SendChanges request
                 
                 Assert.Equal(download*clientChangeCount + serverChangeCount, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(100, s.TotalChangesUploadedToServer);
@@ -2774,14 +2779,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             
             foreach(var clientProvider in this.clientsProvider)
             {
-                // interestingly, the batch counts (i.e what fits into one batch) are different per provider..
-                var expectedBatches = clientProvider switch
-                {
-                    SqliteSyncProvider sqlite => 2,
-                    SqlSyncProvider mssql => 3
-                };
-                
-                // Execute a sync on all clients and check results
+               // Execute a sync on all clients and check results
                 // NOTE: the optimized sync is ONLY supported for incremental synchronizations
                 var proxy = new WebRemoteOrchestrator(serviceUri);
 
@@ -2802,9 +2800,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count); // only one changeset is sent but...
-                Assert.Equal(expectedBatches - 1 /*first batch in first request*/,getChangesRequests.Count);
-                Assert.Equal(expectedBatches, allSentRequests.Count); // only N requests should be sent
-                Assert.Equal(expectedBatches, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+                Assert.Equal(3 - 1 /*first batch in first request*/,getChangesRequests.Count);
+                Assert.Equal(3, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(3, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
 
                 Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(2000, s.TotalChangesAppliedOnClient);

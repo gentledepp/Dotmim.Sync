@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data.Common;
 using System.IO;
 using System.Linq;
@@ -197,7 +198,6 @@ namespace Dotmim.Sync.Web.Server
 
                 // Build optimized response - always include first batch data if available
                 ContainerSet firstBatchChanges = null;
-                BatchInfo adjustedBatchInfo = serverBatchInfo;
 
                 // Always include first batch data in Changes property for optimized clients
                 var isOptimizedClient = TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-optimized", out var optimizedValue) &&
@@ -218,19 +218,14 @@ namespace Dotmim.Sync.Web.Server
                         // Adjust BatchInfo for remaining batches (excluding first batch)
                         if (serverBatchInfo.BatchPartsInfo.Count > 1)
                         {
-                            // Create new BatchInfo with remaining batches
-                            adjustedBatchInfo = new BatchInfo
-                            {
-                                BatchPartsInfo = [.. serverBatchInfo.BatchPartsInfo.Skip(1)],
-                                DirectoryName = serverBatchInfo.DirectoryName,
-                                DirectoryRoot = serverBatchInfo.DirectoryRoot,
-                                RowsCount = serverBatchInfo.RowsCount - firstBatchPartInfo.RowsCount
-                            };
+                            // remove that first batch that is included in this response
+                            serverBatchInfo.BatchPartsInfo.RemoveAt(0);
                         }
                         else
                         {
                             // Single batch - no more downloads needed
-                            adjustedBatchInfo = null;
+                            serverBatchInfo = null;
+                            sessionCache.ServerBatchInfo = null;
                         }
                     }
                 }
@@ -243,7 +238,7 @@ namespace Dotmim.Sync.Web.Server
                     ServerScopeInfo = schemaValid ? null : serverScopeInfo, // Only send schema if invalid
 
                     // Summary response properties (inherited from HttpMessageSummaryResponse)
-                    BatchInfo = adjustedBatchInfo, // Remaining batches to download (null if single batch)
+                    BatchInfo = serverBatchInfo, // Remaining batches to download (null if single batch)
                     Changes = firstBatchChanges, // First batch data included directly
                     RemoteClientTimestamp = remoteClientTimestamp,
                     ClientChangesApplied = clientChangesApplied,
@@ -261,7 +256,7 @@ namespace Dotmim.Sync.Web.Server
                 };
 
                 // Auto-end session for single batch scenarios
-                if(adjustedBatchInfo == null || adjustedBatchInfo.BatchPartsInfo?.Count == 0)
+                if(serverBatchInfo == null || serverBatchInfo.BatchPartsInfo?.Count == 0)
                     await this.AutomaticallyEndSession(httpContext, httpMessage.SyncContext, sessionCache, progress, cancellationToken);
 
                 return response;
