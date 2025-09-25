@@ -476,6 +476,10 @@ namespace Dotmim.Sync
                 // First we log the error before adding a new layer
                 this.Options.Logger.LogError(SyncEventsId.Exception, exception, exception.Message);
 
+                // Report errors to server when using optimized flow
+                if (useOptimizedFlow) 
+                    await this.ReportErrorsToServerAsync(progress, cancellationToken, context, exception);
+
                 if (exception is SyncException ex)
                     syncException = ex;
                 else
@@ -495,6 +499,10 @@ namespace Dotmim.Sync
                 {
                 }
 
+                // Report any sync exceptions to server when using optimized flow (fire-and-forget)
+                if (useOptimizedFlow) 
+                    await this.ReportErrorsToServerAsync(progress, cancellationToken, context, syncException);
+                
                 // End the current session
                 this.SessionState = SyncSessionState.Ready;
                 this.SessionStateChanged?.Invoke(this, new SyncSessionStateEventArgs(this.SessionState));
@@ -506,6 +514,26 @@ namespace Dotmim.Sync
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Reports sync errors to the server for analytics and debugging (fire-and-forget).
+        /// Only sends reports when server supports error reporting capability.
+        /// </summary>
+        private async Task ReportErrorsToServerAsync(IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
+            SyncContext context, Exception exception)
+        {
+            if( this.RemoteOrchestrator is IIncrementalSyncOrchestrator incremental)
+            {
+                try
+                {
+                    await incremental.ReportSyncErrorAsync(context, exception, null, progress, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Error reporting is best effort - don't fail the original exception
+                }
+            }
         }
 
         /// <summary>

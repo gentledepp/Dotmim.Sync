@@ -38,5 +38,19 @@ namespace Dotmim.Sync
             SyncContext context, ClientSyncChanges clientChanges,
             System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,
             IProgress<ProgressArgs> progress, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Reports sync errors to the server for analytics and debugging (fire-and-forget).
+        /// Only sends reports when server supports error reporting capability.
+        /// </summary>
+        /// <param name="context">Sync context</param>
+        /// <param name="exception">Exception to report</param>
+        /// <param name="errorContext">Additional error context</param>
+        /// <param name="progress">Progress reporter</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>True if error was reported successfully, false otherwise</returns>
+        Task<bool> ReportSyncErrorAsync(SyncContext context, Exception exception,
+            SyncErrorContext errorContext = null, IProgress<ProgressArgs> progress = null,
+            CancellationToken cancellationToken = default);
     }
 }

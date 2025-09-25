@@ -50,7 +50,7 @@ namespace Dotmim.Sync.Web.Client
                 SyncOperation.ReinitializeWithUpload => true,
                 _ => false
             };
-
+        
         /// <summary>
         /// Performs an optimized sync that combines multiple protocol steps into fewer HTTP requests.
         /// Skips BeginSession, EnsureScopes, and GetOperation by using cached capabilities.
@@ -61,8 +61,9 @@ namespace Dotmim.Sync.Web.Client
             DbConnection connection = default, DbTransaction transaction = default,
             IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
-            // inform server that it can close the session implicitly
-            this.AddCustomHeader("dotmim-sync-optimized", "true");
+            // set the "optimized sync" header only for the duration of this flow
+            // because in case we detect any error (wrong schema, etc.) we need to fall-back to the legacy flow
+            using var _ = this.SetOptimizedSyncHeader();
             
             SyncSet schema = cScopeInfo.Schema;
             schema.EnsureSchema();
@@ -383,6 +384,10 @@ namespace Dotmim.Sync.Web.Client
 
         /// <summary>
         /// Send detailed error information to server (async, non-blocking).
+        /// The optimized flow does not send an explicit "EndSession" reuqest anymore where it can forward any caught exceptions.
+        /// This is for optimization reasons: It is unlikely, that errors occur. Most of the time, the sync will be fine.
+        /// Therefore, the session is closed automatically by the server when it sent the last batch. This saves http requests.
+        /// And only in error cases, we need another request to be able to tell the server that something went wrong.
         /// </summary>
         public async Task<bool> ReportSyncErrorAsync(
             SyncContext context, Exception exception, SyncErrorContext errorContext = null,
@@ -415,6 +420,27 @@ namespace Dotmim.Sync.Web.Client
             {
                 // Error reporting should never throw - it's best effort
                 return false;
+            }
+        }
+        
+        
+        private IDisposable SetOptimizedSyncHeader()
+            => new UseOptimizedSync(this);
+
+        private class UseOptimizedSync : IDisposable
+        {
+            private readonly WebRemoteOrchestrator _instance;
+
+            public UseOptimizedSync(WebRemoteOrchestrator instance)
+            {
+                _instance = instance;
+                // inform server that it can close the session implicitly
+                _instance.AddCustomHeader("dotmim-sync-optimized", "true");
+            }
+
+            public void Dispose()
+            {
+                this._instance.customHeaders.Remove("dotmim-sync-optimized");
             }
         }
     }
