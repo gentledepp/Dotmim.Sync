@@ -32,7 +32,7 @@ namespace Dotmim.Sync.Web.Client
                 return false;
 
             // Must support incremental sync feature
-            if (!clientScopeInfo.SupportsCapability(ServerCapabilities.SupportsIncrementalSync))
+            if (!clientScopeInfo.SupportsCapability(ServerCapabilities.OptimizedSync))
                 return false;
 
             // Must have schema hash for validation
@@ -306,8 +306,6 @@ namespace Dotmim.Sync.Web.Client
                     firstResponse.CapabilitiesLastUpdated.HasValue)
                 {
                     cScopeInfo.ServerCapabilities = firstResponse.ServerCapabilities ?? cScopeInfo.ServerCapabilities;
-                    cScopeInfo.ServerVersion = firstResponse.ServerVersion ?? cScopeInfo.ServerVersion;
-                    cScopeInfo.CapabilitiesLastUpdated = firstResponse.CapabilitiesLastUpdated ?? cScopeInfo.CapabilitiesLastUpdated;
                 }
 
                 var serverSyncChanges = new ServerSyncChanges(
@@ -415,7 +413,7 @@ namespace Dotmim.Sync.Web.Client
             {
                 // Check if server supports error reporting
                 var scopeInfo = await this.GetScopeInfoAsync(context.ScopeName);
-                if (!scopeInfo.SupportsCapability(ServerCapabilities.SupportsErrorReporting))
+                if (!scopeInfo.SupportsCapability(ServerCapabilities.ErrorReporting))
                     return false;
 
                 // Enhance error context with client environment

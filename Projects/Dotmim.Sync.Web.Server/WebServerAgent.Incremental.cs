@@ -144,8 +144,6 @@ namespace Dotmim.Sync.Web.Server
 
                         // Server capabilities for optimization
                         ServerCapabilities = serverScopeInfo.ServerCapabilities,
-                        ServerVersion = serverScopeInfo.ServerVersion,
-                        CapabilitiesLastUpdated = serverScopeInfo.CapabilitiesLastUpdated,
 
                         // Base properties
                         SyncContext = context,
@@ -173,6 +171,7 @@ namespace Dotmim.Sync.Web.Server
                     sessionCache.ServerBatchInfo = serverSyncChanges.ServerBatchInfo;
                     sessionCache.ServerChangesSelected = serverSyncChanges.ServerChangesSelected;
                     sessionCache.ClientChangesApplied = serverSyncChanges.ServerChangesApplied;
+                    sessionCache.AppliedBatchesSuccessfully = true; // mark session as already applied => that way any intermittent error causing a client to retry will not be applied to the server anymore
 
                     // Extract results for response
                     clientChangesApplied = serverSyncChanges.ServerChangesApplied;
@@ -184,12 +183,12 @@ namespace Dotmim.Sync.Web.Server
                     var cleanFolder = this.Options.CleanFolder;
                     if (cleanFolder)
                         cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken);
-
+                    
                     if (cleanFolder)
                         sessionCache.ClientBatchInfo.TryRemoveDirectory();
-
+                    
                     // we do not need client batch info now
-                    sessionCache.ClientBatchInfo = null;
+                    // sessionCache.ClientBatchInfo = null;
 
                     // Retro compatibility to version < 0.9.3
                     if (serverSyncChanges.ServerBatchInfo.BatchPartsInfo == null)
@@ -247,8 +246,6 @@ namespace Dotmim.Sync.Web.Server
 
                     // Server capabilities for optimization
                     ServerCapabilities = serverScopeInfo.ServerCapabilities,
-                    ServerVersion = serverScopeInfo.ServerVersion,
-                    CapabilitiesLastUpdated = serverScopeInfo.CapabilitiesLastUpdated,
 
                     // Base properties
                     SyncContext = context,

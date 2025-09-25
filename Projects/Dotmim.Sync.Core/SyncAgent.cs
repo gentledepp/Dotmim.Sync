@@ -235,7 +235,7 @@ namespace Dotmim.Sync
                     (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalEnsureScopeInfoClientAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
 
                     // Check if remote orchestrator supports optimization
-                    if (this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
+                    if (this.Options.OptimizedFlowEnabled && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
                     {
                         canUseOptimizedFlow = optimized.CanUseOptimizedSync(cScopeInfo, cScopeInfoClient);
                     }

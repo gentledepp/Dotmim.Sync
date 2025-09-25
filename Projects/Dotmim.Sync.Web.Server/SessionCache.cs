@@ -41,6 +41,12 @@ namespace Dotmim.Sync.Web.Server
         /// </summary>
         [DataMember(Name = "dca", IsRequired = false, EmitDefaultValue = false, Order = 5)]
         public DatabaseChangesApplied ClientChangesApplied { get; set; }
+        
+        /// <summary>
+        /// Gets or Sets the client changes applied.
+        /// </summary>
+        [DataMember(Name = "abs", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        public bool AppliedBatchesSuccessfully { get; set; }
 
         /// <inheritdoc />
         public override string ToString()

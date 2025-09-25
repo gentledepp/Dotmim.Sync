@@ -870,6 +870,18 @@ namespace Dotmim.Sync.Web.Server
             // TODO : Is it used ?
             httpContext.Session.Set(context.ScopeName, sScopeInfo.Schema);
 
+            // if we already applied all changes successfully, but the client retried uploading the last batch, simple return
+            if(sessionCache?.AppliedBatchesSuccessfully == true)
+                return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                {
+                    BatchInfo = sessionCache.ServerBatchInfo,
+                    Step = HttpStep.GetSummary,
+                    RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                    ClientChangesApplied = sessionCache.ClientChangesApplied,
+                    ServerChangesSelected = sessionCache.ServerChangesSelected,
+                    ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                };
+            
             // ------------------------------------------------------------
             // FIRST STEP : receive client changes
             // ------------------------------------------------------------
@@ -943,7 +955,7 @@ namespace Dotmim.Sync.Web.Server
             ServerSyncChanges serverSyncChanges;
             context = httpMessage.SyncContext;
             var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
-
+            
             // get changes
             (context, serverSyncChanges, _) = await this.RemoteOrchestrator.InternalApplyThenGetChangesAsync(
                                                httpMessage.ScopeInfoClient,
@@ -957,18 +969,16 @@ namespace Dotmim.Sync.Web.Server
             sessionCache.ServerBatchInfo = serverSyncChanges.ServerBatchInfo;
             sessionCache.ServerChangesSelected = serverSyncChanges.ServerChangesSelected;
             sessionCache.ClientChangesApplied = serverSyncChanges.ServerChangesApplied;
+            sessionCache.AppliedBatchesSuccessfully = true; // mark session as already applied => that way any intermittent error causing a client to retry will not be applied to the server anymore
 
             // delete the folder (not the BatchPartInfo, because we have a reference on it)
             var cleanFolder = this.Options.CleanFolder;
-
+            
             if (cleanFolder)
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
-
+            
             if (cleanFolder)
                 sessionCache.ClientBatchInfo.TryRemoveDirectory();
-
-            // we do not need client batch info now
-            sessionCache.ClientBatchInfo = null;
 
             // Retro compatiblité to version < 0.9.3
             if (serverSyncChanges.ServerBatchInfo.BatchPartsInfo == null)
@@ -976,11 +986,11 @@ namespace Dotmim.Sync.Web.Server
 
             var summaryResponse = new HttpMessageSummaryResponse(httpMessage.SyncContext)
             {
-                BatchInfo = serverSyncChanges.ServerBatchInfo,
+                BatchInfo = sessionCache.ServerBatchInfo,
                 Step = HttpStep.GetSummary,
-                RemoteClientTimestamp = serverSyncChanges.RemoteClientTimestamp,
-                ClientChangesApplied = serverSyncChanges.ServerChangesApplied,
-                ServerChangesSelected = serverSyncChanges.ServerChangesSelected,
+                RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                ClientChangesApplied = sessionCache.ClientChangesApplied,
+                ServerChangesSelected = sessionCache.ServerChangesSelected,
                 ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
             };
 

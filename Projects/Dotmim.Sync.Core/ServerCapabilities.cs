@@ -11,22 +11,12 @@ namespace Dotmim.Sync
         /// <summary>
         /// Indicates if the server supports incremental sync protocol optimization.
         /// </summary>
-        public const string SupportsIncrementalSync = "supportsIncrementalSync";
-
-        /// <summary>
-        /// Indicates if the server supports schema hash validation.
-        /// </summary>
-        public const string SupportsSchemaHashing = "supportsSchemaHashing";
-
-        /// <summary>
-        /// Indicates if the server supports session close integration in GetMoreChanges.
-        /// </summary>
-        public const string SupportsSessionClose = "supportsSessionClose";
+        public const string OptimizedSync = "optimized-sync";
 
         /// <summary>
         /// Indicates if the server supports detailed error reporting.
         /// </summary>
-        public const string SupportsErrorReporting = "supportsErrorReporting";
+        public const string ErrorReporting = "error-reporting";
 
         /// <summary>
         /// Contains all currently supported capabilities of the server.
@@ -40,10 +30,8 @@ namespace Dotmim.Sync
         
         private static readonly ReadOnlyDictionary<string,object> Capabilities = new(new Dictionary<string, object>
         {
-            { ServerCapabilities.SupportsErrorReporting, true }, 
-            { ServerCapabilities.SupportsIncrementalSync, true }, 
-            { ServerCapabilities.SupportsSchemaHashing, true }, 
-            { ServerCapabilities.SupportsSessionClose, true }
+            { ServerCapabilities.ErrorReporting, true }, 
+            { ServerCapabilities.OptimizedSync, true },
         });
     }
 }

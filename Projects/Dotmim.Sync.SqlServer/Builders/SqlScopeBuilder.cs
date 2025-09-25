@@ -102,8 +102,6 @@ namespace Dotmim.Sync.SqlServer.Scope
                     [sync_scope_properties] [nvarchar](MAX) NULL,
                     [sync_scope_server_capabilities] [nvarchar](MAX) NULL,
                     [sync_scope_schema_hash] [nvarchar](64) NULL,
-                    [sync_scope_server_version] [nvarchar](50) NULL,
-                    [sync_scope_capabilities_last_updated] [datetime2] NULL,
                     CONSTRAINT [PKey_{this.ScopeInfoTableNames.NormalizedFullName}] 
                     PRIMARY KEY CLUSTERED ([sync_scope_name] ASC)
                     )";
@@ -151,9 +149,7 @@ namespace Dotmim.Sync.SqlServer.Scope
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash],
-                          [sync_scope_server_version],
-                          [sync_scope_capabilities_last_updated]
+                          [sync_scope_schema_hash]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}";
 
             var command = connection.CreateCommand();
@@ -198,9 +194,7 @@ namespace Dotmim.Sync.SqlServer.Scope
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash],
-                          [sync_scope_server_version],
-                          [sync_scope_capabilities_last_updated]
+                          [sync_scope_schema_hash]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}
                     WHERE [sync_scope_name] = @sync_scope_name";
 
@@ -283,14 +277,12 @@ namespace Dotmim.Sync.SqlServer.Scope
                                        @sync_scope_last_clean_timestamp AS sync_scope_last_clean_timestamp,
                                        @sync_scope_properties as sync_scope_properties,
                                        @sync_scope_server_capabilities as sync_scope_server_capabilities,
-                                       @sync_scope_schema_hash as sync_scope_schema_hash,
-                                       @sync_scope_server_version as sync_scope_server_version,
-                                       @sync_scope_capabilities_last_updated as sync_scope_capabilities_last_updated
+                                       @sync_scope_schema_hash as sync_scope_schema_hash
                            ) AS [changes] 
                     ON [base].[sync_scope_name] = [changes].[sync_scope_name]
                     WHEN NOT MATCHED THEN
-	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties], [sync_scope_server_capabilities], [sync_scope_schema_hash], [sync_scope_server_version], [sync_scope_capabilities_last_updated])
-	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], [changes].[sync_scope_last_clean_timestamp], [changes].[sync_scope_properties], [changes].[sync_scope_server_capabilities], [changes].[sync_scope_schema_hash], [changes].[sync_scope_server_version], [changes].[sync_scope_capabilities_last_updated])
+	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties], [sync_scope_server_capabilities], [sync_scope_schema_hash])
+	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], [changes].[sync_scope_last_clean_timestamp], [changes].[sync_scope_properties], [changes].[sync_scope_server_capabilities], [changes].[sync_scope_schema_hash])
                     WHEN MATCHED THEN
 	                    UPDATE SET [sync_scope_name] = [changes].[sync_scope_name], 
                                    [sync_scope_schema] = [changes].[sync_scope_schema], 
@@ -299,9 +291,7 @@ namespace Dotmim.Sync.SqlServer.Scope
                                    [sync_scope_last_clean_timestamp] = [changes].[sync_scope_last_clean_timestamp],
                                    [sync_scope_properties] = [changes].[sync_scope_properties],
                                    [sync_scope_server_capabilities] = [changes].[sync_scope_server_capabilities],
-                                   [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash],
-                                   [sync_scope_server_version] = [changes].[sync_scope_server_version],
-                                   [sync_scope_capabilities_last_updated] = [changes].[sync_scope_capabilities_last_updated]
+                                   [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash]
                     OUTPUT  INSERTED.[sync_scope_name], 
                             INSERTED.[sync_scope_schema], 
                             INSERTED.[sync_scope_setup], 
@@ -309,9 +299,7 @@ namespace Dotmim.Sync.SqlServer.Scope
                             INSERTED.[sync_scope_last_clean_timestamp],
                             INSERTED.[sync_scope_properties],
                             INSERTED.[sync_scope_server_capabilities],
-                            INSERTED.[sync_scope_schema_hash],
-                            INSERTED.[sync_scope_server_version],
-                            INSERTED.[sync_scope_capabilities_last_updated];";
+                            INSERTED.[sync_scope_schema_hash];";
 
             var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -363,17 +351,6 @@ namespace Dotmim.Sync.SqlServer.Scope
             p.ParameterName = "@sync_scope_schema_hash";
             p.DbType = DbType.String;
             p.Size = 64;
-            command.Parameters.Add(p);
-
-            p = command.CreateParameter();
-            p.ParameterName = "@sync_scope_server_version";
-            p.DbType = DbType.String;
-            p.Size = 50;
-            command.Parameters.Add(p);
-
-            p = command.CreateParameter();
-            p.ParameterName = "@sync_scope_capabilities_last_updated";
-            p.DbType = DbType.DateTime;
             command.Parameters.Add(p);
 
             return command;
@@ -611,8 +588,6 @@ namespace Dotmim.Sync.SqlServer.Scope
             command.CommandText = $@"
                 ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_capabilities] NVARCHAR(MAX) NULL;
                 ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_schema_hash] NVARCHAR(64) NULL;
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_version] NVARCHAR(50) NULL;
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_capabilities_last_updated] DATETIME2 NULL;
             ";
             return command;
         }

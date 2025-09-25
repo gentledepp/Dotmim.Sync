@@ -39,17 +39,15 @@ namespace Dotmim.Sync
                         && columns[4].ColumnName == "sync_scope_last_clean_timestamp"
                         && columns[5].ColumnName == "sync_scope_properties";
 
-                var isNewSchema = columns.Count == 10
-                        && columns[0].ColumnName == "sync_scope_name"
-                        && columns[1].ColumnName == "sync_scope_schema"
-                        && columns[2].ColumnName == "sync_scope_setup"
-                        && columns[3].ColumnName == "sync_scope_version"
-                        && columns[4].ColumnName == "sync_scope_last_clean_timestamp"
-                        && columns[5].ColumnName == "sync_scope_properties"
-                        && columns[6].ColumnName == "sync_scope_server_capabilities"
-                        && columns[7].ColumnName == "sync_scope_schema_hash"
-                        && columns[8].ColumnName == "sync_scope_server_version"
-                        && columns[9].ColumnName == "sync_scope_capabilities_last_updated";
+                var isNewSchema = columns.Count == 8
+                          && columns[0].ColumnName == "sync_scope_name"
+                          && columns[1].ColumnName == "sync_scope_schema"
+                          && columns[2].ColumnName == "sync_scope_setup"
+                          && columns[3].ColumnName == "sync_scope_version"
+                          && columns[4].ColumnName == "sync_scope_last_clean_timestamp"
+                          && columns[5].ColumnName == "sync_scope_properties"
+                          && columns[6].ColumnName == "sync_scope_server_capabilities"
+                          && columns[7].ColumnName == "sync_scope_schema_hash";
 
                 return isLegacySchema || isNewSchema;
             }
@@ -74,7 +72,7 @@ namespace Dotmim.Sync
                 // check columns
                 var columns = (await tableBuilder.GetColumnsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false)).ToList();
 
-                return columns.Count == 10
+                return columns.Count == 8
                         && columns[0].ColumnName == "sync_scope_id"
                         && columns[1].ColumnName == "sync_scope_name"
                         && columns[2].ColumnName == "sync_scope_hash"

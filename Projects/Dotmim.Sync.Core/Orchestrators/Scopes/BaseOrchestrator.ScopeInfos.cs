@@ -489,8 +489,6 @@ namespace Dotmim.Sync
             
             InternalSetParameterValue(command, "sync_scope_server_capabilities", scopeInfo.ServerCapabilities == null ? DBNull.Value : scopeInfo.ServerCapabilities);
             InternalSetParameterValue(command, "sync_scope_schema_hash", scopeInfo.SchemaHash == null ? DBNull.Value : scopeInfo.SchemaHash);
-            InternalSetParameterValue(command, "sync_scope_server_version", scopeInfo.Properties == null ? DBNull.Value : scopeInfo.Properties);
-            InternalSetParameterValue(command, "sync_scope_capabilities_last_updated", scopeInfo.CapabilitiesLastUpdated == null ? DBNull.Value : scopeInfo.CapabilitiesLastUpdated);
 
 
             return command;
@@ -515,8 +513,6 @@ namespace Dotmim.Sync
                 Properties = reader["sync_scope_properties"] as string,
                 ServerCapabilities = reader["sync_scope_server_capabilities"] as string,
                 SchemaHash = reader["sync_scope_schema_hash"] as string,
-                ServerVersion = reader["sync_scope_server_version"] as string,
-                CapabilitiesLastUpdated = reader["sync_scope_capabilities_last_updated"] == DBNull.Value ? null : (DateTime?)reader.GetDateTime(reader.GetOrdinal("sync_scope_capabilities_last_updated")),
             };
             
             return clientScopeInfo;

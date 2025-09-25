@@ -78,20 +78,6 @@ namespace Dotmim.Sync
         public string SchemaHash { get; set; }
 
         /// <summary>
-        /// Server version from last successful sync.
-        /// Used to detect server upgrades that might change capabilities.
-        /// </summary>
-        [DataMember(Name = "sv", IsRequired = false, EmitDefaultValue = false, Order = 8)]
-        public string ServerVersion { get; set; }
-
-        /// <summary>
-        /// Timestamp when capabilities were last updated.
-        /// Allows for periodic capability refresh if needed.
-        /// </summary>
-        [DataMember(Name = "clu", IsRequired = false, EmitDefaultValue = false, Order = 9)]
-        public DateTime? CapabilitiesLastUpdated { get; set; }
-
-        /// <summary>
         /// Get server capabilities as strongly-typed object.
         /// </summary>
         public Dictionary<string, object> GetServerCapabilities()
@@ -124,7 +110,6 @@ namespace Dotmim.Sync
             if (changed)
             {
                 ServerCapabilities = JsonSerializer.Serialize(capabilities);
-                CapabilitiesLastUpdated = DateTime.UtcNow;
             }
         }
 

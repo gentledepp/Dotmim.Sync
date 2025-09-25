@@ -100,9 +100,7 @@ namespace Dotmim.Sync.MySql.Builders
                          sync_scope_last_clean_timestamp bigint NULL,
                          sync_scope_properties longtext NULL,
                          sync_scope_server_capabilities TEXT NULL,
-                         sync_scope_schema_hash VARCHAR(64) NULL,
-                         sync_scope_server_version VARCHAR(50) NULL,
-                         sync_scope_capabilities_last_updated DATETIME NULL,
+                         sync_scope_schema_hash VARCHAR(64) NULL
                          PRIMARY KEY (sync_scope_name)
                          )";
 
@@ -154,9 +152,7 @@ namespace Dotmim.Sync.MySql.Builders
                           sync_scope_last_clean_timestamp,
                           sync_scope_properties,
                           sync_scope_server_capabilities,
-                          sync_scope_schema_hash,
-                          sync_scope_server_version,
-                          sync_scope_capabilities_last_updated
+                          sync_scope_schema_hash
                         FROM {this.ScopeInfoTableNames.QuotedName}";
 
             var command = connection.CreateCommand();
@@ -206,9 +202,7 @@ namespace Dotmim.Sync.MySql.Builders
                           sync_scope_last_clean_timestamp,
                           sync_scope_properties,
                           sync_scope_server_capabilities,
-                          sync_scope_schema_hash,
-                          sync_scope_server_version,
-                          sync_scope_capabilities_last_updated
+                          sync_scope_schema_hash
                     FROM  {this.ScopeInfoTableNames.QuotedName}
                     WHERE sync_scope_name = @sync_scope_name";
 
@@ -434,17 +428,14 @@ namespace Dotmim.Sync.MySql.Builders
                 $"sync_scope_last_clean_timestamp=@sync_scope_last_clean_timestamp, " +
                 $"sync_scope_properties=@sync_scope_properties, " +
                 $"sync_scope_server_capabilities=@sync_scope_server_capabilities, " +
-                $"sync_scope_schema_hash=@sync_scope_schema_hash, " +
-                $"sync_scope_server_version=@sync_scope_server_version, " +
-                $"sync_scope_capabilities_last_updated=@sync_scope_capabilities_last_updated " +
+                $"sync_scope_schema_hash=@sync_scope_schema_hash " +
                 $"WHERE sync_scope_name=@sync_scope_name;");
             stmtText.AppendLine();
             stmtText.AppendLine();
             stmtText.AppendLine(
                 $"SELECT sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
                 $"sync_scope_last_clean_timestamp, sync_scope_properties, " +
-                $"sync_scope_server_capabilities, sync_scope_schema_hash, " +
-                $"sync_scope_server_version, sync_scope_capabilities_last_updated " +
+                $"sync_scope_server_capabilities, sync_scope_schema_hash " +
                 $"FROM {this.ScopeInfoTableNames.QuotedName} " +
                 $"WHERE sync_scope_name=@sync_scope_name;");
 
@@ -499,17 +490,6 @@ namespace Dotmim.Sync.MySql.Builders
             p.ParameterName = "@sync_scope_schema_hash";
             p.DbType = DbType.String;
             p.Size = 64;
-            command.Parameters.Add(p);
-
-            p = command.CreateParameter();
-            p.ParameterName = "@sync_scope_server_version";
-            p.DbType = DbType.String;
-            p.Size = 50;
-            command.Parameters.Add(p);
-
-            p = command.CreateParameter();
-            p.ParameterName = "@sync_scope_capabilities_last_updated";
-            p.DbType = DbType.DateTime;
             command.Parameters.Add(p);
 
             return command;
@@ -741,8 +721,6 @@ namespace Dotmim.Sync.MySql.Builders
             command.CommandText = $@"
                 ALTER TABLE {this.ScopeInfoTableNames.QuotedName} ADD COLUMN `sync_scope_server_capabilities` TEXT NULL;
                 ALTER TABLE {this.ScopeInfoTableNames.QuotedName} ADD COLUMN `sync_scope_schema_hash` VARCHAR(64) NULL;
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedName} ADD COLUMN `sync_scope_server_version` VARCHAR(50) NULL;
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedName} ADD COLUMN `sync_scope_capabilities_last_updated` DATETIME NULL;
             ";
             return command;
         }
