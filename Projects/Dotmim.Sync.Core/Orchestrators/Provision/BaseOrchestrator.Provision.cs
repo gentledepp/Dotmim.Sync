@@ -390,5 +390,73 @@ namespace Dotmim.Sync
                 throw this.GetSyncError(context, ex, message);
             }
         }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup.
+        /// Requires connection to discover schema but generates scripts without executing them.
+        /// </summary>
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, DbConnection connection = null, DbTransaction transaction = null)
+        {
+            var context = new SyncContext(Guid.NewGuid(), SyncOptions.DefaultScopeName);
+
+            try
+            {
+                if (this.Provider == null)
+                    throw new MissingProviderException(nameof(this.GetProvisioningSqlScriptsAsync));
+
+                if (setup == null || setup.Tables.Count <= 0)
+                    throw new MissingTablesException();
+
+                using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.Provisioning, connection, transaction).ConfigureAwait(false);
+                await using (runner.ConfigureAwait(false))
+                {
+                    // Get schema from database
+                    SyncSet schema;
+                    (context, schema) = await this.InternalGetSchemaAsync(context, setup, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    // Create scope info with schema and setup
+                    var scopeInfo = new ScopeInfo
+                    {
+                        Name = context.ScopeName,
+                        Schema = schema,
+                        Setup = setup,
+                    };
+
+                    var allScripts = new System.Text.StringBuilder();
+
+                    // Sort tables based on dependencies
+                    var schemaTables = schema.Tables
+                        .SortByDependencies(tab => tab.GetRelations()
+                            .Select(r => r.GetParentTable()));
+
+                    foreach (var schemaTable in schemaTables)
+                    {
+                        var syncAdapter = this.GetSyncAdapter(schemaTable, scopeInfo);
+                        var tableScripts = await syncAdapter.GetProvisioningSqlScriptsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false);
+
+                        if (!string.IsNullOrEmpty(tableScripts))
+                        {
+                            if (allScripts.Length > 0)
+                            {
+                                // Add separator between tables
+                                allScripts.Append("\n\n-- ---------------------------------\n");
+                                allScripts.Append(this.Provider.GetProviderTypeName() == "SqlSyncProvider" ||
+                                                 this.Provider.GetProviderTypeName() == "SqlChangeTrackingSyncProvider"
+                                                 ? "GO" : ";");
+                                allScripts.Append("\n\n");
+                            }
+
+                            allScripts.Append(tableScripts);
+                        }
+                    }
+
+                    return allScripts.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw this.GetSyncError(context, ex);
+            }
+        }
     }
 }

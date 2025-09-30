@@ -117,5 +117,10 @@ namespace Dotmim.Sync
                 : command.Parameters.Contains($"in_{parameterName}")
                 ? command.Parameters[$"in_{parameterName}"]
                 : !command.Parameters.Contains(parameterName) ? null : command.Parameters[parameterName];
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for the table as a concatenated string.
+        /// </summary>
+        public abstract Task<string> GetProvisioningSqlScriptsAsync(DbConnection connection, DbTransaction transaction);
     }
 }
