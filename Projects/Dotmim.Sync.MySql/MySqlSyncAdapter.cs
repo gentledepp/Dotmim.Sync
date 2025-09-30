@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 #if NET6_0 || NET8_0
 using Dotmim.Sync.DatabaseStringParsers;
 using MySqlConnector;
@@ -227,5 +228,66 @@ namespace Dotmim.Sync.MySql
 
         /// <inheritdoc />
         public override DbTableBuilder GetTableBuilder() => new MySqlTableBuilder(this.TableDescription, this.ScopeInfo);
+
+        /// <inheritdoc/>
+        public override async Task<string> GetProvisioningSqlScriptsAsync(DbConnection connection, DbTransaction transaction)
+        {
+            var scripts = new System.Text.StringBuilder();
+            var tableBuilder = this.GetTableBuilder();
+
+            // Tracking Table
+            var trackingTableCmd = await tableBuilder.GetCreateTrackingTableCommandAsync(connection, transaction).ConfigureAwait(false);
+            if (trackingTableCmd != null && !string.IsNullOrEmpty(trackingTableCmd.CommandText))
+            {
+                scripts.Append(trackingTableCmd.CommandText);
+            }
+
+            // Triggers: Insert, Update, Delete
+            foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
+            {
+                var triggerCmd = await tableBuilder.GetCreateTriggerCommandAsync(triggerType, connection, transaction).ConfigureAwait(false);
+                if (triggerCmd != null && !string.IsNullOrEmpty(triggerCmd.CommandText))
+                {
+                    scripts.Append("\n\n-- ---------------------------------\n;\n\n");
+                    scripts.Append(triggerCmd.CommandText);
+                }
+            }
+
+            // Stored Procedures in descending order
+            var storedProcedureTypes = System.Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
+
+            // Get filters for this specific table from the schema
+            var tableFilters = this.ScopeInfo?.Schema?.Filters?
+                .Where(f => f.TableName.Equals(this.TableDescription.TableName, SyncGlobalization.DataSourceStringComparison) &&
+                           (string.IsNullOrEmpty(f.SchemaName) || f.SchemaName.Equals(this.TableDescription.SchemaName, SyncGlobalization.DataSourceStringComparison)))
+                .ToList();
+
+            foreach (var spType in storedProcedureTypes)
+            {
+                if (tableFilters != null && tableFilters.Count > 0)
+                {
+                    foreach (var filter in tableFilters)
+                    {
+                        var spCmd = await tableBuilder.GetCreateStoredProcedureCommandAsync(spType, filter, connection, transaction).ConfigureAwait(false);
+                        if (spCmd != null && !string.IsNullOrEmpty(spCmd.CommandText))
+                        {
+                            scripts.Append("\n\n-- ---------------------------------\n;\n\n");
+                            scripts.Append(spCmd.CommandText);
+                        }
+                    }
+                }
+                else
+                {
+                    var spCmd = await tableBuilder.GetCreateStoredProcedureCommandAsync(spType, null, connection, transaction).ConfigureAwait(false);
+                    if (spCmd != null && !string.IsNullOrEmpty(spCmd.CommandText))
+                    {
+                        scripts.Append("\n\n-- ---------------------------------\n;\n\n");
+                        scripts.Append(spCmd.CommandText);
+                    }
+                }
+            }
+
+            return scripts.ToString();
+        }
     }
 }

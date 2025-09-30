@@ -453,6 +453,8 @@ namespace Dotmim.Sync.Tests.UnitTests
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(1);
 
+            await Task.Delay(2);
+
             await Assert.ThrowsAsync<TaskCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));
         }
