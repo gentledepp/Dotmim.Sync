@@ -51,6 +51,12 @@ namespace Dotmim.Sync
         public List<string> CustomWheres { get; set; } = [];
 
         /// <summary>
+        /// Gets or Sets customs where.
+        /// </summary>
+        [DataMember(Name = "ciw", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        public List<string> CustomInitWheres { get; set; } = [];
+
+        /// <summary>
         /// Gets or sets the ShemaFilter's SyncSchema.
         /// </summary>
         [IgnoreDataMember]

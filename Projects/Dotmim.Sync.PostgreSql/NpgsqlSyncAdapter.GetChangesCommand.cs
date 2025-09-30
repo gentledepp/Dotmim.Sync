@@ -162,10 +162,10 @@ namespace Dotmim.Sync.PostgreSql
                 if (!string.IsNullOrEmpty(createFilterWhereSide))
                     stringBuilder.AppendLine($"AND ");
 
-                var createFilterCustomWheres = this.CreateFilterCustomWheres(filter);
-                stringBuilder.Append(createFilterCustomWheres);
+                var createFilterCustomInitWheres = this.CreateFilterCustomInitWheres(filter);
+                stringBuilder.Append(createFilterCustomInitWheres);
 
-                if (!string.IsNullOrEmpty(createFilterCustomWheres))
+                if (!string.IsNullOrEmpty(createFilterCustomInitWheres))
                     stringBuilder.AppendLine($"AND ");
             }
 
@@ -289,6 +289,34 @@ namespace Dotmim.Sync.PostgreSql
             stringBuilder.AppendLine($"(");
 
             foreach (var customWhere in customWheres)
+            {
+                // Template escape character
+                var customWhereIteration = customWhere;
+                customWhereIteration = customWhereIteration.Replace("{{{", "\"", SyncGlobalization.DataSourceStringComparison);
+                customWhereIteration = customWhereIteration.Replace("}}}", "\"", SyncGlobalization.DataSourceStringComparison);
+
+                stringBuilder.Append($"{and2}{customWhereIteration}");
+                and2 = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine($")");
+
+            return stringBuilder.ToString();
+        }
+
+        private string CreateFilterCustomInitWheres(SyncFilter filter)
+        {
+            var customInitWheres = filter.CustomInitWheres;
+
+            if (customInitWheres.Count == 0)
+                return string.Empty;
+
+            var stringBuilder = new StringBuilder();
+            var and2 = "  ";
+            stringBuilder.AppendLine($"(");
+
+            foreach (var customWhere in customInitWheres)
             {
                 // Template escape character
                 var customWhereIteration = customWhere;

@@ -96,6 +96,8 @@ namespace Dotmim.Sync
 
             foreach (var s in setupFilter.CustomWheres)
                 item.CustomWheres.Add(s);
+            foreach (var s in setupFilter.CustomInitWheres)
+                item.CustomInitWheres.Add(s);
 
             this.InnerCollection.Add(item);
         }

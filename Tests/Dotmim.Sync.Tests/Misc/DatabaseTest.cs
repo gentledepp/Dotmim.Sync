@@ -100,7 +100,10 @@ namespace Dotmim.Sync.Tests.Misc
             // 4) Custom Wheres on Product.
             var productFilter = new SetupFilter("Product", salesSchema);
 
+            // For incremental sync: include tombstones OR rows with non-null ProductCategoryID
             productFilter.AddCustomWhere("{{{ProductCategoryID}}} IS NOT NULL OR {{{side}}}.{{{sync_row_is_tombstone}}} = 1");
+            // For initial sync: only rows with non-null ProductCategoryID (no tracking table)
+            productFilter.AddCustomInitWhere("{{{ProductCategoryID}}} IS NOT NULL");
             setup.Filters.Add(productFilter);
 
             return setup;
