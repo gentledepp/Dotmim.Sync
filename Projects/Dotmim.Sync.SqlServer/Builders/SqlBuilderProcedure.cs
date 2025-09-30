@@ -1351,21 +1351,8 @@ namespace Dotmim.Sync.SqlServer.Builders
                 comma = ", ";
             }
 
-            stringBuilder.AppendLine($"\t, [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]");
+            stringBuilder.AppendLine($"\t, 0 as [sync_row_is_tombstone]");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
-
-            // ----------------------------------
-            // Make Left Join
-            // ----------------------------------
-            stringBuilder.Append($"LEFT JOIN {this.SqlObjectNames.TrackingTableQuotedFullName} [side] ON ");
-
-            string empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
-            {
-                var columnParser = new ObjectParser(pkColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
-                stringBuilder.Append($"{empty}[base].{columnParser.QuotedShortName} = [side].{columnParser.QuotedShortName}");
-                empty = " AND ";
-            }
 
             // ----------------------------------
             // Custom Joins
@@ -1374,13 +1361,14 @@ namespace Dotmim.Sync.SqlServer.Builders
                 stringBuilder.Append(this.CreateFilterCustomJoins(filter));
 
             stringBuilder.AppendLine();
-            stringBuilder.AppendLine("WHERE (");
 
             // ----------------------------------
             // Where filters and Custom Where string
             // ----------------------------------
             if (filter != null)
             {
+                stringBuilder.AppendLine("WHERE (");
+                
                 var createFilterWhereSide = this.CreateFilterWhereSide(filter);
                 stringBuilder.Append(createFilterWhereSide);
 
@@ -1392,45 +1380,9 @@ namespace Dotmim.Sync.SqlServer.Builders
 
                 if (!string.IsNullOrEmpty(createFilterCustomWheres))
                     stringBuilder.AppendLine($"AND ");
+
+                stringBuilder.AppendLine(")");
             }
-
-            // ----------------------------------
-            stringBuilder.AppendLine("\t([side].[timestamp] is null OR [side].[timestamp] > @sync_min_timestamp OR  @sync_min_timestamp IS NULL)");
-            stringBuilder.AppendLine(")");
-            stringBuilder.AppendLine("UNION");
-            stringBuilder.AppendLine("SELECT");
-            comma = "  ";
-            foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
-            {
-                var columnParser = new ObjectParser(mutableColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
-                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pkey => mutableColumn.ColumnName.Equals(pkey, SyncGlobalization.DataSourceStringComparison));
-
-                if (isPrimaryKey)
-                    stringBuilder.AppendLine($"\t{comma}[side].{columnParser.QuotedShortName}");
-                else
-                    stringBuilder.AppendLine($"\t{comma}[base].{columnParser.QuotedShortName}");
-
-                comma = ", ";
-            }
-
-            stringBuilder.AppendLine($"\t, [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]");
-            stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
-
-            // ----------------------------------
-            // Make Left Join
-            // ----------------------------------
-            stringBuilder.Append($"RIGHT JOIN {this.SqlObjectNames.TrackingTableQuotedFullName} [side] ON ");
-
-            empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
-            {
-                var columnParser = new ObjectParser(pkColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
-                stringBuilder.Append($"{empty}[base].{columnParser.QuotedShortName}  = [side]. {columnParser.QuotedShortName}");
-                empty = " AND ";
-            }
-
-            stringBuilder.AppendLine();
-            stringBuilder.AppendLine("WHERE ([side].[timestamp] > @sync_min_timestamp AND [side].[sync_row_is_tombstone] = 1);");
 
             sqlCommand.CommandText = stringBuilder.ToString();
 
