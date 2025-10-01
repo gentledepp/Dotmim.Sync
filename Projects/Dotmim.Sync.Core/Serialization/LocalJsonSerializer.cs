@@ -361,6 +361,8 @@ namespace Dotmim.Sync.Serialization
             var state = SyncRowState.None;
 
             string tableName = null, schemaName = null;
+            bool foundMatchingTable = false;
+            SyncTable currentTable = schemaTable;
 
             while (jsonReader.Read())
             {
@@ -373,6 +375,9 @@ namespace Dotmim.Sync.Serialization
                 {
                     case "n":
                         tableName = jsonReader.ReadAsString();
+                        // Reset the flag and current table when we encounter a new table
+                        foundMatchingTable = false;
+                        currentTable = null;
                         break;
                     case "s":
                         schemaName = jsonReader.ReadAsString();
@@ -381,18 +386,60 @@ namespace Dotmim.Sync.Serialization
                         state = (SyncRowState)jsonReader.ReadAsInt16();
                         break;
                     case "c":
-                        var tmpTable = GetSchemaTableFromReader(jsonReader, schemaTable?.TableName ?? tableName, schemaTable?.SchemaName ?? schemaName);
+                        // Check if this is the table we're looking for before reading its columns
+                        var isMatchingTable = schemaTable == null ||
+                            (string.Equals(tableName, schemaTable.TableName, StringComparison.OrdinalIgnoreCase) &&
+                             string.Equals(schemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
 
-                        if (tmpTable != null)
-                            schemaTable = tmpTable;
+                        if (isMatchingTable)
+                        {
+                            // Only read and set the table schema if it matches the requested table
+                            var tmpTable = GetSchemaTableFromReader(jsonReader, schemaTable?.TableName ?? tableName, schemaTable?.SchemaName ?? schemaName);
+
+                            if (tmpTable != null)
+                                currentTable = tmpTable;
+                        }
+                        else
+                        {
+                            // Skip the columns array for tables we're not interested in
+                            var hasSkipToken = jsonReader.Read();
+                            if (hasSkipToken)
+                            {
+                                var skipDepth = jsonReader.Depth;
+                                while (jsonReader.Read() && jsonReader.Depth > skipDepth)
+                                {
+                                    // Just skip all tokens in this columns array
+                                }
+                            }
+                        }
 
                         continue;
                     case "r":
+                        // Check if this is the table we're looking for
+                        bool isRequestedTable = schemaTable == null ||
+                            (string.Equals(tableName, schemaTable.TableName, StringComparison.OrdinalIgnoreCase) &&
+                             string.Equals(schemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
 
-                        var schemaEmpty = schemaTable == null;
+                        // If this is not the requested table, we need to skip the rows array entirely
+                        if (!isRequestedTable)
+                        {
+                            // Skip the entire rows array by reading until we exit this depth level
+                            var hasSkipToken = jsonReader.Read();
+                            if (hasSkipToken)
+                            {
+                                var skipDepth = jsonReader.Depth;
+                                while (jsonReader.Read() && jsonReader.Depth > skipDepth)
+                                {
+                                    // Just skip all tokens in this rows array
+                                }
+                            }
+                            break;
+                        }
+
+                        var schemaEmpty = currentTable == null;
 
                         if (schemaEmpty)
-                            schemaTable = new SyncTable(tableName, schemaName);
+                            currentTable = new SyncTable(tableName, schemaName);
 
                         // go into first array
                         var hasToken = jsonReader.Read();
@@ -409,14 +456,14 @@ namespace Dotmim.Sync.Serialization
 
                             // iterate values
                             var index = 0;
-                            var values = new object[schemaTable.Columns.Count + 1];
+                            var values = new object[currentTable.Columns.Count + 1];
                             var stringBuilder = new StringBuilder();
                             var getStringOnly = this.readingRowAsync != null;
 
                             while (jsonReader.Read() && jsonReader.TokenType != JsonTokenType.EndArray)
                             {
                                 object value = null;
-                                var columnType = index >= 1 ? schemaTable.Columns[index - 1].GetDataType() : typeof(short);
+                                var columnType = index >= 1 ? currentTable.Columns[index - 1].GetDataType() : typeof(short);
 
                                 if (this.readingRowAsync != null)
                                 {
@@ -456,7 +503,7 @@ namespace Dotmim.Sync.Serialization
                             }
 
                             if (this.readingRowAsync != null)
-                                values = this.readingRowAsync(schemaTable, stringBuilder.ToString()).GetAwaiter().GetResult();
+                                values = this.readingRowAsync(currentTable, stringBuilder.ToString()).GetAwaiter().GetResult();
 
                             if (values == null || values.Length < 2)
                             {
@@ -467,23 +514,23 @@ namespace Dotmim.Sync.Serialization
                             if (schemaEmpty) // array[0] contains the state, not a column
                             {
                                 for (var i = 1; i < values.Length; i++)
-                                    schemaTable.Columns.Add($"C{i}", values[i].GetType());
+                                    currentTable.Columns.Add($"C{i}", values[i].GetType());
 
                                 schemaEmpty = false;
                             }
 
-                            if (values.Length != (schemaTable.Columns.Count + 1))
+                            if (values.Length != (currentTable.Columns.Count + 1))
                             {
                                 var rowStr = "[" + string.Join(",", values) + "]";
-                                throw new Exception($"Table {schemaTable.GetFullName()} with {schemaTable.Columns.Count} columns does not have the same columns count as the row read {rowStr} which have {values.Length - 1} values.");
+                                throw new Exception($"Table {currentTable.GetFullName()} with {currentTable.Columns.Count} columns does not have the same columns count as the row read {rowStr} which have {values.Length - 1} values.");
                             }
 
                             // if we have some columns, we check the date time thing
-                            if (schemaTable.Columns?.HasSyncColumnOfType(typeof(DateTime)) == true)
+                            if (currentTable.Columns?.HasSyncColumnOfType(typeof(DateTime)) == true)
                             {
                                 for (var index2 = 1; index2 < values.Length; index2++)
                                 {
-                                    var column = schemaTable.Columns[index2 - 1];
+                                    var column = currentTable.Columns[index2 - 1];
 
                                     // Set the correct value in existing row for DateTime types.
                                     // They are being Deserialized as DateTimeOffsets
@@ -492,10 +539,13 @@ namespace Dotmim.Sync.Serialization
                                 }
                             }
 
-                            yield return new SyncRow(schemaTable, values);
+                            foundMatchingTable = true;
+                            yield return new SyncRow(currentTable, values);
                         }
 
-                        yield break;
+                        // For unified batches, continue reading other tables
+                        // For traditional batches, we can break after processing the requested table
+                        break;
                     default:
                         break;
                 }
