@@ -462,7 +462,7 @@ namespace Dotmim.Sync
                             IEnumerable<SyncRow> rowsEnumerable;
 
                             // Check if this is a unified batch file
-                            if (context.UseUnifiedBatching)
+                            if (context.UseUnifiedBatching && batchPartInfo.TableName == "UNIFIED")
                             {
                                 var rows = this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType,
                                     unifiedBatchCache).ToList();
@@ -581,7 +581,7 @@ namespace Dotmim.Sync
                             command.Transaction = runner.Transaction;
 
                             // Check if this is a unified batch file
-                            var rowsEnumerable = context.UseUnifiedBatching
+                            var rowsEnumerable = context.UseUnifiedBatching && batchPartInfo.TableName == "UNIFIED"
                                 ? this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType, unifiedBatchCache)
                                 : localSerializer.GetRowsFromFile(fullPath, schemaChangesTable);
 
