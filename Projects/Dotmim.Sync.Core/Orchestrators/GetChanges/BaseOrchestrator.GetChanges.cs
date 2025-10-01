@@ -411,7 +411,8 @@ namespace Dotmim.Sync
 
                                 var batchPartInfo = new BatchPartInfo(batchPartFileName, "UNIFIED", string.Empty, SyncRowState.None, 0, batchIndex)
                                 {
-                                    IsLastBatch = false
+                                    IsLastBatch = false,
+                                    TableRowCounts = new Dictionary<string, int>()
                                 };
                                 batchPartInfos.Add(batchPartInfo);
                                 currentBatchRowCount = 0;
@@ -445,6 +446,15 @@ namespace Dotmim.Sync
                             {
                                 var currentBatchPartInfo = batchPartInfos[batchPartInfos.Count - 1];
                                 currentBatchPartInfo.RowsCount = currentBatchRowCount;
+
+                                // Update per-table row count for unified batches
+                                if (currentBatchPartInfo.TableRowCounts != null)
+                                {
+                                    if (!currentBatchPartInfo.TableRowCounts.ContainsKey(requiredTableKey))
+                                        currentBatchPartInfo.TableRowCounts[requiredTableKey] = 0;
+
+                                    currentBatchPartInfo.TableRowCounts[requiredTableKey]++;
+                                }
                             }
 
                             var newSizeKB = batchSizeInBytes / 1024L;

@@ -55,6 +55,14 @@ namespace Dotmim.Sync.Batch
         public SyncRowState State { get; set; } = SyncRowState.None;
 
         /// <summary>
+        /// Gets or sets per-table row counts for unified batches.
+        /// Key format: "schemaName.tableName", Value: row count for that table in this batch part.
+        /// Only used when TableName = "UNIFIED".
+        /// </summary>
+        [DataMember(Name = "trc", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        public Dictionary<string, int> TableRowCounts { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="BatchPartInfo"/> class.
         /// ctor for serialization purpose.
         /// </summary>

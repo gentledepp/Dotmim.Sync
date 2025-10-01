@@ -442,6 +442,12 @@ namespace Dotmim.Sync.Web.Client
 
                 // Create single BatchPartInfo for the unified batch
                 var totalRowsCount = summaryResponseContent.Changes.Tables.Sum(t => t.Rows?.Count ?? 0);
+                var tableRowCounts = new Dictionary<string, int>();
+                foreach (var table in summaryResponseContent.Changes.Tables)
+                {
+                    var tableKey = $"{table.SchemaName}.{table.TableName}";
+                    tableRowCounts[tableKey] = table.Rows?.Count ?? 0;
+                }
                 var firstBpi = new BatchPartInfo
                 {
                     FileName = fileName,
@@ -450,6 +456,7 @@ namespace Dotmim.Sync.Web.Client
                     RowsCount = totalRowsCount,
                     IsLastBatch = summaryResponseContent.BatchInfo == null || summaryResponseContent.BatchInfo.BatchPartsInfo?.Count == 0,
                     Index = 0,
+                    TableRowCounts = tableRowCounts,
                 };
 
                 serverBatchInfo.BatchPartsInfo.Add(firstBpi);

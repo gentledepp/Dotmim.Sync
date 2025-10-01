@@ -152,13 +152,15 @@ namespace Dotmim.Sync.Batch
             if (this.BatchPartsInfo != null && this.BatchPartsInfo.Count > 0)
             {
                 // Check if this is a unified batch
-                var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableName == "UNIFIED" && bpi.RowsCount > 0);
-                if (unifiedBatchParts.Any())
+                var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableRowCounts is { Count: > 0 } && bpi.RowsCount > 0).ToList();
+                if (unifiedBatchParts.Count != 0)
                 {
-                    // For unified batches, we need to check if the unified batch contains data for the requested table
-                    // Since we can't easily inspect the file contents here, we assume unified batches contain data for all tables
-                    // This is a conservative approach - the actual table-specific check happens during batch processing
-                    return true;
+                    // For unified batches, check TableRowCounts dictionary
+                    var tableKey = $"{schemaName}.{tableName}";
+                    return unifiedBatchParts.Any(bpi =>
+                        bpi.TableRowCounts != null &&
+                        bpi.TableRowCounts.TryGetValue(tableKey, out var count) &&
+                        count > 0);
                 }
 
                 // Traditional batch processing - check by table name
@@ -186,12 +188,18 @@ namespace Dotmim.Sync.Batch
                 return [];
 
             // Check if this is a unified batch
-            var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableName == "UNIFIED" && bpi.RowsCount > 0);
-            if (unifiedBatchParts.Any())
+            var unifiedBatchParts = this.BatchPartsInfo.Where(bpi => bpi.TableRowCounts is { Count: > 0 } && bpi.RowsCount > 0).ToList();
+            if (unifiedBatchParts.Count != 0)
             {
-                // For unified batches, return the unified batch parts since they contain data for all tables
-                // The actual table-specific filtering happens during batch processing
-                return unifiedBatchParts.OrderBy(bpi => bpi.Index);
+                // For unified batches, filter by table using TableRowCounts dictionary
+                var tableKey = $"{schemaName}.{tableName}";
+                var filteredBatchParts = unifiedBatchParts
+                    .Where(bpi => bpi.TableRowCounts != null &&
+                                  bpi.TableRowCounts.TryGetValue(tableKey, out var count) &&
+                                  count > 0)
+                    .OrderBy(bpi => bpi.Index);
+
+                return filteredBatchParts;
             }
 
             // Traditional batch processing - filter by table name
