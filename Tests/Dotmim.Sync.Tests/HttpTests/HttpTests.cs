@@ -2924,5 +2924,109 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             }
         }
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task Sqlite_RowModifiedDuringSync_IsSentInNextSync(SyncOptions options)
+        {
+            // This test verifies the race condition protection for SQLite's dirty flag approach
+            // If a row is modified after MarkRowsAsSyncing but before MarkRowsAsSynced,
+            // the modification should not be lost and should be sent in the next sync
+
+            // Get the first client provider (which is always SQLite in HttpTests)
+            var sqliteClient = clientsProvider.OfType<SqliteSyncProvider>().Single();
+
+            // Initialize sync between server and SQLite client
+            var agent = new SyncAgent(sqliteClient, serverProvider, options);
+            await agent.SynchronizeAsync(setup);
+
+            // Add a ProductCategory row on SQLite client
+            var categoryName = HelperDatabase.GetRandomName("cat_");
+            string categoryId;
+
+            await using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var category = new ProductCategory { 
+                    ProductCategoryId = categoryName.Substring(0, 11),
+                    Name = categoryName
+                };
+                ctx.ProductCategory.Add(category);
+                await ctx.SaveChangesAsync();
+                categoryId = category.ProductCategoryId;
+            }
+
+            // Setup for first sync: intercept after changes are selected to modify the row mid-sync
+            var modifiedDuringSync = false;
+
+            // Execute first sync with the interceptor
+            var agent2 = new SyncAgent(sqliteClient, new WebRemoteOrchestrator(serviceUri), options);
+            agent2.LocalOrchestrator.OnDatabaseChangesSelected(async args =>
+            {
+                // This runs after MarkRowsAsSyncing has been called
+                // Now modify the same row to simulate a race condition
+                if (!modifiedDuringSync)
+                {
+                    await using var ctx = new AdventureWorksContext(sqliteClient);
+                    var category = await ctx.ProductCategory.FindAsync(categoryId);
+                    if (category != null)
+                    {
+                        category.Name = categoryName + "_modified";
+                        await ctx.SaveChangesAsync();
+                        modifiedDuringSync = true;
+                    }
+                }
+            });
+            var s1 = await agent2.SynchronizeAsync();
+
+            // Verify first sync uploaded the original row
+            Assert.Equal(1, s1.TotalChangesUploadedToServer);
+            Assert.Equal(1, s1.TotalChangesAppliedOnServer);
+            Assert.True(modifiedDuringSync, "Row should have been modified during sync");
+
+            // Verify the modification is still marked as dirty on the client
+            await using (var connection = sqliteClient.CreateConnection())
+            {
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = $"SELECT is_dirty FROM ProductCategory_tracking WHERE ProductCategoryId = @catId";
+                cmd.Parameters.Add(new SqliteParameter("catId", SqliteType.Text) { Value = categoryId });
+                var isDirty = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                Assert.Equal(1, isDirty);
+            }
+
+            // Execute second sync - the modification should be uploaded
+            var s2 = await agent2.SynchronizeAsync();
+
+            // Verify second sync uploaded the modified row
+            Assert.Equal(1, s2.TotalChangesUploadedToServer);
+            Assert.Equal(1, s2.TotalChangesAppliedOnServer);
+
+            // Verify the row is no longer dirty after successful sync
+            await using (var connection = sqliteClient.CreateConnection())
+            {
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = $"SELECT is_dirty FROM ProductCategory_tracking WHERE ProductCategoryId = @catId";
+                cmd.Parameters.Add(new SqliteParameter("catId", SqliteType.Text) { Value = categoryId });
+                var isDirty = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                Assert.Equal(0, isDirty);
+            }
+
+            // Verify final data on server has the modified value
+            await using (var serverCtx = new AdventureWorksContext(serverProvider))
+            {
+                var serverCategory = await serverCtx.ProductCategory.FindAsync(categoryId);
+                Assert.NotNull(serverCategory);
+                Assert.Equal(categoryName + "_modified", serverCategory.Name);
+            }
+
+            // Verify final data on client matches server
+            await using (var clientCtx = new AdventureWorksContext(sqliteClient))
+            {
+                var clientCategory = await clientCtx.ProductCategory.FindAsync(categoryId);
+                Assert.NotNull(clientCategory);
+                Assert.Equal(categoryName + "_modified", clientCategory.Name);
+            }
+        }
     }
 }

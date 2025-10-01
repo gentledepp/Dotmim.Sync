@@ -6,13 +6,15 @@ using Microsoft.Data.Sqlite;
 using System;
 using System.Data.Common;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Dotmim.Sync.Sqlite
 {
     /// <summary>
     /// Sqlite sync provider.
     /// </summary>
-    public class SqliteSyncProvider : CoreProvider
+    public class SqliteSyncProvider : CoreProvider, IBeforeSelectingChangesProvider, IAfterApplyChangesProvider
     {
 
         private static string shortProviderType;
@@ -214,5 +216,67 @@ namespace Dotmim.Sync.Sqlite
 
         /// <inheritdoc/>
         public override DbDatabaseBuilder GetDatabaseBuilder() => new SQLiteDatabaseBuilder();
+
+        /// <inheritdoc/>
+        public async Task OnBeforeSelectingChangesAsync(
+            ScopeInfo scopeInfo,
+            SyncContext context,
+            SyncTable syncTable,
+            DbConnection connection,
+            DbTransaction transaction,
+            CancellationToken cancellationToken)
+        {
+            // Get the sync adapter for this table
+            var syncAdapter = this.GetSyncAdapter(syncTable, scopeInfo);
+
+            // Get the MarkRowsAsSyncing command
+            var (command, _) = syncAdapter.GetCommand(context, DbCommandType.MarkRowsAsSyncing, null);
+
+            if (command == null)
+                return;
+
+            command.Connection = connection;
+            command.Transaction = transaction;
+
+            // Set the sync_session_id parameter
+            var syncSessionIdParameter = command.CreateParameter();
+            syncSessionIdParameter.ParameterName = "@sync_session_id";
+            syncSessionIdParameter.Value = context.SessionId.ToString();
+            command.Parameters.Add(syncSessionIdParameter);
+
+            // Execute the command
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc/>
+        public async Task OnAfterApplyChangesAsync(
+            ScopeInfo scopeInfo,
+            SyncContext context,
+            SyncTable syncTable,
+            DbConnection connection,
+            DbTransaction transaction,
+            CancellationToken cancellationToken)
+        {
+            // Get the sync adapter for this table
+            var syncAdapter = this.GetSyncAdapter(syncTable, scopeInfo);
+
+            // Get the MarkRowsAsSynced command
+            var (command, _) = syncAdapter.GetCommand(context, DbCommandType.MarkRowsAsSynced, null);
+
+            if (command == null)
+                return;
+
+            command.Connection = connection;
+            command.Transaction = transaction;
+
+            // Set the sync_session_id parameter
+            var syncSessionIdParameter = command.CreateParameter();
+            syncSessionIdParameter.ParameterName = "@sync_session_id";
+            syncSessionIdParameter.Value = context.SessionId.ToString();
+            command.Parameters.Add(syncSessionIdParameter);
+
+            // Execute the command
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 }
