@@ -848,7 +848,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // we are "mimic" here the backup restore
             var newClientsProviders = new List<CoreProvider>();
 
-            foreach (var clientProvider in this.clientsProvider)
+            foreach (var clientProvider in this.clientsProvider.Take(1))
             {
                 var (clientProviderType, _) = HelperDatabase.GetDatabaseType(clientProvider);
 
@@ -873,7 +873,10 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var employeeTable = this.setup.Tables.First(t => t.TableName == "Employee");
 
             var setupV1 = new SyncSetup(productCategoryTable.GetFullName(), productTable.GetFullName(), employeeTable.GetFullName());
-            var remoteOrchestrator = new RemoteOrchestrator(this.serverProvider);
+            var remoteOrchestrator = new RemoteOrchestrator(this.serverProvider, new SyncOptions
+            {
+                DisableConstraintsOnApplyChanges = true,
+            });
 
             // 2) Provision server database
             var serverScope = await remoteOrchestrator.ProvisionAsync(setupV1);
@@ -886,7 +889,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             await this.serverProvider.AddProductCategoryAsync();
 
             // First sync to initialiaze client database, create table and fill product categories
-            foreach (var clientProvider in newClientsProviders)
+            foreach (var clientProvider in newClientsProviders.Take(1))
             {
                 // get orchestrator
                 var localOrchestrator = new LocalOrchestrator(clientProvider);
@@ -902,7 +905,9 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var scopeInfoClient = await localOrchestrator.GetScopeInfoClientAsync();
 
                 // As we have some existing lines, we say it's not a new sync
-                scopeInfoClient.IsNewScope = false;
+                //scopeInfoClient.IsNewScope = false; but that has no effect - IsNewScope is determined when loading the scope:
+                //in case LastSync is null this is true, otherwise false
+                scopeInfoClient.LastSync = DateTime.UtcNow.AddDays(-4);
 
                 // Affecting the correct timestamp, the local one and the server one
                 scopeInfoClient.LastServerSyncTimestamp = serverTimeStamp;

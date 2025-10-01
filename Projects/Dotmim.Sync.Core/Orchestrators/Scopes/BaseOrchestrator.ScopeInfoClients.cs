@@ -366,7 +366,7 @@ namespace Dotmim.Sync
                 Errors = reader["sync_scope_errors"] as string,
                 Parameters = reader["sync_scope_parameters"] != DBNull.Value ? Serializer.Deserialize<SyncParameters>((string)reader["sync_scope_parameters"]) : null,
             };
-            scopeInfoClient.IsNewScope = scopeInfoClient.LastSync == null;
+            scopeInfoClient.IsNewScope = scopeInfoClient.LastSync == null && scopeInfoClient.LastServerSyncTimestamp is null;
 
             return scopeInfoClient;
         }
