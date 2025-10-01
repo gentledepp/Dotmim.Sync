@@ -6,6 +6,7 @@ using MySqlConnector;
 #elif NETSTANDARD
 using MySql.Data.MySqlClient;
 #endif
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -156,13 +157,30 @@ namespace Dotmim.Sync.MySql.Builders
             this.TableSchemaName = tableParser.SchemaName;
 
             //-------------------------------------------------
-            // define tracking table name with prefix and suffix.
-            // if no pref / suf, use default value
-            var trakingTableNameString = string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesPrefix) && string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesSuffix)
-                ? $"{this.TableDescription.TableName}_tracking"
-                : $"{this.ScopeInfo.Setup?.TrackingTablesPrefix}{this.TableDescription.TableName}{this.ScopeInfo.Setup?.TrackingTablesSuffix}";
+            // define tracking table name with custom name first, then prefix and suffix.
 
-            if (!string.IsNullOrEmpty(this.TableDescription.SchemaName))
+            // Find the corresponding SetupTable for custom naming
+            var setupTable = this.ScopeInfo.Setup?.Tables?.FirstOrDefault(t =>
+                string.Equals(t.TableName, this.TableDescription.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName ?? string.Empty, this.TableDescription.SchemaName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+
+            string trakingTableNameString;
+
+            // Check for custom tracking table name first
+            if (setupTable != null && !string.IsNullOrEmpty(setupTable.CustomTrackingTableName))
+            {
+                trakingTableNameString = setupTable.CustomTrackingTableName;
+            }
+            else
+            {
+                // Fall back to default prefix/suffix logic
+                trakingTableNameString = string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesPrefix) && string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesSuffix)
+                    ? $"{this.TableDescription.TableName}_tracking"
+                    : $"{this.ScopeInfo.Setup?.TrackingTablesPrefix}{this.TableDescription.TableName}{this.ScopeInfo.Setup?.TrackingTablesSuffix}";
+            }
+
+            // Add schema if not already included and table has schema
+            if (!string.IsNullOrEmpty(this.TableDescription.SchemaName) && !trakingTableNameString.Contains('.'))
                 trakingTableNameString = $"{this.TableDescription.SchemaName}.{trakingTableNameString}";
 
             // Parse
@@ -198,6 +216,26 @@ namespace Dotmim.Sync.MySql.Builders
         /// </summary>
         public string GetTriggerCommandName(DbTriggerType objectType, SyncFilter filter = null)
         {
+            // Find the corresponding SetupTable for custom naming
+            var setupTable = this.ScopeInfo.Setup?.Tables?.FirstOrDefault(t =>
+                string.Equals(t.TableName, this.TableDescription.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName ?? string.Empty, this.TableDescription.SchemaName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+
+            // Check for custom trigger names first
+            if (setupTable != null)
+            {
+                switch (objectType)
+                {
+                    case DbTriggerType.Insert when !string.IsNullOrEmpty(setupTable.CustomInsertTriggerName):
+                        return $"`{setupTable.CustomInsertTriggerName}`";
+                    case DbTriggerType.Update when !string.IsNullOrEmpty(setupTable.CustomUpdateTriggerName):
+                        return $"`{setupTable.CustomUpdateTriggerName}`";
+                    case DbTriggerType.Delete when !string.IsNullOrEmpty(setupTable.CustomDeleteTriggerName):
+                        return $"`{setupTable.CustomDeleteTriggerName}`";
+                }
+            }
+
+            // Fall back to default prefix/suffix naming
             var triggerNormalizedName = $"{this.ScopeInfo.Setup?.TriggersPrefix}{this.TableNormalizedShortName}{this.ScopeInfo.Setup?.TriggersSuffix}_";
 
             return objectType switch
