@@ -65,6 +65,51 @@ namespace Dotmim.Sync.Tests.UnitTests
         }
 
         [Fact]
+        public async Task GetProvisioningSqlScripts_SingleTable_WithCustomTriggerAndTrackingTableNames_SqlServer()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+            setup.Tables["ProductCategory"]
+                .WithInsertTriggerName("my_insert_trigger")
+                .WithUpdateTriggerName("my_update_trigger")
+                .WithDeleteTriggerName("my_delete_trigger")
+                .WithTrackingTableName("my_tracking_table");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== SQL Server Single Table Scripts ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("====================================================");
+
+            await VerifyXunit.Verifier.Verify(scripts);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
         public async Task GetProvisioningSqlScripts_TwoRelatedTables_SqlServer()
         {
             var dbName = HelperDatabase.GetRandomName("tcp_prov_");

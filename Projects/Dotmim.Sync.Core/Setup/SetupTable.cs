@@ -46,6 +46,30 @@ namespace Dotmim.Sync
         public SyncDirection SyncDirection { get; set; }
 
         /// <summary>
+        /// Gets or sets a custom name for the INSERT trigger. If not specified, the default naming convention is used.
+        /// </summary>
+        [DataMember(Name = "citn", IsRequired = false, EmitDefaultValue = false, Order = 5)]
+        public string CustomInsertTriggerName { get; set; }
+
+        /// <summary>
+        /// Gets or sets a custom name for the UPDATE trigger. If not specified, the default naming convention is used.
+        /// </summary>
+        [DataMember(Name = "cutn", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        public string CustomUpdateTriggerName { get; set; }
+
+        /// <summary>
+        /// Gets or sets a custom name for the DELETE trigger. If not specified, the default naming convention is used.
+        /// </summary>
+        [DataMember(Name = "cdtn", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        public string CustomDeleteTriggerName { get; set; }
+
+        /// <summary>
+        /// Gets or sets a custom name for the tracking table. If not specified, the default naming convention is used.
+        /// </summary>
+        [DataMember(Name = "cttn", IsRequired = false, EmitDefaultValue = false, Order = 8)]
+        public string CustomTrackingTableName { get; set; }
+
+        /// <summary>
         /// Gets a value indicating whether check if SetupTable has columns. If not columns specified, all the columns from server database are retrieved.
         /// </summary>
         [IgnoreDataMember]
@@ -83,6 +107,50 @@ namespace Dotmim.Sync
             : this(tableName, schemaName) => this.Columns.AddRange(columnsName);
 
         /// <summary>
+        /// Specify a custom name for the INSERT trigger.
+        /// </summary>
+        /// <param name="name">The custom name for the INSERT trigger.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable WithInsertTriggerName(string name)
+        {
+            this.CustomInsertTriggerName = name;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify a custom name for the UPDATE trigger.
+        /// </summary>
+        /// <param name="name">The custom name for the UPDATE trigger.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable WithUpdateTriggerName(string name)
+        {
+            this.CustomUpdateTriggerName = name;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify a custom name for the DELETE trigger.
+        /// </summary>
+        /// <param name="name">The custom name for the DELETE trigger.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable WithDeleteTriggerName(string name)
+        {
+            this.CustomDeleteTriggerName = name;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify a custom name for the tracking table.
+        /// </summary>
+        /// <param name="name">The custom name for the tracking table.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable WithTrackingTableName(string name)
+        {
+            this.CustomTrackingTableName = name;
+            return this;
+        }
+
+        /// <summary>
         /// ToString override. Gets the full name + columns count.
         /// </summary>
         public override string ToString() => this.GetFullName() + (this.HasColumns ? $" ({this.Columns.Count} columns)" : string.Empty);
@@ -106,7 +174,11 @@ namespace Dotmim.Sync
 
             // checking properties
             return this.SyncDirection == otherInstance.SyncDirection
-                    && this.Columns.CompareWith(otherInstance.Columns, (c, oc) => string.Equals(c, oc, sc));
+                    && this.Columns.CompareWith(otherInstance.Columns, (c, oc) => string.Equals(c, oc, sc))
+                    && string.Equals(this.CustomInsertTriggerName, otherInstance.CustomInsertTriggerName, sc)
+                    && string.Equals(this.CustomUpdateTriggerName, otherInstance.CustomUpdateTriggerName, sc)
+                    && string.Equals(this.CustomDeleteTriggerName, otherInstance.CustomDeleteTriggerName, sc)
+                    && string.Equals(this.CustomTrackingTableName, otherInstance.CustomTrackingTableName, sc);
         }
 
         /// <inheritdoc cref="SyncNamedItem{T}.GetAllNamesProperties"/>

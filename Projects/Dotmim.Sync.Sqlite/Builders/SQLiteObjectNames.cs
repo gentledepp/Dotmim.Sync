@@ -1,5 +1,6 @@
 ﻿using Dotmim.Sync.Builders;
 using Dotmim.Sync.DatabaseStringParsers;
+using System;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -136,6 +137,26 @@ namespace Dotmim.Sync.Sqlite
         /// </summary>
         public string GetTriggerCommandName(DbTriggerType objectType)
         {
+            // Find the corresponding SetupTable for custom naming
+            var setupTable = this.ScopeInfo.Setup?.Tables?.FirstOrDefault(t =>
+                string.Equals(t.TableName, this.TableDescription.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName ?? string.Empty, this.TableDescription.SchemaName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+
+            // Check for custom trigger names first
+            if (setupTable != null)
+            {
+                switch (objectType)
+                {
+                    case DbTriggerType.Insert when !string.IsNullOrEmpty(setupTable.CustomInsertTriggerName):
+                        return $"[{setupTable.CustomInsertTriggerName}]";
+                    case DbTriggerType.Update when !string.IsNullOrEmpty(setupTable.CustomUpdateTriggerName):
+                        return $"[{setupTable.CustomUpdateTriggerName}]";
+                    case DbTriggerType.Delete when !string.IsNullOrEmpty(setupTable.CustomDeleteTriggerName):
+                        return $"[{setupTable.CustomDeleteTriggerName}]";
+                }
+            }
+
+            // Fall back to default prefix/suffix naming
             var triggerNormalizedName = $"{this.ScopeInfo.Setup?.TriggersPrefix}{this.TableNormalizedShortName}{this.ScopeInfo.Setup?.TriggersSuffix}_";
 
             return objectType switch
@@ -175,11 +196,27 @@ namespace Dotmim.Sync.Sqlite
             this.TableSchemaName = string.Empty;
 
             //-------------------------------------------------
-            // define tracking table name with prefix and suffix.
-            // if no pref / suf, use default value
-            var trakingTableNameString = string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesPrefix) && string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesSuffix)
-                ? $"{this.TableDescription.TableName}_tracking"
-                : $"{this.ScopeInfo.Setup?.TrackingTablesPrefix}{this.TableDescription.TableName}{this.ScopeInfo.Setup?.TrackingTablesSuffix}";
+            // define tracking table name with custom name first, then prefix and suffix.
+
+            // Find the corresponding SetupTable for custom naming
+            var setupTable = this.ScopeInfo.Setup?.Tables?.FirstOrDefault(t =>
+                string.Equals(t.TableName, this.TableDescription.TableName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.SchemaName ?? string.Empty, this.TableDescription.SchemaName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+
+            string trakingTableNameString;
+
+            // Check for custom tracking table name first
+            if (setupTable != null && !string.IsNullOrEmpty(setupTable.CustomTrackingTableName))
+            {
+                trakingTableNameString = setupTable.CustomTrackingTableName;
+            }
+            else
+            {
+                // Fall back to default prefix/suffix logic
+                trakingTableNameString = string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesPrefix) && string.IsNullOrEmpty(this.ScopeInfo.Setup?.TrackingTablesSuffix)
+                    ? $"{this.TableDescription.TableName}_tracking"
+                    : $"{this.ScopeInfo.Setup?.TrackingTablesPrefix}{this.TableDescription.TableName}{this.ScopeInfo.Setup?.TrackingTablesSuffix}";
+            }
 
             // Parse
             var trackingTableParser = new TableParser(trakingTableNameString, LeftQuote, RightQuote);
