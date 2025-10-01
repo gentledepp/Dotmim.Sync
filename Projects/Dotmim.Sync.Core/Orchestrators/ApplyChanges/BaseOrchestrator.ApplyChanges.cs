@@ -710,6 +710,7 @@ namespace Dotmim.Sync
 
                     // We don't report progress if we do not have isApplied any changes on the table, to limit verbosity of Progress
                     await this.InterceptAsync(tableChangesAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
+
                 }
             }
             catch (Exception ex)

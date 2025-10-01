@@ -348,6 +348,13 @@ namespace Dotmim.Sync
                 if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
                     return (context, default, 0);
 
+                // Call OnBeforeSelectingChanges if provider supports it
+                if (this.Provider is IBeforeSelectingChangesProvider beforeSelectingChangesProvider)
+                {
+                    await beforeSelectingChangesProvider.OnBeforeSelectingChangesAsync(
+                        scopeInfo, context, syncTable, connection, transaction, cancellationToken).ConfigureAwait(false);
+                }
+
                 DbCommandType dbCommandType;
                 (selectIncrementalChangesCommand, dbCommandType) = await this.InternalGetSelectChangesCommandAsync(scopeInfo, context, syncTable, isNew,
                         connection, transaction).ConfigureAwait(false);
@@ -586,6 +593,13 @@ namespace Dotmim.Sync
                 // if we are in download stage, so check if table is not download only
                 if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
                     return (context, default, default);
+
+                // Call OnBeforeSelectingChanges if provider supports it
+                if (this.Provider is IBeforeSelectingChangesProvider beforeSelectingChangesProvider)
+                {
+                    await beforeSelectingChangesProvider.OnBeforeSelectingChangesAsync(
+                        scopeInfo, context, syncTable, connection, transaction, cancellationToken).ConfigureAwait(false);
+                }
 
                 DbCommandType dbCommandType;
                 (selectIncrementalChangesCommand, dbCommandType) = await this.InternalGetSelectChangesCommandAsync(scopeInfo, context, syncTable, isNew,

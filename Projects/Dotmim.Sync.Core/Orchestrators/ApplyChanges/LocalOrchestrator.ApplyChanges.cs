@@ -122,6 +122,17 @@ namespace Dotmim.Sync
                     if (failureException != null)
                         throw failureException;
 
+                    // Call OnAfterApplyChanges for all tables in the scope to clean up sync_session_id
+                    // This must be called even if no changes were applied from the server
+                    if (this.Provider is IAfterApplyChangesProvider afterApplyChangesProvider)
+                    {
+                        foreach (var syncTable in cScopeInfo.Schema.Tables)
+                        {
+                            await afterApplyChangesProvider.OnAfterApplyChangesAsync(
+                                cScopeInfo, context, syncTable, connection, transaction, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+
                     if (cancellationToken.IsCancellationRequested)
                         cancellationToken.ThrowIfCancellationRequested();
 

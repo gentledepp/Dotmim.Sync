@@ -4,12 +4,14 @@
 [timestamp] [integer] NULL, 
 [sync_row_is_tombstone] [integer] NOT NULL default(0), 
 [last_change_datetime] [datetime] NULL, 
+[is_dirty] [integer] NOT NULL default(0), 
+[sync_session_id] [text] NULL COLLATE NOCASE, 
  PRIMARY KEY ([ProductCategoryID]));CREATE INDEX IF NOT EXISTS [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
 	 [timestamp] ASC
 	,[update_scope_id] ASC
 	,[sync_row_is_tombstone] ASC
 	,[ProductCategoryID] ASC
-);
+);CREATE INDEX IF NOT EXISTS ProductCategory_tracking_sync_session_id ON [ProductCategory_tracking] ([sync_session_id]);
 
 -- ---------------------------------
 ;
@@ -24,6 +26,8 @@ BEGIN
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	VALUES (
 		new.[ProductCategoryID]
@@ -31,6 +35,8 @@ BEGIN
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,0
 		,datetime('now')
+		,1
+		,NULL
 	);
 END;
 
@@ -45,6 +51,8 @@ Begin
 	SET [update_scope_id] = NULL -- scope id is always NULL when update is made locally
 		,[timestamp] = replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,[last_change_datetime] = datetime('now')
+		,[is_dirty] = 1
+		,[sync_session_id] = NULL
 	Where [ProductCategory_tracking].[ProductCategoryID] = new.[ProductCategoryID]; 
 	INSERT OR IGNORE INTO [ProductCategory_tracking] (
 		[ProductCategoryID]
@@ -52,6 +60,8 @@ Begin
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	SELECT 
 		new.[ProductCategoryID]
@@ -59,6 +69,8 @@ Begin
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,0
 		,datetime('now')
+		,1
+		,NULL
 	WHERE (SELECT COUNT(*) FROM [ProductCategory_tracking] WHERE [ProductCategoryID]=new.[ProductCategoryID])=0
 ; 
 End; 
@@ -76,6 +88,8 @@ BEGIN
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	VALUES (
 		old.[ProductCategoryID]
@@ -83,6 +97,8 @@ BEGIN
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,1
 		,datetime('now')
+		,1
+		,NULL
 	);
 END;
 
@@ -96,12 +112,14 @@ CREATE TABLE IF NOT EXISTS [Product_tracking] (
 [timestamp] [integer] NULL, 
 [sync_row_is_tombstone] [integer] NOT NULL default(0), 
 [last_change_datetime] [datetime] NULL, 
+[is_dirty] [integer] NOT NULL default(0), 
+[sync_session_id] [text] NULL COLLATE NOCASE, 
  PRIMARY KEY ([ProductID]));CREATE INDEX IF NOT EXISTS [Product_tracking_timestamp_index] ON [Product_tracking] (
 	 [timestamp] ASC
 	,[update_scope_id] ASC
 	,[sync_row_is_tombstone] ASC
 	,[ProductID] ASC
-);
+);CREATE INDEX IF NOT EXISTS Product_tracking_sync_session_id ON [Product_tracking] ([sync_session_id]);
 
 -- ---------------------------------
 ;
@@ -116,6 +134,8 @@ BEGIN
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	VALUES (
 		new.[ProductID]
@@ -123,6 +143,8 @@ BEGIN
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,0
 		,datetime('now')
+		,1
+		,NULL
 	);
 END;
 
@@ -137,6 +159,8 @@ Begin
 	SET [update_scope_id] = NULL -- scope id is always NULL when update is made locally
 		,[timestamp] = replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,[last_change_datetime] = datetime('now')
+		,[is_dirty] = 1
+		,[sync_session_id] = NULL
 	Where [Product_tracking].[ProductID] = new.[ProductID]; 
 	INSERT OR IGNORE INTO [Product_tracking] (
 		[ProductID]
@@ -144,6 +168,8 @@ Begin
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	SELECT 
 		new.[ProductID]
@@ -151,6 +177,8 @@ Begin
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,0
 		,datetime('now')
+		,1
+		,NULL
 	WHERE (SELECT COUNT(*) FROM [Product_tracking] WHERE [ProductID]=new.[ProductID])=0
 ; 
 End; 
@@ -168,6 +196,8 @@ BEGIN
 		,[timestamp]
 		,[sync_row_is_tombstone]
 		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
 	) 
 	VALUES (
 		old.[ProductID]
@@ -175,5 +205,7 @@ BEGIN
 		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
 		,1
 		,datetime('now')
+		,1
+		,NULL
 	);
 END;
