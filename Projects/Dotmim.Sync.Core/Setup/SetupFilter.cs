@@ -39,15 +39,21 @@ namespace Dotmim.Sync
         public List<string> CustomWheres { get; set; } = [];
 
         /// <summary>
+        /// Gets or sets the custom wheres list for initial sync only (without tracking table).
+        /// </summary>
+        [DataMember(Name = "ciw", IsRequired = false, EmitDefaultValue = false, Order = 5)]
+        public List<string> CustomInitWheres { get; set; } = [];
+
+        /// <summary>
         /// Gets or sets the parameters list, used as input in the stored procedure.
         /// </summary>
-        [DataMember(Name = "p", IsRequired = false, EmitDefaultValue = false, Order = 5)]
+        [DataMember(Name = "p", IsRequired = false, EmitDefaultValue = false, Order = 6)]
         public List<SetupFilterParameter> Parameters { get; set; } = [];
 
         /// <summary>
         /// Gets or sets side where filters list.
         /// </summary>
-        [DataMember(Name = "w", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        [DataMember(Name = "w", IsRequired = false, EmitDefaultValue = false, Order = 7)]
         public List<SetupFilterWhere> Wheres { get; set; } = [];
 
         /// <summary>
@@ -126,7 +132,7 @@ namespace Dotmim.Sync
         }
 
         /// <summary>
-        /// Add a custom Where clause.
+        /// Add a custom Where clause for incremental sync (with tracking table access).
         /// </summary>
         public SetupFilter AddCustomWhere(string where)
         {
@@ -134,6 +140,19 @@ namespace Dotmim.Sync
             where ??= string.Empty;
 
             this.CustomWheres.Add(where);
+            return this;
+        }
+
+        /// <summary>
+        /// Add a custom Where clause for initial sync only (without tracking table).
+        /// Use this for conditions that should apply during initial sync but not reference the tracking table.
+        /// </summary>
+        public SetupFilter AddCustomInitWhere(string where)
+        {
+            // check we don't add a null value
+            where ??= string.Empty;
+
+            this.CustomInitWheres.Add(where);
             return this;
         }
 
@@ -176,7 +195,10 @@ namespace Dotmim.Sync
 
             // since it's string comparison, don't rely on internal comparison and provide our own comparison func, using StringComparison
             var sc = SyncGlobalization.DataSourceStringComparison;
-            return this.CustomWheres.CompareWith(otherInstance.CustomWheres, (c, oc) => string.Equals(c, oc, sc));
+            if (!this.CustomWheres.CompareWith(otherInstance.CustomWheres, (c, oc) => string.Equals(c, oc, sc)))
+                return false;
+
+            return this.CustomInitWheres.CompareWith(otherInstance.CustomInitWheres, (c, oc) => string.Equals(c, oc, sc));
         }
 
         /// <summary>

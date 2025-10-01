@@ -1195,6 +1195,37 @@ namespace Dotmim.Sync.SqlServer.Builders
         }
 
         /// <summary>
+        /// Create all custom init wheres from within a filter (for initial sync without tracking table).
+        /// </summary>
+        protected string CreateFilterCustomInitWheres(SyncFilter filter)
+        {
+            var customInitWheres = filter.CustomInitWheres;
+
+            if (customInitWheres.Count == 0)
+                return string.Empty;
+
+            var stringBuilder = new StringBuilder();
+            var and2 = "  ";
+            stringBuilder.AppendLine($"(");
+
+            foreach (var customWhere in customInitWheres)
+            {
+                // Template escape character
+                var customWhereIteration = customWhere;
+                customWhereIteration = customWhereIteration.Replace("{{{", "[", SyncGlobalization.DataSourceStringComparison);
+                customWhereIteration = customWhereIteration.Replace("}}}", "]", SyncGlobalization.DataSourceStringComparison);
+
+                stringBuilder.Append($"{and2}{customWhereIteration}");
+                and2 = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine($")");
+
+            return stringBuilder.ToString();
+        }
+
+        /// <summary>
         /// Create select incremental changes command.
         /// </summary>
         protected virtual SqlCommand BuildSelectIncrementalChangesCommand(SyncFilter filter = null)
@@ -1368,18 +1399,18 @@ namespace Dotmim.Sync.SqlServer.Builders
             if (filter != null)
             {
                 stringBuilder.AppendLine("WHERE ");
-                
+
                 var createFilterWhereSide = this.CreateFilterWhereSide(filter);
                 stringBuilder.Append(createFilterWhereSide);
 
-                var createFilterCustomWheres = this.CreateFilterCustomWheres(filter);
+                var createFilterCustomInitWheres = this.CreateFilterCustomInitWheres(filter);
 
 
-                if (!string.IsNullOrEmpty(createFilterWhereSide) && 
-                    !string.IsNullOrEmpty(createFilterCustomWheres))
+                if (!string.IsNullOrEmpty(createFilterWhereSide) &&
+                    !string.IsNullOrEmpty(createFilterCustomInitWheres))
                     stringBuilder.AppendLine($"AND ");
 
-                stringBuilder.Append(createFilterCustomWheres);
+                stringBuilder.Append(createFilterCustomInitWheres);
 
             }
 
