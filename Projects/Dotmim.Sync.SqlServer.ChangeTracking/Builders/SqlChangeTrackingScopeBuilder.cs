@@ -155,25 +155,31 @@ namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
 	                                   @sync_scope_schema AS sync_scope_schema,  
 	                                   @sync_scope_setup AS sync_scope_setup,  
 	                                   @sync_scope_version AS sync_scope_version,
-                                       @sync_scope_properties as sync_scope_properties
+                                       @sync_scope_properties as sync_scope_properties,
+                                       @sync_scope_server_capabilities as sync_scope_server_capabilities,
+                                       @sync_scope_schema_hash as sync_scope_schema_hash
                            ) AS [changes]
                     ON [base].[sync_scope_name] = [changes].[sync_scope_name]
                     WHEN NOT MATCHED THEN
-	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties])
-	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], @maxVersion, [changes].[sync_scope_properties])
+	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties], [sync_scope_server_capabilities], [sync_scope_schema_hash])
+	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], @maxVersion, [changes].[sync_scope_properties], [changes].[sync_scope_server_capabilities], [changes].[sync_scope_schema_hash])
                     WHEN MATCHED THEN
 	                    UPDATE SET [sync_scope_name] = [changes].[sync_scope_name], 
                                    [sync_scope_schema] = [changes].[sync_scope_schema], 
                                    [sync_scope_setup] = [changes].[sync_scope_setup], 
                                    [sync_scope_version] = [changes].[sync_scope_version],
                                    [sync_scope_last_clean_timestamp] = @maxVersion,
-                                   [sync_scope_properties] = [changes].[sync_scope_properties]
+                                   [sync_scope_properties] = [changes].[sync_scope_properties],
+                                   [sync_scope_server_capabilities] = [changes].[sync_scope_server_capabilities],
+                                   [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash]
                     OUTPUT  INSERTED.[sync_scope_name], 
                             INSERTED.[sync_scope_schema], 
                             INSERTED.[sync_scope_setup], 
                             INSERTED.[sync_scope_version],
                             INSERTED.[sync_scope_last_clean_timestamp],
-                            INSERTED.[sync_scope_properties];";
+                            INSERTED.[sync_scope_properties],
+                            INSERTED.[sync_scope_server_capabilities],
+                            INSERTED.[sync_scope_schema_hash];";
 
             var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -210,6 +216,18 @@ namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
             p.Size = -1;
             command.Parameters.Add(p);
 
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_server_capabilities";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_schema_hash";
+            p.DbType = DbType.String;
+            p.Size = 64;
+            command.Parameters.Add(p);
+
             return command;
         }
 
@@ -230,7 +248,9 @@ namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
                           [sync_scope_setup], 
                           [sync_scope_version],
                           @maxVersion as [sync_scope_last_clean_timestamp],
-                          [sync_scope_properties]
+                          [sync_scope_properties],
+                          [sync_scope_server_capabilities],
+                          [sync_scope_schema_hash]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}";
 
             var command = connection.CreateCommand();
@@ -258,7 +278,9 @@ namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
                           [sync_scope_setup], 
                           [sync_scope_version],
                           @maxVersion as [sync_scope_last_clean_timestamp],
-                          [sync_scope_properties]
+                          [sync_scope_properties],
+                          [sync_scope_server_capabilities],
+                          [sync_scope_schema_hash]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}
                     WHERE [sync_scope_name] = @sync_scope_name";
 
