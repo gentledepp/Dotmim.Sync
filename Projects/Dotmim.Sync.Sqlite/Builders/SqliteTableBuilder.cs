@@ -193,6 +193,10 @@ namespace Dotmim.Sync.Sqlite
             stringBuilder.AppendLine($"[timestamp] [integer] NULL, ");
             stringBuilder.AppendLine($"[sync_row_is_tombstone] [integer] NOT NULL default(0), ");
             stringBuilder.AppendLine($"[last_change_datetime] [datetime] NULL, ");
+            // Add new columns for tracking sync state
+            stringBuilder.AppendLine($"[is_dirty] [integer] NOT NULL default(0), ");
+            stringBuilder.AppendLine($"[sync_session_id] [text] NULL COLLATE NOCASE, ");
+
 
             stringBuilder.Append(" PRIMARY KEY (");
             for (int i = 0; i < this.TableDescription.PrimaryKeys.Count; i++)
@@ -221,6 +225,11 @@ namespace Dotmim.Sync.Sqlite
             }
 
             stringBuilder.Append(");");
+
+            // Add index for sync_session_id
+            stringBuilder.Append($"CREATE INDEX IF NOT EXISTS {this.trackingTableNames.NormalizedName}_sync_session_id ON {this.trackingTableNames.QuotedName} ([sync_session_id]);");
+
+
             return stringBuilder.ToString();
         }
 
@@ -381,6 +390,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine("\t\t,[timestamp]");
             createTrigger.AppendLine("\t\t,[sync_row_is_tombstone]");
             createTrigger.AppendLine("\t\t,[last_change_datetime]");
+            createTrigger.AppendLine("\t\t,[is_dirty]");
+            createTrigger.AppendLine("\t\t,[sync_session_id]");
 
             createTrigger.AppendLine("\t) ");
             createTrigger.AppendLine("\tVALUES (");
@@ -389,6 +400,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine($"\t\t,{SqliteObjectNames.TimestampValue}");
             createTrigger.AppendLine("\t\t,0");
             createTrigger.AppendLine("\t\t,datetime('now')");
+            createTrigger.AppendLine("\t\t,1");
+            createTrigger.AppendLine("\t\t,NULL");
             createTrigger.AppendLine("\t);");
             createTrigger.AppendLine("END;");
 
@@ -428,6 +441,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine("\t\t,[timestamp]");
             createTrigger.AppendLine("\t\t,[sync_row_is_tombstone]");
             createTrigger.AppendLine("\t\t,[last_change_datetime]");
+            createTrigger.AppendLine("\t\t,[is_dirty]");
+            createTrigger.AppendLine("\t\t,[sync_session_id]");
 
             createTrigger.AppendLine("\t) ");
             createTrigger.AppendLine("\tVALUES (");
@@ -436,6 +451,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine($"\t\t,{SqliteObjectNames.TimestampValue}");
             createTrigger.AppendLine("\t\t,1");
             createTrigger.AppendLine("\t\t,datetime('now')");
+            createTrigger.AppendLine("\t\t,1");
+            createTrigger.AppendLine("\t\t,NULL");
             createTrigger.AppendLine("\t);");
             createTrigger.AppendLine("END;");
 
@@ -456,6 +473,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine("\tSET [update_scope_id] = NULL -- scope id is always NULL when update is made locally");
             createTrigger.AppendLine($"\t\t,[timestamp] = {SqliteObjectNames.TimestampValue}");
             createTrigger.AppendLine("\t\t,[last_change_datetime] = datetime('now')");
+            createTrigger.AppendLine("\t\t,[is_dirty] = 1");
+            createTrigger.AppendLine("\t\t,[sync_session_id] = NULL");
 
             createTrigger.Append($"\tWhere ");
             createTrigger.Append(SqliteManagementUtils.JoinTwoTablesOnClause(this.TableDescription.PrimaryKeys, this.trackingTableNames.QuotedName.ToString(), "new"));
@@ -484,6 +503,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine("\t\t,[timestamp]");
             createTrigger.AppendLine("\t\t,[sync_row_is_tombstone]");
             createTrigger.AppendLine("\t\t,[last_change_datetime]");
+            createTrigger.AppendLine("\t\t,[is_dirty]");
+            createTrigger.AppendLine("\t\t,[sync_session_id]");
 
             createTrigger.AppendLine("\t) ");
             createTrigger.AppendLine("\tSELECT ");
@@ -492,6 +513,8 @@ namespace Dotmim.Sync.Sqlite
             createTrigger.AppendLine($"\t\t,{SqliteObjectNames.TimestampValue}");
             createTrigger.AppendLine("\t\t,0");
             createTrigger.AppendLine("\t\t,datetime('now')");
+            createTrigger.AppendLine("\t\t,1");
+            createTrigger.AppendLine("\t\t,NULL");
 
             createTrigger.Append($"\tWHERE (SELECT COUNT(*) FROM {this.trackingTableNames.QuotedName} WHERE ");
             var str1 = string.Empty;

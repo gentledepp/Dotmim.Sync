@@ -125,6 +125,8 @@ namespace Dotmim.Sync.Sqlite
                 DbCommandType.DeleteTrigger => string.Format(DeleteTriggerName, triggerNormalizedName),
                 DbCommandType.UpdateUntrackedRows => this.CreateUpdateUntrackedRowsCommandText(),
                 DbCommandType.Reset => this.CreateResetCommandText(),
+                DbCommandType.MarkRowsAsSyncing => this.CreateMarkRowsAsSyncingCommandText(),
+                DbCommandType.MarkRowsAsSynced => this.CreateMarkRowsAsSyncedCommandText(),
                 DbCommandType.DisableConstraints or DbCommandType.EnableConstraints or DbCommandType.PreDeleteRow
                 or DbCommandType.PreDeleteRows or DbCommandType.PreInsertRow or DbCommandType.PreInsertRows
                 or DbCommandType.PreUpdateRow or DbCommandType.PreUpdateRows => "Select 0",
@@ -337,7 +339,9 @@ namespace Dotmim.Sync.Sqlite
             stringBuilder.AppendLine($"UPDATE {this.TrackingTableQuotedShortName} SET ");
             stringBuilder.AppendLine("[update_scope_id] = @sync_scope_id,");
             stringBuilder.AppendLine("[sync_row_is_tombstone] = 0,");
-            stringBuilder.AppendLine("[last_change_datetime] = datetime('now')");
+            stringBuilder.AppendLine("[last_change_datetime] = datetime('now'),");
+            stringBuilder.AppendLine("[is_dirty] = 0,");
+            stringBuilder.AppendLine("[sync_session_id] = NULL");
             stringBuilder.AppendLine($"WHERE {SqliteManagementUtils.WhereColumnAndParameters(this.TableDescription.PrimaryKeys, string.Empty)}");
             stringBuilder.Append($" AND (select changes()) > 0");
             stringBuilder.AppendLine($";");
@@ -422,7 +426,9 @@ namespace Dotmim.Sync.Sqlite
             stringBuilder.AppendLine($"[update_scope_id] = @sync_scope_id,");
             stringBuilder.AppendLine($"[sync_row_is_tombstone] = 0,");
             stringBuilder.AppendLine($"[timestamp] = {SqliteObjectNames.TimestampValue},");
-            stringBuilder.AppendLine($"[last_change_datetime] = datetime('now')");
+            stringBuilder.AppendLine($"[last_change_datetime] = datetime('now'),");
+            stringBuilder.AppendLine($"[is_dirty] = 0,");
+            stringBuilder.AppendLine($"[sync_session_id] = NULL");
             stringBuilder.AppendLine($"WHERE {SqliteManagementUtils.WhereColumnAndParameters(this.TableDescription.PrimaryKeys, string.Empty)}");
             stringBuilder.AppendLine($" AND (select changes()) > 0;");
 
@@ -480,7 +486,9 @@ namespace Dotmim.Sync.Sqlite
             stringBuilder.AppendLine($"UPDATE OR IGNORE {this.TrackingTableQuotedShortName} SET ");
             stringBuilder.AppendLine("[update_scope_id] = @sync_scope_id,");
             stringBuilder.AppendLine("[sync_row_is_tombstone] = 1,");
-            stringBuilder.AppendLine("[last_change_datetime] = datetime('now')");
+            stringBuilder.AppendLine("[last_change_datetime] = datetime('now'),");
+            stringBuilder.AppendLine("[is_dirty] = 0,");
+            stringBuilder.AppendLine("[sync_session_id] = NULL");
             stringBuilder.AppendLine($"WHERE {SqliteManagementUtils.WhereColumnAndParameters(this.TableDescription.PrimaryKeys, string.Empty)}");
             stringBuilder.AppendLine($" AND (select changes()) > 0");
 
@@ -761,7 +769,27 @@ namespace Dotmim.Sync.Sqlite
                 // ----------------------------------
             }
 
-            stringBuilder.AppendLine("([side].[timestamp] > @sync_min_timestamp AND [side].[update_scope_id] IS NULL)");
+            stringBuilder.AppendLine("([side].[is_dirty] = 1 AND [side].[update_scope_id] IS NULL)");
+
+            return stringBuilder.ToString();
+        }
+
+        private string CreateMarkRowsAsSyncingCommandText()
+        {
+            var stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine($"UPDATE {this.TrackingTableQuotedShortName}");
+            stringBuilder.AppendLine($"SET [sync_session_id] = @sync_session_id");
+            stringBuilder.AppendLine($"WHERE [is_dirty] = 1;");
+
+            return stringBuilder.ToString();
+        }
+
+        private string CreateMarkRowsAsSyncedCommandText()
+        {
+            var stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine($"UPDATE {this.TrackingTableQuotedShortName}");
+            stringBuilder.AppendLine($"SET [is_dirty] = 0, [sync_session_id] = NULL");
+            stringBuilder.AppendLine($"WHERE [sync_session_id] = @sync_session_id;");
 
             return stringBuilder.ToString();
         }
@@ -789,11 +817,11 @@ namespace Dotmim.Sync.Sqlite
             }
 
             stringBuilder.Append(str1);
-            stringBuilder.AppendLine($", [update_scope_id], [sync_row_is_tombstone], [timestamp], [last_change_datetime]");
+            stringBuilder.AppendLine($", [update_scope_id], [sync_row_is_tombstone], [timestamp], [last_change_datetime], [is_dirty]");
             stringBuilder.AppendLine($")");
             stringBuilder.Append($"SELECT ");
             stringBuilder.Append(str2);
-            stringBuilder.AppendLine($", NULL, 0, {SqliteObjectNames.TimestampValue}, datetime('now')");
+            stringBuilder.AppendLine($", NULL, 0, {SqliteObjectNames.TimestampValue}, datetime('now'), 1");
             stringBuilder.AppendLine($"FROM {this.TableQuotedShortName} as [base] WHERE NOT EXISTS");
             stringBuilder.Append($"(SELECT ");
             stringBuilder.Append(str3);

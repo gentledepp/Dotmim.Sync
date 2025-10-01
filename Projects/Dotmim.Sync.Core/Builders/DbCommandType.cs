@@ -149,5 +149,15 @@
         /// Pre command before calling DeleteRow command.
         /// </summary>
         PreDeleteRow,
+
+        /// <summary>
+        /// Mark rows as syncing command. Sets sync_session_id on tracking rows before selecting changes.
+        /// </summary>
+        MarkRowsAsSyncing,
+
+        /// <summary>
+        /// Mark rows as synced command. Clears is_dirty and sync_session_id after successful sync.
+        /// </summary>
+        MarkRowsAsSynced,
     }
 }
