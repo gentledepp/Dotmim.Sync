@@ -1367,21 +1367,20 @@ namespace Dotmim.Sync.SqlServer.Builders
             // ----------------------------------
             if (filter != null)
             {
-                stringBuilder.AppendLine("WHERE (");
+                stringBuilder.AppendLine("WHERE ");
                 
                 var createFilterWhereSide = this.CreateFilterWhereSide(filter);
                 stringBuilder.Append(createFilterWhereSide);
 
-                if (!string.IsNullOrEmpty(createFilterWhereSide))
+                var createFilterCustomWheres = this.CreateFilterCustomWheres(filter);
+
+
+                if (!string.IsNullOrEmpty(createFilterWhereSide) && 
+                    !string.IsNullOrEmpty(createFilterCustomWheres))
                     stringBuilder.AppendLine($"AND ");
 
-                var createFilterCustomWheres = this.CreateFilterCustomWheres(filter);
                 stringBuilder.Append(createFilterCustomWheres);
 
-                if (!string.IsNullOrEmpty(createFilterCustomWheres))
-                    stringBuilder.AppendLine($"AND ");
-
-                stringBuilder.AppendLine(")");
             }
 
             sqlCommand.CommandText = stringBuilder.ToString();
