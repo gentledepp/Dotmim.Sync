@@ -1,7 +1,12 @@
 ﻿using Dotmim.Sync;
 using Dotmim.Sync.Web.Client;
 using Dotmim.Sync.Web.Server;
+#if NET48
+using System.Web;
+using HttpContext = System.Web.HttpContextBase;
+#else
 using Microsoft.AspNetCore.Http;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -98,6 +103,7 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection AddSyncServer(this IServiceCollection serviceCollection, CoreProvider provider, string[] tables = default, SyncOptions options = null, WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
                 => serviceCollection.AddSyncServer(provider, new SyncSetup(tables), options, webServerOptions, scopeName, identifier);
 
+#if !NET48
         /// <inheritdoc cref="WebServerAgent.WriteHelloAsync(HttpContext, CancellationToken)"/>
         public static Task WriteHelloAsync(this HttpContext context, WebServerAgent webServerAgent, CancellationToken cancellationToken = default)
             => webServerAgent.WriteHelloAsync(context, cancellationToken);
@@ -105,7 +111,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <inheritdoc cref="WebServerAgent.WriteHelloAsync(HttpContext, IEnumerable{WebServerAgent}, CancellationToken)"/>
         public static Task WriteHelloAsync(this HttpContext context, IEnumerable<WebServerAgent> webServerAgents, CancellationToken cancellationToken = default)
             => WebServerAgent.WriteHelloAsync(context, webServerAgents, cancellationToken);
-
+#endif
         /// <summary>
         /// Get Scope Name sent by the client.
         /// </summary>
@@ -135,5 +141,6 @@ namespace Microsoft.Extensions.DependencyInjection
         /// Get the identifier that can be used in multi sync providers.
         /// </summary>
         public static string GetIdentifier(this HttpContext httpContext) => WebServerAgent.TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-identifier", out var val) ? val : null;
+
     }
 }

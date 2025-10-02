@@ -1,10 +1,20 @@
 using Dotmim.Sync.Tests.Core;
 using Dotmim.Sync.Tests.Misc;
 using Dotmim.Sync.Web.Client;
+#if NET48
+using System.Data.Entity;
+using System.Data.Entity.Core.Common;
+using System.Data.Entity.Infrastructure;
+using System.Data.Entity.ModelConfiguration.Conventions;
+using System.Data.Entity.SqlServer;
+using System.Data.SQLite;
+using System.Data.SQLite.EF6;
+#else
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+#endif
 
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET8_0
 using MySqlConnector;
 #elif NETCOREAPP3_1
 using MySql.Data.MySqlClient;
@@ -16,7 +26,6 @@ using System.Linq;
 
 namespace Dotmim.Sync.Tests.Models
 {
-
 
     public partial class AdventureWorksContext : DbContext
     {
@@ -31,6 +40,68 @@ namespace Dotmim.Sync.Tests.Models
         public static Guid CustomerId2ForFilter = Guid.NewGuid();
 
 
+#if NET48
+        public AdventureWorksContext(CoreProvider provider, bool useSeeding = false)
+            : base(GetDbConnectionForEF6(provider), true)
+        {
+            var db = HelperDatabase.GetDatabaseType(provider);
+            this.ProviderType = db.ProviderType;
+            this.ConnectionString = HelperDatabase.GetConnectionString(db.ProviderType, db.DatabaseName);
+            this.useSeeding = useSeeding;
+            this.useSchema = provider.UseFallbackSchema();
+
+            // EF6 doesn't use HasData, so we manually seed after database creation
+            if (useSeeding)
+            {
+                Database.SetInitializer(new AdventureWorksInitializer());
+            }
+
+            // Subscribe to ObjectMaterialized event to convert DateTime properties to UTC
+            ((IObjectContextAdapter)this).ObjectContext.ObjectMaterialized += OnObjectMaterialized;
+        }
+
+        private void OnObjectMaterialized(object sender, System.Data.Entity.Core.Objects.ObjectMaterializedEventArgs e)
+        {
+            var entity = e.Entity;
+            if (entity == null) return;
+
+            var entityType = entity.GetType();
+            var dateTimeProperties = entityType.GetProperties()
+                .Where(p => (p.PropertyType == typeof(DateTime) || p.PropertyType == typeof(DateTime?)) && p.CanWrite);
+
+            foreach (var property in dateTimeProperties)
+            {
+                var value = property.GetValue(entity);
+                if (value is DateTime dateTime && dateTime.Kind == DateTimeKind.Unspecified)
+                {
+                    property.SetValue(entity, DateTime.SpecifyKind(dateTime, DateTimeKind.Utc));
+                }
+            }
+        }
+
+        private static DbConnection GetDbConnectionForEF6(CoreProvider provider)
+        {
+            var db = HelperDatabase.GetDatabaseType(provider);
+            var connectionString = HelperDatabase.GetConnectionString(db.ProviderType, db.DatabaseName);
+
+            DbConnection connection;
+            switch (db.ProviderType)
+            {
+                case ProviderType.Sql:
+                    connection = new System.Data.SqlClient.SqlConnection(connectionString);
+                    break;
+                case ProviderType.Sqlite:
+                    connection = new SQLiteConnection(connectionString);
+                    break;
+                default:
+                    throw new NotSupportedException($"Provider type {db.ProviderType} is not supported in EF6");
+            }
+
+            return connection;
+        }
+
+        public AdventureWorksContext() { }
+#else
         public AdventureWorksContext(CoreProvider provider, bool useSeeding = false) : this()
         {
             var db = HelperDatabase.GetDatabaseType(provider);
@@ -43,6 +114,7 @@ namespace Dotmim.Sync.Tests.Models
         public AdventureWorksContext(DbContextOptions<AdventureWorksContext> options) : base(options) { }
 
         public AdventureWorksContext() { }
+#endif
 
 #if NET8_0
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -51,6 +123,7 @@ namespace Dotmim.Sync.Tests.Models
         }
 #endif
 
+#if !NET48
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
@@ -105,6 +178,7 @@ namespace Dotmim.Sync.Tests.Models
             optionsBuilder.ReplaceService<IModelCacheKeyFactory, MyModelCacheKeyFactory>();
 
         }
+#endif
 
         public virtual DbSet<Address> Address { get; set; }
         public virtual DbSet<Customer> Customer { get; set; }
@@ -125,6 +199,222 @@ namespace Dotmim.Sync.Tests.Models
         public virtual DbSet<PriceListCategory> PricesListCategory { get; set; }
 
 
+#if NET48
+        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        {
+            // Remove pluralization convention
+            modelBuilder.Conventions.Remove<PluralizingTableNameConvention>();
+
+            // Configure Address
+            modelBuilder.Entity<Address>()
+                .ToTable("Address")
+                .HasKey(e => e.AddressId);
+            modelBuilder.Entity<Address>()
+                .Property(e => e.AddressLine1).IsRequired();
+
+            // Configure Customer
+            modelBuilder.Entity<Customer>()
+                .ToTable("Customer")
+                .HasKey(e => e.CustomerId);
+            modelBuilder.Entity<Customer>()
+                .Property(e => e.FirstName).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<Customer>()
+                .Property(e => e.LastName).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<Customer>()
+                .Property(e => e.AttributeWithSpace).HasColumnName("Attribute With Space");
+            modelBuilder.Entity<Customer>()
+                .HasOptional(e => e.Employee)
+                .WithMany(e => e.Customer)
+                .HasForeignKey(e => e.EmployeeId);
+
+            // Configure CustomerAddress - composite key
+            modelBuilder.Entity<CustomerAddress>()
+                .ToTable("CustomerAddress")
+                .HasKey(e => new { e.CustomerId, e.AddressId });
+            modelBuilder.Entity<CustomerAddress>()
+                .Property(e => e.AddressType).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<CustomerAddress>()
+                .HasRequired(e => e.Address)
+                .WithMany(a => a.CustomerAddress)
+                .HasForeignKey(e => e.AddressId)
+                .WillCascadeOnDelete(false);
+            modelBuilder.Entity<CustomerAddress>()
+                .HasRequired(e => e.Customer)
+                .WithMany(c => c.CustomerAddress)
+                .HasForeignKey(e => e.CustomerId)
+                .WillCascadeOnDelete(false);
+
+            // Configure Employee
+            modelBuilder.Entity<Employee>()
+                .ToTable("Employee")
+                .HasKey(e => e.EmployeeId);
+            modelBuilder.Entity<Employee>()
+                .Property(e => e.FirstName).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<Employee>()
+                .Property(e => e.LastName).IsRequired().HasMaxLength(50);
+
+            // Configure EmployeeAddress - composite key
+            modelBuilder.Entity<EmployeeAddress>()
+                .ToTable("EmployeeAddress")
+                .HasKey(e => new { e.EmployeeId, e.AddressId });
+            modelBuilder.Entity<EmployeeAddress>()
+                .Property(e => e.AddressType).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<EmployeeAddress>()
+                .HasRequired(e => e.Address)
+                .WithMany(a => a.EmployeeAddress)
+                .HasForeignKey(e => e.AddressId)
+                .WillCascadeOnDelete(false);
+            modelBuilder.Entity<EmployeeAddress>()
+                .HasRequired(e => e.Employee)
+                .WithMany(emp => emp.EmployeeAddress)
+                .HasForeignKey(e => e.EmployeeId)
+                .WillCascadeOnDelete(false);
+
+            // Configure Log
+            modelBuilder.Entity<Log>()
+                .ToTable("Log")
+                .HasKey(e => e.Oid);
+            modelBuilder.Entity<Log>()
+                .Property(e => e.Gcrecord).HasColumnName("GCRecord");
+
+            // Configure Product
+            modelBuilder.Entity<Product>()
+                .HasKey(e => e.ProductId);
+            modelBuilder.Entity<Product>()
+                .Property(e => e.Name).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<Product>()
+                .Property(e => e.ProductCategoryId).HasMaxLength(12);
+            if (this.useSchema)
+                modelBuilder.Entity<Product>().ToTable("Product", "SalesLT");
+            modelBuilder.Entity<Product>()
+                .HasOptional(e => e.ProductCategory)
+                .WithMany(pc => pc.Product)
+                .HasForeignKey(e => e.ProductCategoryId);
+            modelBuilder.Entity<Product>()
+                .HasOptional(e => e.ProductModel)
+                .WithMany(pm => pm.Product)
+                .HasForeignKey(e => e.ProductModelId);
+
+            // Configure ProductCategory
+            modelBuilder.Entity<ProductCategory>()
+                .HasKey(e => e.ProductCategoryId);
+            modelBuilder.Entity<ProductCategory>()
+                .Property(e => e.ProductCategoryId).HasMaxLength(11);
+            modelBuilder.Entity<ProductCategory>()
+                .Property(e => e.Name).IsRequired().HasMaxLength(50);
+            modelBuilder.Entity<ProductCategory>()
+                .Property(e => e.ParentProductCategoryId).HasMaxLength(11);
+            modelBuilder.Entity<ProductCategory>()
+                .Property(e => e.AttributeWithSpace).HasColumnName("Attribute With Space");
+            if (this.useSchema)
+                modelBuilder.Entity<ProductCategory>().ToTable("ProductCategory", "SalesLT");
+            modelBuilder.Entity<ProductCategory>()
+                .HasOptional(e => e.ParentProductCategory)
+                .WithMany(pc => pc.ProductCategories)
+                .HasForeignKey(e => e.ParentProductCategoryId);
+
+            // Configure ProductModel
+            modelBuilder.Entity<ProductModel>()
+                .HasKey(e => e.ProductModelId);
+            modelBuilder.Entity<ProductModel>()
+                .Property(e => e.Name).IsRequired().HasMaxLength(50);
+            if (this.useSchema)
+                modelBuilder.Entity<ProductModel>().ToTable("ProductModel", "SalesLT");
+
+            // Configure SalesOrderHeader
+            modelBuilder.Entity<SalesOrderHeader>()
+                .HasKey(e => e.SalesOrderId);
+            modelBuilder.Entity<SalesOrderHeader>()
+                .Property(e => e.SalesOrderNumber).IsRequired().HasMaxLength(25);
+            if (this.useSchema)
+                modelBuilder.Entity<SalesOrderHeader>().ToTable("SalesOrderHeader", "SalesLT");
+            modelBuilder.Entity<SalesOrderHeader>()
+                .HasOptional(e => e.BillToAddress)
+                .WithMany(a => a.SalesOrderHeaderBillToAddress)
+                .HasForeignKey(e => e.BillToAddressId);
+            modelBuilder.Entity<SalesOrderHeader>()
+                .HasOptional(e => e.ShipToAddress)
+                .WithMany(a => a.SalesOrderHeaderShipToAddress)
+                .HasForeignKey(e => e.ShipToAddressId);
+            modelBuilder.Entity<SalesOrderHeader>()
+                .HasRequired(e => e.Customer)
+                .WithMany(c => c.SalesOrderHeader)
+                .HasForeignKey(e => e.CustomerId)
+                .WillCascadeOnDelete(false);
+
+            // Configure SalesOrderDetail
+            modelBuilder.Entity<SalesOrderDetail>()
+                .HasKey(e => e.SalesOrderDetailId);
+            if (this.useSchema)
+                modelBuilder.Entity<SalesOrderDetail>().ToTable("SalesOrderDetail", "SalesLT");
+            modelBuilder.Entity<SalesOrderDetail>()
+                .HasRequired(e => e.Product)
+                .WithMany(p => p.SalesOrderDetail)
+                .HasForeignKey(e => e.ProductId)
+                .WillCascadeOnDelete(false);
+            modelBuilder.Entity<SalesOrderDetail>()
+                .HasRequired(e => e.SalesOrder)
+                .WithMany(so => so.SalesOrderDetail)
+                .HasForeignKey(e => e.SalesOrderId)
+                .WillCascadeOnDelete(false);
+
+            // Configure Posts
+            modelBuilder.Entity<Posts>()
+                .ToTable("Posts")
+                .HasKey(e => e.PostId);
+            modelBuilder.Entity<Posts>()
+                .Property(e => e.Title).IsRequired().HasMaxLength(200);
+
+            // Configure PostTag - composite key
+            modelBuilder.Entity<PostTag>()
+                .ToTable("PostTag")
+                .HasKey(e => new { e.PostId, e.TagId });
+            modelBuilder.Entity<PostTag>()
+                .HasRequired(e => e.Post)
+                .WithMany(p => p.PostTag)
+                .HasForeignKey(e => e.PostId)
+                .WillCascadeOnDelete(false);
+            modelBuilder.Entity<PostTag>()
+                .HasRequired(e => e.Tag)
+                .WithMany(t => t.PostTag)
+                .HasForeignKey(e => e.TagId)
+                .WillCascadeOnDelete(false);
+
+            // Configure Tags
+            modelBuilder.Entity<Tags>()
+                .ToTable("Tags")
+                .HasKey(e => e.TagId);
+            modelBuilder.Entity<Tags>()
+                .Property(e => e.Text).IsRequired().HasMaxLength(200);
+
+            // Configure PriceList
+            modelBuilder.Entity<PriceList>()
+                .ToTable("PricesList")
+                .HasKey(e => e.PriceListId);
+            modelBuilder.Entity<PriceList>()
+                .Property(e => e.Description).IsRequired().HasMaxLength(100);
+
+            // Configure PriceListDetail - composite key
+            modelBuilder.Entity<PriceListDetail>()
+                .ToTable("PricesListDetail")
+                .HasKey(e => new { e.PriceListId, e.ProductId });
+            modelBuilder.Entity<PriceListDetail>()
+                .HasRequired(e => e.Category)
+                .WithMany(plc => plc.Details)
+                .HasForeignKey(e => new { e.PriceListId, e.PriceCategoryId })
+                .WillCascadeOnDelete(false);
+
+            // Configure PriceListCategory - composite key
+            modelBuilder.Entity<PriceListCategory>()
+                .ToTable("PricesListCategory")
+                .HasKey(e => new { e.PriceListId, e.PriceCategoryId });
+            modelBuilder.Entity<PriceListCategory>()
+                .HasRequired(e => e.PriceList)
+                .WithMany(pl => pl.Categories)
+                .HasForeignKey(e => e.PriceListId)
+                .WillCascadeOnDelete(false);
+        }
+#else
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Address>(entity =>
@@ -370,7 +660,7 @@ namespace Dotmim.Sync.Tests.Models
                 entity.HasKey(e => e.ProductId);
 
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET8_0
                     .HasDatabaseName("AK_Product_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_Product_Name")
@@ -378,7 +668,7 @@ namespace Dotmim.Sync.Tests.Models
                     .IsUnique();
 
                 entity.HasIndex(e => e.ProductNumber)
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET8_0
                     .HasDatabaseName("AK_Product_ProductNumber")
 #elif NETCOREAPP3_1
                     .HasName("AK_Product_ProductNumber")
@@ -453,9 +743,8 @@ namespace Dotmim.Sync.Tests.Models
 
                 entity.HasKey(e => e.ProductCategoryId);
 
-
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET8_0
                     .HasDatabaseName("AK_ProductCategory_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_ProductCategory_Name")
@@ -505,7 +794,7 @@ namespace Dotmim.Sync.Tests.Models
                     entity.ToTable("ProductModel", "SalesLT");
 
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET8_0
                     .HasDatabaseName("AK_ProductModel_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_ProductModel_Name")
@@ -815,7 +1104,9 @@ namespace Dotmim.Sync.Tests.Models
             if (this.useSeeding)
                 this.OnSeeding(modelBuilder);
         }
+#endif
 
+#if !NET48
         /// <summary>
         /// Need to specify all default values
         /// See https://github.com/aspnet/EntityFrameworkCore/issues/13206 for current issue
@@ -1088,6 +1379,7 @@ namespace Dotmim.Sync.Tests.Models
             modelBuilder.Entity<PriceListDetail>().HasData(dettails.ToArray());
 
         }
+#endif
 
     }
 
@@ -1099,7 +1391,8 @@ namespace Dotmim.Sync.Tests.Models
     //            : (object)context.GetType();
     //}
 
-#if NET6_0 || NET8_0 
+#if !NET48
+#if NET6_0 || NET8_0
 
     public class MyModelCacheKeyFactory : IModelCacheKeyFactory
     {
@@ -1176,4 +1469,98 @@ namespace Dotmim.Sync.Tests.Models
             return HashCode.Combine(base.GetHashCode(), useSchema, providerType, useSeeding, cstring);
         }
     }
+#endif
+
+#if NET48
+    // EF6 Database Initializer for seeding
+    public class AdventureWorksInitializer : CreateDatabaseIfNotExists<AdventureWorksContext>
+    {
+        protected override void Seed(AdventureWorksContext context)
+        {
+            // Seed the database - EF6 equivalent of HasData
+            SeedData(context);
+            base.Seed(context);
+        }
+
+        private void SeedData(AdventureWorksContext context)
+        {
+            // Add Address data
+            context.Address.AddRange(new[] {
+                new Address { AddressId = 1, AddressLine1 = "8713 Yosemite Ct.", AddressLine2 = "Appt 1", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressId = 2, AddressLine1 = "1318 Lasalle Street", AddressLine2 = "Appt 2", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressId = 3, AddressLine1 = "9178 Jumping St.", AddressLine2 = "Appt 3", City = "Dallas", StateProvince = "Texas", CountryRegion = "United States", PostalCode = "75201" },
+                new Address { AddressId = 4, AddressLine1 = "9228 Via Del Sol", AddressLine2 = "Appt 4", City = "Phoenix", StateProvince = "Arizona", CountryRegion = "United States", PostalCode = "85004" },
+                new Address { AddressId = 5, AddressLine1 = "9239 Spring Way", AddressLine2 = "Appt 5", City = "Redmond", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98052" },
+                new Address { AddressId = 6, AddressLine1 = "9241 SW. 110th Street", AddressLine2 = "Appt 6", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressId = 7, AddressLine1 = "9250 W. 42nd Place", AddressLine2 = "Appt 7", City = "Kenmore", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98028" },
+                new Address { AddressId = 8, AddressLine1 = "9251 Prospect St.", AddressLine2 = "Appt 8", City = "Duvall", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98019" },
+                new Address { AddressId = 17, AddressLine1 = "3255 Front Street West", AddressLine2 = "Appt 17", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H5" },
+                new Address { AddressId = 18, AddressLine1 = "2550 Signet Drive", AddressLine2 = "Appt 18", City = "Weston", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H7" },
+                new Address { AddressId = 19, AddressLine1 = "6777 Kingsway", AddressLine2 = "Appt 19", City = "Burnaby", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H8" },
+                new Address { AddressId = 20, AddressLine1 = "5250-505 Burning St", AddressLine2 = "Appt 20", City = "Vancouver", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H9" },
+                new Address { AddressId = 21, AddressLine1 = "600 Slater Street", AddressLine2 = "Appt 21", City = "Ottawa", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M9V 4W3" }
+            });
+
+            context.Employee.AddRange(new[] {
+                new Employee { EmployeeId = 1, FirstName = "Pamela", LastName = "Orson" },
+                new Employee { EmployeeId = 2, FirstName = "David", LastName = "Kandle" },
+                new Employee { EmployeeId = 3, FirstName = "Jillian", LastName = "Jon" }
+            });
+
+            Guid customerId1 = AdventureWorksContext.CustomerId1ForFilter;
+            Guid customerId2 = AdventureWorksContext.CustomerId2ForFilter;
+            Guid customerId3 = Guid.NewGuid();
+            Guid customerId4 = Guid.NewGuid();
+
+            context.Customer.AddRange(new[] {
+                new Customer { CustomerId = customerId1, EmployeeId = 1, NameStyle = false, Title = "Mr.", FirstName = "Orlando", MiddleName = "N.", LastName = "Gee", CompanyName = "A Bike Store", SalesPerson = @"adventure-works\pamela0", EmailAddress = "orlando0@adventure-works.com", Phone = "245-555-0173", PasswordHash = "L/Rlwxzp4w7RWmEgXX+/A7cXaePEPcp+KwQhl2fJL7w=", PasswordSalt = "1KjXYs4=" },
+                new Customer { CustomerId = customerId2, EmployeeId = 1, NameStyle = false, Title = "Mr.", FirstName = "Keith", MiddleName = "N.", LastName = "Harris", CompanyName = "Progressive Sports", SalesPerson = @"adventure-works\david8", EmailAddress = "keith0@adventure-works.com", Phone = "170-555-0127", PasswordHash = "YPdtRdvqeAhj6wyxEsFdshBDNXxkCXn+CRgbvJItknw=", PasswordSalt = "fs1ZGhY=" },
+                new Customer { CustomerId = customerId3, EmployeeId = 2, NameStyle = false, Title = "Ms.", FirstName = "Donna", MiddleName = "F.", LastName = "Carreras", CompanyName = "Advanced Bike Components", SalesPerson = @"adventure-works\jillian0", EmailAddress = "donna0@adventure-works.com", Phone = "279-555-0130", PasswordHash = "LNoK27abGQo48gGue3EBV/UrlYSToV0/s87dCRV7uJk=", PasswordSalt = "YTNH5Rw=" },
+                new Customer { CustomerId = customerId4, EmployeeId = 3, NameStyle = false, Title = "Ms.", FirstName = "Janet", MiddleName = "M.", LastName = "Gates", CompanyName = "Modular Cycle Systems", SalesPerson = @"adventure-works\jillian0", EmailAddress = "janet1@adventure-works.com", Phone = "710-555-0173", PasswordHash = "ElzTpSNbUW1Ut+L5cWlfR7MF6nBZia8WpmGaQPjLOJA=", PasswordSalt = "nm7D5e4=" }
+            });
+
+            context.EmployeeAddress.AddRange(new[] {
+                new EmployeeAddress { EmployeeId = 1, AddressId = 6, AddressType = "Home" },
+                new EmployeeAddress { EmployeeId = 2, AddressId = 7, AddressType = "Home" },
+                new EmployeeAddress { EmployeeId = 3, AddressId = 8, AddressType = "Home" }
+            });
+
+            context.CustomerAddress.AddRange(new[] {
+                new CustomerAddress { CustomerId = customerId1, AddressId = 4, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId1, AddressId = 5, AddressType = "Office Depot" },
+                new CustomerAddress { CustomerId = customerId2, AddressId = 3, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId3, AddressId = 2, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId4, AddressId = 1, AddressType = "Main Office" }
+            });
+
+            context.ProductCategory.AddRange(new[] {
+                new ProductCategory { ProductCategoryId = "A_BIKES", Name = "Bikes" },
+                new ProductCategory { ProductCategoryId = "A_COMPT", Name = "Components" },
+                new ProductCategory { ProductCategoryId = "A_CLOTHE", Name = "Clothing" },
+                new ProductCategory { ProductCategoryId = "A_ACCESS", Name = "Accessories" },
+                new ProductCategory { ProductCategoryId = "MOUNTB", ParentProductCategoryId = "A_BIKES", Name = "Mountain Bikes" },
+                new ProductCategory { ProductCategoryId = "ROADB", ParentProductCategoryId = "A_BIKES", Name = "Road Bikes" },
+                new ProductCategory { ProductCategoryId = "ROADFR", ParentProductCategoryId = "A_COMPT", Name = "Road Frames" },
+                new ProductCategory { ProductCategoryId = "TOURB", ParentProductCategoryId = "A_BIKES", Name = "Touring Bikes" },
+                new ProductCategory { ProductCategoryId = "HANDLB", ParentProductCategoryId = "A_COMPT", Name = "Handlebars" },
+                new ProductCategory { ProductCategoryId = "BRACK", ParentProductCategoryId = "A_COMPT", Name = "Bottom Brackets" },
+                new ProductCategory { ProductCategoryId = "BRAKES", ParentProductCategoryId = "A_COMPT", Name = "Brakes" }
+            });
+
+            context.ProductModel.AddRange(new[] {
+                new ProductModel { ProductModelId = 6, Name = "HL Road Frame" },
+                new ProductModel { ProductModelId = 19, Name = "Mountain-100" },
+                new ProductModel { ProductModelId = 20, Name = "Mountain-200" },
+                new ProductModel { ProductModelId = 21, Name = "Mountain-300" },
+                new ProductModel { ProductModelId = 25, Name = "Road-150" },
+                new ProductModel { ProductModelId = 30, Name = "Road-650" },
+                new ProductModel { ProductModelId = 52, Name = "LL Mountain Handlebars" },
+                new ProductModel { ProductModelId = 54, Name = "ML Mountain Handlebars" },
+                new ProductModel { ProductModelId = 55, Name = "HL Mountain Handlebars" }
+            });
+
+            context.SaveChanges();
+        }
+    }
+#endif
 }

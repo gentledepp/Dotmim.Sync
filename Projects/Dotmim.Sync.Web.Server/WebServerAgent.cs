@@ -3,7 +3,16 @@ using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.Extensions;
 using Dotmim.Sync.Serialization;
 using Dotmim.Sync.Web.Client;
+#if NET48
+using System.Collections.Specialized;
+using System.Net.Http;
+using System.Web;
+using HttpRequest = System.Net.Http.HttpRequestMessage;
+using HttpResponse = System.Net.Http.HttpResponseMessage;
+using HttpContext = System.Web.HttpContextBase;
+#else
 using Microsoft.AspNetCore.Http;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -27,8 +36,8 @@ namespace Dotmim.Sync.Web.Server
 
         /// <inheritdoc cref="WebServerAgent"/>
         public WebServerAgent(CoreProvider provider, SyncSetup setup, SyncOptions options = null, WebServerOptions webServerOptions = null,
-            string scopeName = null, 
-            string identifier = null, 
+            string scopeName = null,
+            string identifier = null,
             IBatchCleanupService cleanupService = null)
         {
             this.Setup = setup;
@@ -63,6 +72,40 @@ namespace Dotmim.Sync.Web.Server
         /// Client Converter.
         /// </summary>
         private IConverter clientConverter;
+
+#if NET48
+        /// <summary>
+        /// Helper method to get session for NET48.
+        /// </summary>
+        private static HttpSessionStateBase GetSession(HttpContext httpContext)
+        {
+            return httpContext.Session;
+        }
+
+        /// <summary>
+        /// Helper method to get host for NET48.
+        /// </summary>
+        private static string GetRequestHost(HttpRequest httpRequest)
+        {
+            return httpRequest.RequestUri?.Host ?? string.Empty;
+        }
+#else
+        /// <summary>
+        /// Helper method to get session for ASP.NET Core.
+        /// </summary>
+        private static Microsoft.AspNetCore.Http.ISession GetSession(HttpContext httpContext)
+        {
+            return httpContext.Session;
+        }
+
+        /// <summary>
+        /// Helper method to get host for ASP.NET Core.
+        /// </summary>
+        private static string GetRequestHost(HttpContext httpContext)
+        {
+            return httpContext.Request.Host.Host;
+        }
+#endif
 
         /// <summary>
         /// Gets or Sets the setup used in this webServerAgent.
@@ -104,31 +147,67 @@ namespace Dotmim.Sync.Web.Server
         /// <summary>
         /// Get Scope Name sent by the client.
         /// </summary>
+#if NET48
+        public static Guid? GetClientScopeId(HttpRequest httpRequest) => httpRequest.Headers.TryGetHeaderValue("dotmim-sync-scope-id", out var val) ? new Guid(val) : null;
+#else
         public static Guid? GetClientScopeId(HttpContext httpContext) => TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-scope-id", out var val) ? new Guid(val) : null;
+#endif
 
         /// <summary>
         /// Get Scope Name sent by the client.
         /// </summary>
+#if NET48
+        public static string GetScopeName(HttpRequest httpRequest) => httpRequest.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var val) ? val : null;
+#else
         public static string GetScopeName(HttpContext httpContext) => TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-scope-name", out var val) ? val : null;
+#endif
 
         /// <summary>
         /// Get the DMS Version used by the client.
         /// </summary>
+#if NET48
+        public static string GetVersion(HttpRequest httpRequest) => httpRequest.Headers.TryGetHeaderValue("dotmim-sync-version", out var v) ? v : null;
+#else
         public static string GetVersion(HttpContext httpContext) => TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-version", out var v) ? v : null;
+#endif
 
         /// <summary>
         /// Get the current client session id.
         /// </summary>
+#if NET48
+        public static string GetClientSessionId(HttpRequest httpRequest) => httpRequest.Headers.TryGetHeaderValue("dotmim-sync-session-id", out var val) ? val : null;
+#else
         public static string GetClientSessionId(HttpContext httpContext) => TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-session-id", out var val) ? val : null;
+#endif
 
         /// <summary>
         /// Get the current Step.
         /// </summary>
+#if NET48
+        public static HttpStep GetCurrentStep(HttpRequest httpRequest) => httpRequest.Headers.TryGetHeaderValue("dotmim-sync-step", out var val) ? (HttpStep)SyncTypeConverter.TryConvertTo<int>(val) : HttpStep.None;
+#else
         public static HttpStep GetCurrentStep(HttpContext httpContext) => TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-step", out var val) ? (HttpStep)SyncTypeConverter.TryConvertTo<int>(val) : HttpStep.None;
+#endif
 
         /// <summary>
         /// Get an header value.
         /// </summary>
+#if NET48
+
+        public static bool TryGetHeaderValue(NameValueCollection n, string key, out string header)
+        {
+            
+            if (n.AllKeys.Contains(key))
+            {
+                header = n.Get(key);
+                return true;
+            }
+
+            header = null;
+            return false;
+        }
+
+#else
         public static bool TryGetHeaderValue(IHeaderDictionary n, string key, out string header)
         {
             if (n.TryGetValue(key, out var vs))
@@ -140,6 +219,7 @@ namespace Dotmim.Sync.Web.Server
             header = null;
             return false;
         }
+#endif
 
         /// <summary>
         /// Write server debug information.
@@ -255,12 +335,28 @@ namespace Dotmim.Sync.Web.Server
             stringBuilder.AppendLine("</body>");
             stringBuilder.AppendLine("</html>");
 
+#if NET48
+            var content = stringBuilder.ToString();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            await httpResponse.OutputStream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
+#else
             await httpResponse.WriteAsync(stringBuilder.ToString(), cancellationToken).ConfigureAwait(false);
+#endif
         }
 
         /// <summary>
         /// Call this method to handle requests on the server, sent by the client.
         /// </summary>
+#if NET48
+        public virtual Task<HttpResponse> HandleRequestAsync(HttpRequest request, HttpContext context, IProgress<ProgressArgs> progress = null, CancellationToken token = default) =>
+            this.HandleRequestAsync(request, context, null, progress, token);
+
+        /// <summary>
+        /// Call this method to handle requests on the server, sent by the client.
+        /// </summary>
+        public virtual async Task<HttpResponse> HandleRequestAsync(HttpRequest httpRequest, HttpContext httpContext, Action<RemoteOrchestrator> action,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+#else
         public virtual Task HandleRequestAsync(HttpContext context, IProgress<ProgressArgs> progress = null, CancellationToken token = default) =>
             this.HandleRequestAsync(context, null, progress, token);
 
@@ -269,10 +365,29 @@ namespace Dotmim.Sync.Web.Server
         /// </summary>
         public virtual async Task HandleRequestAsync(HttpContext httpContext, Action<RemoteOrchestrator> action,
             IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+#endif
         {
+#if !NET48
             var httpRequest = httpContext.Request;
             var httpResponse = httpContext.Response;
+#else
+            var httpResponse = httpRequest.CreateHttpResponse();
+#endif
 
+#if NET48
+            httpRequest.Headers.TryGetHeaderValue("dotmim-sync-serialization-format", out var serializerInfoString);
+            httpRequest.Headers.TryGetHeaderValue("dotmim-sync-converter", out var cliConverterKey);
+            httpRequest.Headers.TryGetHeaderValue("dotmim-sync-version", out string version);
+
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-session-id", out var sessionId))
+                throw new HttpHeaderMissingException("dotmim-sync-session-id");
+
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-scope-name", out var scopeName))
+                throw new HttpHeaderMissingException("dotmim-sync-scope-name");
+
+            if (!httpRequest.Headers.TryGetHeaderValue("dotmim-sync-step", out string iStep))
+                throw new HttpHeaderMissingException("dotmim-sync-step");
+#else
             TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-serialization-format", out var serializerInfoString);
             TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-converter", out var cliConverterKey);
             TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-version", out string version);
@@ -285,6 +400,7 @@ namespace Dotmim.Sync.Web.Server
 
             if (!TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-step", out string iStep))
                 throw new HttpHeaderMissingException("dotmim-sync-step");
+#endif
 
             var step = (HttpStep)SyncTypeConverter.TryConvertTo<int>(iStep);
             var readableStream = new MemoryStream();
@@ -296,7 +412,9 @@ namespace Dotmim.Sync.Web.Server
 
                 // Copty stream to a readable and seekable stream
                 // HttpRequest.Body is a HttpRequestStream that is readable but can't be Seek
-#if NET6_0_OR_GREATER
+#if NET48
+                await httpRequest.ReadBodyAsync(readableStream).ConfigureAwait(false);
+#elif NET6_0_OR_GREATER
                 await httpRequest.Body.CopyToAsync(readableStream, cancellationToken).ConfigureAwait(false);
                 httpRequest.Body.Close();
                 await httpRequest.Body.DisposeAsync().ConfigureAwait(false);
@@ -307,7 +425,11 @@ namespace Dotmim.Sync.Web.Server
 #endif
 
                 // if Hash is present in header, check hash
+#if NET48
+                if (httpRequest.Headers.TryGetHeaderValue("dotmim-sync-hash", out string hashStringRequest))
+#else
                 if (TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-hash", out string hashStringRequest))
+#endif
                     HashAlgorithm.SHA256.EnsureHash(readableStream, hashStringRequest);
                 else
                     readableStream.Seek(0, SeekOrigin.Begin);
@@ -315,12 +437,18 @@ namespace Dotmim.Sync.Web.Server
                 if (!string.Equals(scopeName, this.ScopeName, SyncGlobalization.DataSourceStringComparison))
                     throw new HttpScopeNameFromClientIsInvalidException(scopeName, this.ScopeName);
 
+#if NET48
+                // In NET48, session is accessed via System.Web.HttpContext.Current.Session
+                var session = httpContext.Session;
+                var sessionCache = session.Get<SessionCache>(sessionId);
+#else
                 // load session
                 await httpContext.Session.LoadAsync(cancellationToken).ConfigureAwait(false);
 
                 // Get schema and clients batch infos / summaries, from session
                 // var schema = httpContext.Session.Get<SyncSet>(scopeName);
                 var sessionCache = httpContext.Session.Get<SessionCache>(sessionId);
+#endif
 
                 // HttpStep.EnsureSchema is the first call from client when client is new
                 // HttpStep.EnsureScopes is the first call from client when client is not new
@@ -329,8 +457,13 @@ namespace Dotmim.Sync.Web.Server
                     (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp || step == HttpStep.SendChangesIncremental))
                 {
                     sessionCache = new SessionCache();
+#if NET48
+                    session.Set(sessionId, sessionCache);
+                    session.SetString("session_id", sessionId);
+#else
                     httpContext.Session.Set(sessionId, sessionCache);
                     httpContext.Session.SetString("session_id", sessionId);
+#endif
                 }
 
                 // if sessionCache is still null, then we are in a step where it should not be null.
@@ -339,7 +472,11 @@ namespace Dotmim.Sync.Web.Server
                     throw new HttpSessionLostException(sessionId);
 
                 // check session id
+#if NET48
+                var tempSessionId = session.GetString("session_id");
+#else
                 var tempSessionId = httpContext.Session.GetString("session_id");
+#endif
 
                 // check session
                 var requiresSession = step != HttpStep.SendSyncErrors;
@@ -437,7 +574,11 @@ namespace Dotmim.Sync.Web.Server
                         break;
                     case HttpStep.SendChangesInProgress:
                         var sendChangesRequest = (HttpMessageSendChangesRequest)messsageRequest;
-                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest, httpContext.Request.Host.Host, sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#if NET48
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest, GetRequestHost(httpRequest), sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#else
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest, GetRequestHost(httpContext), sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#endif
                         messageResponse = await this.ApplyThenGetChangesAsync2(httpContext, sendChangesRequest, sessionCache, clientBatchSize, progress, cancellationToken).ConfigureAwait(false);
                         break;
                     case HttpStep.GetMoreChanges:
@@ -468,7 +609,11 @@ namespace Dotmim.Sync.Web.Server
                         break;
                     case HttpStep.SendChangesIncremental:
                         var sendChangesRequest2 = (HttpMessageSendChangesRequest)messsageRequest;
-                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest2, httpContext.Request.Host.Host, sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#if NET48
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest2, GetRequestHost(httpRequest), sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#else
+                        await this.RemoteOrchestrator.InterceptAsync(new HttpGettingClientChangesArgs(sendChangesRequest2, GetRequestHost(httpContext), sessionCache), progress, cancellationToken).ConfigureAwait(false);
+#endif
                         messageResponse = await this.SendChangesIncrementalAsync(httpContext, (HttpMessageSendChangesIncrementalRequest)messsageRequest, sessionCache, clientBatchSize, progress, cancellationToken).ConfigureAwait(false);
                         break;
                     case HttpStep.SendSyncErrors:
@@ -476,31 +621,51 @@ namespace Dotmim.Sync.Web.Server
                         break;
                 }
 
+#if NET48
+                session.Set(sessionId, sessionCache);
+                // No need to commit in System.Web.SessionState - it's automatic
+#else
                 httpContext.Session.Set(sessionId, sessionCache);
                 await httpContext.Session.CommitAsync(cancellationToken).ConfigureAwait(false);
+#endif
 
                 if (messageResponse is HttpMessageSendChangesResponse httpMessageSendChangesResponse)
-                    await this.RemoteOrchestrator.InterceptAsync(new HttpSendingServerChangesArgs(httpMessageSendChangesResponse, httpContext.Request.Host.Host, sessionCache, false), progress, cancellationToken).ConfigureAwait(false);
+#if NET48
+                    await this.RemoteOrchestrator.InterceptAsync(new HttpSendingServerChangesArgs(httpMessageSendChangesResponse, GetRequestHost(httpRequest), sessionCache, false), progress, cancellationToken).ConfigureAwait(false);
+#else
+                    await this.RemoteOrchestrator.InterceptAsync(new HttpSendingServerChangesArgs(httpMessageSendChangesResponse, GetRequestHost(httpContext), sessionCache, false), progress, cancellationToken).ConfigureAwait(false);
+#endif
 
                 await this.RemoteOrchestrator.InterceptAsync(new HttpSendingResponseArgs(httpContext, messageResponse.SyncContext, sessionCache, messageResponse, responseSerializerType, step), progress, cancellationToken).ConfigureAwait(false);
 
                 binaryData = await clientSerializerFactory.GetSerializer().SerializeAsync(messageResponse, responseSerializerType).ConfigureAwait(false);
 
                 // Adding the serialization format used and session id
+#if NET48
+                httpResponse.Headers.Add("dotmim-sync-session-id", sessionId.ToString());
+                httpResponse.Headers.Add("dotmim-sync-serialization-format", clientSerializerFactory.Key);
+#else
                 httpResponse.Headers.Append("dotmim-sync-session-id", sessionId.ToString());
                 httpResponse.Headers.Append("dotmim-sync-serialization-format", clientSerializerFactory.Key);
+#endif
 
                 // calculate hash
                 var hash = HashAlgorithm.SHA256.Create(binaryData);
                 var hashString = Convert.ToBase64String(hash);
 
                 // Add hash to header
+#if NET48
+                httpResponse.Headers.Add("dotmim-sync-hash", hashString);
+#else
                 httpResponse.Headers.Append("dotmim-sync-hash", hashString);
+#endif
 
                 // data to send back, as the response
                 byte[] data = this.EnsureCompression(httpRequest, httpResponse, binaryData);
 
-#if NET6_0_OR_GREATER
+#if NET48
+
+#elif NET6_0_OR_GREATER
                 await httpResponse.Body.WriteAsync(data.AsMemory(0, data.Length), cancellationToken).ConfigureAwait(false);
 #else
                 await httpResponse.Body.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
@@ -522,6 +687,10 @@ namespace Dotmim.Sync.Web.Server
 
 #endif
             }
+
+#if NET48
+            return httpResponse;
+#endif
         }
 
         /// <summary>
@@ -580,6 +749,10 @@ namespace Dotmim.Sync.Web.Server
             // data to send back, as the response
             byte[] compressedData = this.EnsureCompression(httpRequest, httpResponse, data);
 
+#if NET48
+            httpResponse.Headers.Add("dotmim-sync-error", syncException.TypeName);
+            httpResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
+#else
             httpResponse.Headers.Append("dotmim-sync-error", syncException.TypeName);
             httpResponse.StatusCode = StatusCodes.Status400BadRequest;
             httpResponse.ContentLength = compressedData.Length;
@@ -587,6 +760,7 @@ namespace Dotmim.Sync.Web.Server
             await httpResponse.Body.WriteAsync(compressedData).ConfigureAwait(false);
 #else
             await httpResponse.Body.WriteAsync(compressedData, 0, compressedData.Length).ConfigureAwait(false);
+#endif
 #endif
         }
 
@@ -596,6 +770,40 @@ namespace Dotmim.Sync.Web.Server
         public Task WriteHelloAsync(HttpContext context, CancellationToken cancellationToken = default)
             => WriteHelloAsync(context, [this], cancellationToken);
 
+#if NET48
+        /// <summary>
+        /// Ensure we have a Compression setting or not (NET48 version).
+        /// </summary>
+        public virtual byte[] EnsureCompression(System.Net.Http.HttpRequestMessage httpRequest, System.Net.Http.HttpResponseMessage httpResponse, byte[] binaryData)
+        {
+            // Compress data if client accept Gzip / Deflate
+            if (httpRequest.Headers.TryGetValue("Accept-Encoding", out var encoding) && (encoding.Contains("gzip") || encoding.Contains("deflate")))
+            {
+                using var writeSteam = new MemoryStream();
+
+                using (var compress = new GZipStream(writeSteam, CompressionMode.Compress))
+                {
+                    compress.Write(binaryData, 0, binaryData.Length);
+                    compress.Flush();
+                }
+
+                var b = writeSteam.ToArray();
+                writeSteam.Flush();
+                
+                httpResponse.Content = new System.Net.Http.ByteArrayContent(b);
+
+                if (!httpResponse.Content.Headers.Contains("Content-Encoding"))
+                    httpResponse.Content.Headers.ContentEncoding.Add("gzip");
+
+                return b;
+
+            }
+            
+            httpResponse.Content = new System.Net.Http.ByteArrayContent(binaryData);
+
+            return binaryData;
+        }
+#else
         /// <summary>
         /// Ensure we have a Compression setting or not.
         /// </summary>
@@ -622,6 +830,7 @@ namespace Dotmim.Sync.Web.Server
 
             return binaryData;
         }
+#endif
 
         /// <summary>
         /// Returns the serializer used by the client, that should be used on the server.
@@ -685,7 +894,7 @@ namespace Dotmim.Sync.Web.Server
             (context, serverScopeInfo, shouldProvision) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
             // TODO : Is it used ?
-            httpContext.Session.Set(httpMessage.SyncContext.ScopeName, serverScopeInfo.Schema);
+            GetSession(httpContext).Set(httpMessage.SyncContext.ScopeName, serverScopeInfo.Schema);
 
             // Provision if needed
             if (shouldProvision)
@@ -793,7 +1002,7 @@ namespace Dotmim.Sync.Web.Server
             (context, sScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
             // TODO : Is it used ?
-            httpContext.Session.Set(httpMessage.SyncContext.ScopeName, sScopeInfo.Schema);
+            GetSession(httpContext).Set(httpMessage.SyncContext.ScopeName, sScopeInfo.Schema);
 
             // get snapshot info
             ServerSyncChanges serverSyncChanges;
@@ -829,7 +1038,7 @@ namespace Dotmim.Sync.Web.Server
             (_, sScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(httpMessage.SyncContext, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
             // TODO : Is it used ?
-            httpContext.Session.Set(httpMessage.SyncContext.ScopeName, sScopeInfo.Schema);
+            GetSession(httpContext).Set(httpMessage.SyncContext.ScopeName, sScopeInfo.Schema);
 
             // get changes
             var snap = await this.RemoteOrchestrator.GetSnapshotAsync(sScopeInfo).ConfigureAwait(false);
@@ -880,7 +1089,7 @@ namespace Dotmim.Sync.Web.Server
                 context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
             // TODO : Is it used ?
-            httpContext.Session.Set(context.ScopeName, sScopeInfo.Schema);
+            GetSession(httpContext).Set(context.ScopeName, sScopeInfo.Schema);
 
             // if we already applied all changes successfully, but the client retried uploading the last batch, simple return
             if(sessionCache?.AppliedBatchesSuccessfully == true)
@@ -1121,7 +1330,7 @@ namespace Dotmim.Sync.Web.Server
                 context, this.Setup, false, default, default, default, default).ConfigureAwait(false);
 
             // TODO : Is it used ?
-            httpContext.Session.Set(context.ScopeName, sScopeInfo.Schema);
+            GetSession(httpContext).Set(context.ScopeName, sScopeInfo.Schema);
 
             // 1) Create the http message content response
             var changesResponse = new HttpMessageSendChangesResponse(context)

@@ -14,7 +14,11 @@ namespace Dotmim.Sync.Tests.Models
         public short RevisionNumber { get; set; }
         public DateTime? OrderDate { get; set; }
         public DateTime? DueDate { get; set; }
+#if NET48
+        public DateTime? ShipDate { get; set; }
+#else
         public DateTimeOffset? ShipDate { get; set; }
+#endif
         public short Status { get; set; }
         public bool? OnlineOrderFlag { get; set; }
         public string SalesOrderNumber { get; set; }

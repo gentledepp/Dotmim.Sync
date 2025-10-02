@@ -1,7 +1,12 @@
 ﻿using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.Web.Client;
 using Dotmim.Sync.Web.Server;
+#if NET48
+using System.Web;
+using HttpContext = System.Web.HttpContextBase;
+#else
 using Microsoft.AspNetCore.Http;
+#endif
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;

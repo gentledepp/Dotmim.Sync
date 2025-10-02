@@ -9,8 +9,12 @@ using Dotmim.Sync.Web.Client;
 using Dotmim.Sync.Web.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
+#if NET48
+using System.Data.Entity;
+#else
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -27,18 +31,22 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+#if !NET48
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Builder;
-using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+#endif
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using Dotmim.Sync.Builders;
 using Dotmim.Sync.Sqlite;
 using Dotmim.Sync.Tests.Fixtures;
 using System.Security.Cryptography;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
+#if !NET48
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
+#endif
 
 namespace Dotmim.Sync.Tests.IntegrationTests
 {
@@ -102,6 +110,23 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Add again the serverprovider
             this.Kestrel.AddSyncServer(serverProvider, setup, options);
 
+#if NET48
+            // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                webServerAgent.OnHttpGettingRequest(args =>
+                {
+                    Assert.NotEmpty(args.Context.AdditionalProperties);
+                    Assert.Single(args.Context.AdditionalProperties);
+                });
+
+                webServerAgent.OnHttpSendingResponse(args =>
+                {
+                    Assert.NotEmpty(args.Context.AdditionalProperties);
+                    Assert.Single(args.Context.AdditionalProperties);
+                });
+            });
+#else
             // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -124,6 +149,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
             var download = 1;
             // Execute a sync on all clients and check results
@@ -179,6 +205,23 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Add again the serverprovider
             this.Kestrel.AddSyncServer(serverProvider, setup, options);
 
+#if NET48
+            // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                webServerAgent.OnHttpGettingRequest(args =>
+                {
+                    Assert.NotEmpty(args.Context.AdditionalProperties);
+                    Assert.Single(args.Context.AdditionalProperties);
+                });
+
+                webServerAgent.OnHttpSendingResponse(args =>
+                {
+                    Assert.NotEmpty(args.Context.AdditionalProperties);
+                    Assert.Single(args.Context.AdditionalProperties);
+                });
+            });
+#else
             // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -201,6 +244,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
             var download = 1;
             // Execute a sync on all clients and check results
@@ -236,7 +280,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // get the number of rows that have only primary keys (which do not accept any Update)
             int notUpdatedOnClientsCount;
-            await using (var serverDbCtx = new AdventureWorksContext(serverProvider))
+            using (var serverDbCtx = new AdventureWorksContext(serverProvider))
             {
                 var pricesListCategoriesCount = serverDbCtx.PricesListCategory.Count();
                 var postTagsCount = serverDbCtx.PostTag.Count();
@@ -302,7 +346,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Create a client provider, but it will not be used since server provider will raise an error before
             var clientProvider = clientsProvider.First();
 
-            using var kestrel = new KestrelTestServer(this.UseFiddler);
+            using var kestrel = new TestWebServer(this.UseFiddler);
             kestrel.AddSyncServer(badServerProvider, setup, options);
             var serviceUri = kestrel.Run();
 
@@ -566,10 +610,10 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         [ClassData(typeof(SyncOptionsData))]
         public async Task InsertOneRowWithByteArrayOnServerSide(SyncOptions options)
         {
-            // Execute a sync on all clients to initialize client and server schema 
+            // Execute a sync on all clients to initialize client and server schema
             foreach (var clientProvider in clientsProvider)
                 await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
-
+            
             var thumbnail = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
             // add one row
@@ -696,7 +740,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             }
 
             // check rows count on server and on each client
-            await using var ctx = new AdventureWorksContext(serverProvider);
+            using var ctx = new AdventureWorksContext(serverProvider);
 
             var productRowCount = await ctx.Product.AsNoTracking().CountAsync();
             var productCategoryCount = await ctx.ProductCategory.AsNoTracking().CountAsync();
@@ -707,7 +751,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             {
                 Assert.Equal(rowsCount, clientProvider.GetDatabaseRowsCount());
 
-                await using var cliCtx = new AdventureWorksContext(clientProvider);
+                using var cliCtx = new AdventureWorksContext(clientProvider);
                 var pCount = await cliCtx.Product.AsNoTracking().CountAsync();
                 Assert.Equal(productRowCount, pCount);
 
@@ -772,7 +816,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var addressId = 0;
             foreach (var clientProvider in clientsProvider)
             {
-                await using (var ctx = new AdventureWorksContext(clientProvider))
+                using (var ctx = new AdventureWorksContext(clientProvider))
                 {
                     var addresses = ctx.Address.OrderBy(a => a.AddressId).Where(a => !string.IsNullOrEmpty(a.AddressLine2)).Take(clientsProvider.ToList().Count).ToList();
                     var address = addresses[addressId];
@@ -809,7 +853,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             // check rows count on server and on each client
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 // get all addresses
                 var serverAddresses = await ctx.Address.AsNoTracking().ToListAsync();
@@ -818,7 +862,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 {
                     Assert.Equal(rowsCount, clientProvider.GetDatabaseRowsCount());
 
-                    await using var cliCtx = new AdventureWorksContext(clientProvider);
+                    using var cliCtx = new AdventureWorksContext(clientProvider);
                     // get all addresses
                     var clientAddresses = await cliCtx.Address.AsNoTracking().ToListAsync();
 
@@ -852,7 +896,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var addressId = 0;
             foreach (var clientProvider in clientsProvider)
             {
-                await using (var ctx = new AdventureWorksContext(clientProvider))
+                using (var ctx = new AdventureWorksContext(clientProvider))
                 {
                     var addresses = ctx.Address.OrderBy(a => a.AddressId).Where(a => !string.IsNullOrEmpty(a.AddressLine2)).Take(clientsProvider.ToList().Count).ToList();
                     var address = addresses[addressId];
@@ -888,7 +932,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             // check rows count on server and on each client
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 // get all addresses
                 var serverAddresses = await ctx.Address.AsNoTracking().ToListAsync();
@@ -897,7 +941,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 {
                     Assert.Equal(rowsCount, clientProvider.GetDatabaseRowsCount());
 
-                    await using var cliCtx = new AdventureWorksContext(clientProvider);
+                    using var cliCtx = new AdventureWorksContext(clientProvider);
                     // get all addresses
                     var clientAddresses = await cliCtx.Address.AsNoTracking().ToListAsync();
 
@@ -925,7 +969,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             Address address;
             // Update one address to null on server side
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 address = ctx.Address.OrderBy(a => a.AddressId).Where(a => !string.IsNullOrEmpty(a.AddressLine2)).First();
                 address.AddressLine2 = null;
@@ -946,13 +990,13 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
                 // Check value
-                await using var ctx = new AdventureWorksContext(clientProvider);
+                using var ctx = new AdventureWorksContext(clientProvider);
                 var cliAddress = await ctx.Address.AsNoTracking().SingleAsync(a => a.AddressId == address.AddressId);
                 Assert.Null(cliAddress.AddressLine2);
             }
 
             // Update one address previously null to not null on server side
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 address = await ctx.Address.SingleAsync(a => a.AddressId == address.AddressId);
                 address.AddressLine2 = "NoT a null value !";
@@ -973,7 +1017,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
                 // Check value
-                await using var ctx = new AdventureWorksContext(clientProvider);
+                using var ctx = new AdventureWorksContext(clientProvider);
                 var cliAddress = await ctx.Address.AsNoTracking().SingleAsync(a => a.AddressId == address.AddressId);
                 Assert.Equal("NoT a null value !", cliAddress.AddressLine2);
             }
@@ -1037,7 +1081,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             foreach (var clientsProvider in clientsProvider)
             {
                 // Then delete all product category items
-                await using var ctx = new AdventureWorksContext(clientsProvider);
+                using var ctx = new AdventureWorksContext(clientsProvider);
                 foreach (var pc in ctx.ProductCategory.Where(pc => pc.Name.StartsWith("CLI_")))
                     ctx.ProductCategory.Remove(pc);
                 await ctx.SaveChangesAsync();
@@ -1061,12 +1105,12 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             }
 
             // check rows count on server and on each client
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 var serverPC = await ctx.ProductCategory.AsNoTracking().CountAsync();
                 foreach (var clientProvider in clientsProvider)
                 {
-                    await using var cliCtx = new AdventureWorksContext(clientProvider);
+                    using var cliCtx = new AdventureWorksContext(clientProvider);
                     var clientPC = await cliCtx.ProductCategory.AsNoTracking().CountAsync();
                     Assert.Equal(serverPC, clientPC);
                 }
@@ -1573,13 +1617,13 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             var serverProductCategoryModifiedDate = new DateTime(2022, 1, 12, 16, 46, 21, DateTimeKind.Utc);
             var serverProductCategoryModifiedDateTicks = serverProductCategoryModifiedDate.Ticks;
-            Debug.WriteLine($"serverProductCategoryModifiedDate:{serverProductCategoryModifiedDate}");
-            Debug.WriteLine($"serverProductCategoryModifiedDateTicks:{serverProductCategoryModifiedDateTicks}");
+            this.Output.WriteLine($"serverProductCategoryModifiedDate:{serverProductCategoryModifiedDate}");
+            this.Output.WriteLine($"serverProductCategoryModifiedDateTicks:{serverProductCategoryModifiedDateTicks}");
 
             var clientProductCategoryModifiedDate = new DateTime(2020, 1, 12, 16, 46, 21, DateTimeKind.Utc);
             var clientProductCategoryModifiedDateTicks = clientProductCategoryModifiedDate.Ticks;
-            Debug.WriteLine($"clientProductCategoryModifiedDate:{clientProductCategoryModifiedDate}");
-            Debug.WriteLine($"clientProductCategoryModifiedDateTicks:{clientProductCategoryModifiedDateTicks}");
+            this.Output.WriteLine($"clientProductCategoryModifiedDate:{clientProductCategoryModifiedDate}");
+            this.Output.WriteLine($"clientProductCategoryModifiedDateTicks:{clientProductCategoryModifiedDateTicks}");
 
             // Add one row in each client
             foreach (var clientProvider in clientsProvider)
@@ -1598,6 +1642,54 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Add again the serverprovider
             this.Kestrel.AddSyncServer(serverProvider, setup, options, webServerOptions);
 
+#if NET48
+            // Create server web proxy
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                // When getting a row from client
+                webServerAgent.OnHttpGettingChanges(cca =>
+                {
+                    if (cca.Request.Changes == null || cca.Request.Changes.Tables == null)
+                        return;
+
+                    var table = cca.Request.Changes.Tables[0];
+                    Assert.NotEmpty(table.Rows);
+
+                    foreach (var row in table.Rows)
+                    {
+                        Assert.IsType<long>(row[5]);
+                        var ticks = (long)row[5];
+
+                        if (row[6].ToString() == "SRV")
+                            Assert.Equal(serverProductCategoryModifiedDateTicks, ticks);
+                        else
+                            Assert.Equal(clientProductCategoryModifiedDateTicks, ticks);
+                    }
+                });
+
+                // When sending a row from server to client
+                webServerAgent.OnHttpSendingChanges(sra =>
+                {
+                    if (sra.Response.Changes == null || sra.Response.Changes.Tables == null)
+                        return;
+
+                    var table = sra.Response.Changes.Tables[0];
+                    Assert.NotEmpty(table.Rows);
+
+                    foreach (var row in table.Rows)
+                    {
+                        Assert.IsType<long>(row[5]);
+                        var ticks = (long)row[5];
+
+                        if (row[6].ToString() == "SRV")
+                            Assert.Equal(serverProductCategoryModifiedDateTicks, ticks);
+                        else
+                            Assert.Equal(clientProductCategoryModifiedDateTicks, ticks);
+
+                    }
+                });
+            });
+#else
             // Create server web proxy
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -1651,6 +1743,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
             // Execute a sync on all clients and check results
             foreach (var clientProvider in clientsProvider)
@@ -1956,12 +2049,12 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 var products = Enumerable.Range(1, rowsToSend).Select(i =>
                     new Product
                     {
-                        ProductId = Guid.NewGuid(),
+                        ProductId = Guid.NewGuid().ToProductId(),
                         Name = Guid.NewGuid().ToString("N"),
                         ProductNumber = $"ZZ-{i}{clientDatabaseType}"
                     });
 
-                await using var clientDbCtx = new AdventureWorksContext(clientProvider);
+                using var clientDbCtx = new AdventureWorksContext(clientProvider);
                 clientDbCtx.Product.AddRange(products);
                 await clientDbCtx.SaveChangesAsync();
             }
@@ -1973,13 +2066,43 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var clientCount = 0;
             foreach (var clientProvider in clientsProvider)
             {
-                using var kestrel = new KestrelTestServer(this.UseFiddler);
+                using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
                 kestrel.AddSyncServer(serverProvider, setup, options);
 
                 var batchIndex = 0;
 
+#if NET48
+                // Create server web proxy
+                var serviceUri = kestrel.Run(webServerAgent =>
+                {
+                    // Tracing http request received by server side
+                    webServerAgent.OnHttpGettingRequest(args =>
+                    {
+                        var cScopeInfoClientId = args.HttpContext.GetClientScopeId();
+                        var cScopeInfoClientSessionId = args.HttpContext.GetClientSessionId();
+                        var cStep = args.HttpContext.GetCurrentStep();
+
+                        Debug.WriteLine($"RECEIVE Session Id:{cScopeInfoClientSessionId} ClientId:{cScopeInfoClientId} Step:{(HttpStep)Convert.ToInt32(cStep)}");
+                    });
+
+                    // Tracing http response sent by server side, and drop session to generate a session lost
+                    webServerAgent.OnHttpSendingResponse(async args =>
+                    {
+                        // SendChangesInProgress is occuring when server is receiving data from client
+                        // We are droping session on the second batch
+                        if (args.HttpStep == HttpStep.SendChangesInProgress && batchIndex == 1)
+                        {
+                            Debug.WriteLine($"DROPING Session Id {args.HttpContext.Session.SessionID} on batch {batchIndex}.");
+                            args.HttpContext.Session.Clear();
+                        }
+                        if (args.HttpStep == HttpStep.SendChangesInProgress)
+                            batchIndex++;
+
+                    });
+                });
+#else
                 // Create server web proxy
                 var serverHandler = new RequestDelegate(async context =>
                 {
@@ -2015,6 +2138,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 });
 
                 var serviceUri = kestrel.Run(serverHandler);
+#endif
 
                 var webRemoteOrchestrator = new WebRemoteOrchestrator(serviceUri);
 
@@ -2050,7 +2174,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             foreach (var clientProvider in clientsProvider)
             {
-                using var kestrel = new KestrelTestServer(this.UseFiddler);
+                using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
                 kestrel.AddSyncServer(serverProvider, setup, options);
@@ -2070,7 +2194,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
                 clientCount++;
 
-                await using var serverDbCtx = new AdventureWorksContext(serverProvider);
+                using var serverDbCtx = new AdventureWorksContext(serverProvider);
                 var serverCount = serverDbCtx.Product.Count(p => p.ProductNumber.StartsWith($"ZZ-"));
                 Assert.Equal(rowsToSend * clientCount, serverCount);
 
@@ -2097,12 +2221,12 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var products = Enumerable.Range(1, rowsToReceive).Select(i =>
                 new Product
                 {
-                    ProductId = Guid.NewGuid(),
+                    ProductId = Guid.NewGuid().ToProductId(),
                     Name = Guid.NewGuid().ToString("N"),
                     ProductNumber = $"ZZ-{i}{serverProviderType}"
                 });
 
-            await using var ctx = new AdventureWorksContext(serverProvider);
+            using var ctx = new AdventureWorksContext(serverProvider);
             ctx.Product.AddRange(products);
             await ctx.SaveChangesAsync();
 
@@ -2112,7 +2236,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // for each client, fake that the sync session is interrupted
             foreach (var clientProvider in clientsProvider)
             {
-                using var kestrel = new KestrelTestServer(this.UseFiddler);
+                using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
                 kestrel.AddSyncServer(serverProvider, setup, options);
@@ -2137,7 +2261,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             foreach (var clientProvider in clientsProvider)
             {
-                using var kestrel = new KestrelTestServer(this.UseFiddler);
+                using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
                 kestrel.AddSyncServer(serverProvider, setup, options);
@@ -2157,7 +2281,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(rowsToReceive, s2.TotalChangesDownloadedFromServer);
                 Assert.Equal(0, s2.TotalResolvedConflicts);
 
-                await using var clientDbCtx = new AdventureWorksContext(clientProvider);
+                using var clientDbCtx = new AdventureWorksContext(clientProvider);
                 var clientCount = clientDbCtx.Product.Count(p => p.ProductNumber.StartsWith($"ZZ-"));
                 Assert.Equal(rowsToReceive, clientCount);
 
@@ -2294,7 +2418,26 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             await this.Kestrel.StopAsync();
             this.Kestrel.AddSyncServer(serverProvider, setup, options);
 
+#if NET48
+            // Create server web proxy
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                // When Server Orchestrator send back the response, we will make an interruption
+                webServerAgent.OnHttpGettingRequest(args =>
+                {
+                    if(!interrupted.ContainsKey(args.HttpStep))
+                        interrupted.Add(args.HttpStep, false);
 
+                    // interrupt each step to see if it's working
+                    if (!interrupted[args.HttpStep])
+                    {
+                        interrupted[args.HttpStep] = true;
+                        throw new TimeoutException($"Timeout exception raised on step {args.HttpStep}");
+                    }
+
+                });
+            });
+#else
             // Create server web proxy
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -2318,6 +2461,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -2365,6 +2509,26 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             await this.Kestrel.StopAsync();
             this.Kestrel.AddSyncServer(serverProvider, setup, options);
 
+#if NET48
+            // Create server web proxy
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                // When Server Orchestrator send back the response, we will make an interruption
+                webServerAgent.OnHttpSendingResponse(args =>
+                {
+                    if (!interrupted.ContainsKey(args.HttpStep))
+                        interrupted.Add(args.HttpStep, false);
+
+                    // interrupt each step to see if it's working
+                    if (!interrupted[args.HttpStep])
+                    {
+                        interrupted[args.HttpStep] = true;
+                        throw new TimeoutException($"Timeout exception raised on step {args.HttpStep}");
+                    }
+
+                });
+            });
+#else
             // Create server web proxy
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -2388,6 +2552,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -2429,6 +2594,23 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             var interruptedBatch = false;
 
+#if NET48
+            // Create server web proxy
+            var serviceUri = this.Kestrel.Run(webServerAgent =>
+            {
+                // When Server Orchestrator send back the response, we will make an interruption
+                webServerAgent.OnHttpSendingResponse(args =>
+                {
+                    // Throw error when sending changes to server
+                    if (args.HttpStep == HttpStep.SendChangesInProgress && !interruptedBatch)
+                    {
+                        interruptedBatch = true;
+                        throw new TimeoutException($"Timeout exception raised on step {args.HttpStep}");
+                    }
+
+                });
+            });
+#else
             // Create server web proxy
             var serverHandler = new RequestDelegate(async context =>
             {
@@ -2450,6 +2632,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             });
 
             var serviceUri = this.Kestrel.Run(serverHandler);
+#endif
 
 
             // Execute a sync on all clients to initialize client and server schema 
@@ -2522,7 +2705,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             foreach (var clientProvider in clientsProvider)
             {
                 var clientName = HelperDatabase.GetRandomName();
-                var clientProductNumber = HelperDatabase.GetRandomName().ToUpperInvariant()[..10];
+                var clientProductNumber = HelperDatabase.GetRandomName().ToUpperInvariant().Substring(0, 10);
                 await clientProvider.AddProductAsync(name: $"BLOB_{clientName}", productNumber: clientProductNumber, thumbNailPhoto: new byte[20000]);
             }
 
@@ -2534,7 +2717,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 await new SyncAgent(clientProvider, webRemoteOrchestrator, options).SynchronizeAsync();
 
             // check rows count on server and on each client
-            await using (var ctx = new AdventureWorksContext(serverProvider))
+            using (var ctx = new AdventureWorksContext(serverProvider))
             {
                 var products = await ctx.Product.AsNoTracking().Where(p => p.Name.StartsWith("BLOB_")).ToListAsync();
                 foreach (var p in products)
@@ -2543,7 +2726,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             foreach (var clientProvider in clientsProvider)
             {
-                await using var cliCtx = new AdventureWorksContext(clientProvider);
+                using var cliCtx = new AdventureWorksContext(clientProvider);
 
                 var products = await cliCtx.Product.AsNoTracking().Where(p => p.Name.StartsWith("BLOB_")).ToListAsync();
                 foreach (var p in products)
@@ -2587,7 +2770,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
 
             }
         }
-
+#if !NET48
         [Fact]
         /// <summary>
         /// Asynchronously verifies that the action registered with the WebRemoteOrchestrator's OnHttpResponseFailure method is invoked
@@ -2639,8 +2822,8 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             // Clean up
             this.Kestrel.IsAuthorisationEnabled = false;
         }
+#endif
 
-        
         [Theory]
         [ClassData(typeof(SyncOptionsData))]
         public async Task OptimizedSync_IfNoClientOrServerChanges_SynchronizesUsingASingleRequest(SyncOptions options)
@@ -2915,12 +3098,17 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesUploadedToServer);
                 Assert.Equal(0, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
-                
+
+                var expectedResponseCount = 3;
+#if NET48
+                expectedResponseCount = 2;
+#endif
+
                 Assert.IsType<HttpMessageSendChangesIncrementalRequest>(sentChangesRequests[0]);
                 Assert.Equal(1, sentChangesRequests.Count); // only one changeset is sent but...
-                Assert.Equal(3 - 1 /*first batch in first request*/,getChangesRequests.Count);
-                Assert.Equal(3, allSentRequests.Count); // only N requests should be sent
-                Assert.Equal(3, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
+                Assert.Equal(expectedResponseCount - 1 /*first batch in first request*/,getChangesRequests.Count);
+                Assert.Equal(expectedResponseCount, allSentRequests.Count); // only N requests should be sent
+                Assert.Equal(expectedResponseCount, allReceivedResponses.Count); // only N responses should be received since the session is cleaned up automatically.
 
             }
         }
@@ -2944,7 +3132,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var categoryName = HelperDatabase.GetRandomName("cat_");
             string categoryId;
 
-            await using (var ctx = new AdventureWorksContext(sqliteClient))
+            using (var ctx = new AdventureWorksContext(sqliteClient))
             {
                 var category = new ProductCategory { 
                     ProductCategoryId = categoryName.Substring(0, 11),
@@ -2966,7 +3154,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
                 // Now modify the same row to simulate a race condition
                 if (!modifiedDuringSync)
                 {
-                    await using var ctx = new AdventureWorksContext(sqliteClient);
+                    using var ctx = new AdventureWorksContext(sqliteClient);
                     var category = await ctx.ProductCategory.FindAsync(categoryId);
                     if (category != null)
                     {
@@ -2984,7 +3172,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             Assert.True(modifiedDuringSync, "Row should have been modified during sync");
 
             // Verify the modification is still marked as dirty on the client
-            await using (var connection = sqliteClient.CreateConnection())
+            using (var connection = sqliteClient.CreateConnection())
             {
                 await connection.OpenAsync();
                 using var cmd = connection.CreateCommand();
@@ -3002,7 +3190,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             Assert.Equal(1, s2.TotalChangesAppliedOnServer);
 
             // Verify the row is no longer dirty after successful sync
-            await using (var connection = sqliteClient.CreateConnection())
+            using (var connection = sqliteClient.CreateConnection())
             {
                 await connection.OpenAsync();
                 using var cmd = connection.CreateCommand();
@@ -3013,7 +3201,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             }
 
             // Verify final data on server has the modified value
-            await using (var serverCtx = new AdventureWorksContext(serverProvider))
+            using (var serverCtx = new AdventureWorksContext(serverProvider))
             {
                 var serverCategory = await serverCtx.ProductCategory.FindAsync(categoryId);
                 Assert.NotNull(serverCategory);
@@ -3021,7 +3209,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             }
 
             // Verify final data on client matches server
-            await using (var clientCtx = new AdventureWorksContext(sqliteClient))
+            using (var clientCtx = new AdventureWorksContext(sqliteClient))
             {
                 var clientCategory = await clientCtx.ProductCategory.FindAsync(categoryId);
                 Assert.NotNull(clientCategory);

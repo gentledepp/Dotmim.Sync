@@ -8,7 +8,11 @@ namespace Dotmim.Sync.Tests.Models
         public int SalesOrderId { get; set; }
         public int SalesOrderDetailId { get; set; }
         public short OrderQty { get; set; }
+#if NET48
+        public string ProductId { get; set; }
+#else
         public Guid ProductId { get; set; }
+#endif
         public decimal UnitPrice { get; set; }
         public decimal UnitPriceDiscount { get; set; }
         public decimal? LineTotal { get; set; }

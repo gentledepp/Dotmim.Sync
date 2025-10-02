@@ -10,7 +10,11 @@ namespace Dotmim.Sync.Tests.Models
             SalesOrderDetail = new HashSet<SalesOrderDetail>();
         }
 
+#if NET48
+        public string ProductId { get; set; }
+#else
         public Guid ProductId { get; set; }
+#endif
         public string Name { get; set; }
         public string ProductNumber { get; set; }
         public string Color { get; set; }

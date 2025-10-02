@@ -25,7 +25,7 @@ namespace Dotmim.Sync.Tests
     /// Actually we can use Microsoft.AspNetCore.TestHost
     /// But I can't manage to find a way to perform through Fiddler
     /// </summary>
-    public class KestrelTestServer : IDisposable
+    public class TestWebServer : IDisposable
     {
         IWebHostBuilder builder;
         private bool useFiddler;
@@ -42,7 +42,7 @@ namespace Dotmim.Sync.Tests
         /// </remarks>
         public bool IsAuthorisationEnabled { get; set; }
 
-        public KestrelTestServer(bool useFidller = false)
+        public TestWebServer(bool useFidller = false)
         {
             initBuilder();
             this.useFiddler = useFidller;

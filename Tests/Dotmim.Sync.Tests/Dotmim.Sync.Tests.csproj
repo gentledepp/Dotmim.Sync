@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNet6);$(TargetFrameworkNet8);</TargetFrameworks>
+		<TargetFrameworks>$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
 
 		<NoWarn>$(NoWarn);CS1587;CS1591</NoWarn>
 

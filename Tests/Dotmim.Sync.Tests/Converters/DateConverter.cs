@@ -23,7 +23,12 @@ namespace Dotmim.Sync.SampleConsole
                 long ticks = 0;
                 
                 if (col.GetDataType() == typeof(DateTime))
+// Note: System.Data.Sqlite seems to return DateTimes as local time
+#if NET48
+                    ticks = ((DateTime)SyncTypeConverter.TryConvertTo<DateTime>(row[index])).ToUniversalTime().Ticks;
+#else
                     ticks = SyncTypeConverter.TryConvertTo<DateTime>(row[index]).Ticks;
+#endif
                 else
                     ticks = SyncTypeConverter.TryConvertTo<DateTimeOffset>(row[index]).Ticks;
 
