@@ -838,6 +838,9 @@ namespace Dotmim.Sync
             var failedRows = 0;
             ApplyChangesException failureException = null;
 
+            // Track successfully applied rows for the interceptor
+            var successfullyAppliedRows = new List<SyncRow>();
+
             if ((conflictRows != null && conflictRows.Count > 0) || (errorsRows != null && errorsRows.Count > 0))
             {
 
@@ -866,6 +869,10 @@ namespace Dotmim.Sync
                         {
                             conflictsResolvedCount += isConflictResolved ? 1 : 0;
                             appliedRows += isApplied ? 1 : 0;
+
+                            // Track successfully applied row
+                            if (isApplied)
+                                successfullyAppliedRows.Add(conflictRow);
                         }
                     }
 
@@ -913,7 +920,13 @@ namespace Dotmim.Sync
                             else
                             {
                                 failedRows += errorAction == ErrorAction.Log ? 1 : 0;
-                                appliedRows += errorAction == ErrorAction.Resolved ? 1 : 0;
+
+                                // Track resolved error as applied row
+                                if (errorAction == ErrorAction.Resolved)
+                                {
+                                    appliedRows++;
+                                    successfullyAppliedRows.Add(errorRow.SyncRow);
+                                }
                             }
                         }
                     }
@@ -921,6 +934,13 @@ namespace Dotmim.Sync
                     // Enable check constraints for provider supporting only at table level
                     if (this.Options.DisableConstraintsOnApplyChanges && this.Provider.ConstraintsLevelAction == ConstraintsLevelAction.OnTableLevel)
                         await this.InternalEnableConstraintsAsync(scopeInfo, context, schemaChangesTable, runnerError.Connection, runnerError.Transaction, runnerError.Progress, runnerError.CancellationToken).ConfigureAwait(false);
+
+                    // Call the RowsChangesApplied interceptor if we have successfully applied rows
+                    if (successfullyAppliedRows.Count > 0)
+                    {
+                        var rowsAppliedArgs = new RowsChangesAppliedArgs(context, message.Changes, successfullyAppliedRows, schemaChangesTable, applyType, successfullyAppliedRows.Count, null, runnerError.Connection, runnerError.Transaction);
+                        await this.InterceptAsync(rowsAppliedArgs, runnerError.Progress, runnerError.CancellationToken).ConfigureAwait(false);
+                    }
 
                     if (shouldRollbackTransaction)
                         await runnerError.RollbackAsync($"Rollback because we can't resolve errors. Failure:{failureException?.Message}").ConfigureAwait(false);
