@@ -140,7 +140,7 @@ namespace Dotmim.Sync.Tests.UnitTests
             var parameters = GetFilterParameters();
 
             // Create a kestrel server
-            var kestrel = new KestrelTestServer(false);
+            var kestrel = new TestWebServer(false);
 
             // configure server orchestrator
             kestrel.AddSyncServer(serverProvider, setup, options, null, scopeName);
@@ -188,7 +188,7 @@ namespace Dotmim.Sync.Tests.UnitTests
             var parameters = GetFilterParameters();
 
             // Create a kestrel server
-            var kestrel = new KestrelTestServer(false);
+            var kestrel = new TestWebServer(false);
 
             // configure server orchestrator
             kestrel.AddSyncServer(serverProvider, setup, options, null, scopeName);

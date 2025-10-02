@@ -5,7 +5,9 @@ using MySqlConnector;
 #elif NETCOREAPP3_1
 using MySql.Data.MySqlClient;
 #endif
+#if !NET48
 using Npgsql;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -144,10 +146,15 @@ namespace Dotmim.Sync.Tests.Misc
         public virtual XunitTest Test { get; }
         public virtual Stopwatch Stopwatch { get; private set; }
 
+#if NET48
+
+        public TestWebServer Kestrel { get; set; }
+#else
         /// <summary>
         /// Gets or Sets the Kestrel server used to server http queries
         /// </summary>
-        public KestrelTestServer Kestrel { get; set; }
+        public TestWebServer Kestrel { get; set; }
+#endif
 
         /// <summary>
         /// Gets if fiddler is in use
@@ -163,8 +170,12 @@ namespace Dotmim.Sync.Tests.Misc
             var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
             this.Test = (XunitTest)testMember.GetValue(output);
 
+#if NET48
+            this.Kestrel = new TestWebServer(this.UseFiddler);
+#else
             // Create a kestrel server
-            this.Kestrel = new KestrelTestServer(this.UseFiddler);
+            this.Kestrel = new TestWebServer(this.UseFiddler);
+#endif
         }
 
         public async Task InitializeAsync()
@@ -172,8 +183,11 @@ namespace Dotmim.Sync.Tests.Misc
             preWorkStopwatch = Stopwatch.StartNew();
 
             SqlConnection.ClearAllPools();
+
+#if !NET48
             MySqlConnection.ClearAllPools();
             NpgsqlConnection.ClearAllPools();
+#endif
 
             await CreateDatabasesAsync();
 

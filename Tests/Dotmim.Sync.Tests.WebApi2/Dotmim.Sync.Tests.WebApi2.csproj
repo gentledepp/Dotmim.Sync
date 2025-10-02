@@ -1,0 +1,100 @@
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net48</TargetFramework>
+		<IsPackable>false</IsPackable>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<EnableNETAnalyzers>false</EnableNETAnalyzers>
+		<AnalysisLevel>none</AnalysisLevel>
+		<RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
+		<RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Include="..\Dotmim.Sync.Tests\Converters\DateConverter.cs" Link="Converters\DateConverter.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Core\ProviderType.cs" Link="Core\ProviderType.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Fixtures\DatabaseServerFixture.cs" Link="Fixtures\DatabaseServerFixture.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\HttpTests\HttpTests.cs" Link="HttpTests\HttpTests.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\DatabaseTest.cs" Link="Misc\DatabaseTest.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\Extensibility.cs" Link="Misc\Extensibility.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\HelperDatabase.cs" Link="Misc\HelperDatabase.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\SyncOptionsData.cs" Link="Misc\SyncOptionsData.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\XunitExtensibility.cs" Link="Misc\XunitExtensibility.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Address.cs" Link="Models\Address.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\AdventureWorksContext.cs" Link="Models\AdventureWorksContext.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\AdventureWorksExtensions.cs" Link="Models\AdventureWorksExtensions.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Customer.cs" Link="Models\Customer.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\CustomerAddress.cs" Link="Models\CustomerAddress.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Employee.cs" Link="Models\Employee.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\EmployeeAddress.cs" Link="Models\EmployeeAddress.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Log.cs" Link="Models\Log.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Posts.cs" Link="Models\Posts.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\PostTag.cs" Link="Models\PostTag.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\PriceList.cs" Link="Models\PriceList.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\PriceListCategory.cs" Link="Models\PriceListCategory.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\PriceListDetail.cs" Link="Models\PriceListDetail.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Product.cs" Link="Models\Product.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\ProductCategory.cs" Link="Models\ProductCategory.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\ProductModel.cs" Link="Models\ProductModel.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\SalesOrderDetail.cs" Link="Models\SalesOrderDetail.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\SalesOrderHeader.cs" Link="Models\SalesOrderHeader.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Sql.cs" Link="Models\Sql.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Models\Tags.cs" Link="Models\Tags.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="System.Web" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="EntityFramework" Version="6.4.4" />
+		<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+		<PackageReference Include="System.Data.SQLite" Version="1.0.118" />
+		<PackageReference Include="System.Data.SQLite.EF6" Version="1.0.118" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.10" />
+		<PackageReference Include="Microsoft.Owin.Hosting" Version="4.2.2" />
+		<PackageReference Include="Microsoft.Owin.Host.HttpListener" Version="4.2.2" />
+		<PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" />
+		<PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.32" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.32" />
+		<PackageReference Include="xunit" Version="2.8.1" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Sqlite\Dotmim.Sync.Sqlite.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.SqlServer\Dotmim.Sync.SqlServer.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Server\Dotmim.Sync.Web.Server.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="appsettings.local.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="HttpTests\" />
+	  <Folder Include="Converters\" />
+	  <Folder Include="Fixtures\" />
+	</ItemGroup>
+
+	<!-- Copy native SQLite DLL from runtimes folder to output root for .NET Framework -->
+	<Target Name="CopySQLiteInterop" AfterTargets="AfterBuild">
+		<Copy SourceFiles="$(TargetDir)runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(Platform)' == 'x64' Or '$(Platform)' == 'AnyCPU'" ContinueOnError="true" />
+		<Copy SourceFiles="$(TargetDir)runtimes\win-x86\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(Platform)' == 'x86'" ContinueOnError="true" />
+	</Target>
+</Project>

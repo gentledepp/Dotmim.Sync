@@ -2,7 +2,15 @@ using Dotmim.Sync.Batch;
 using Dotmim.Sync.Enumerations;
 using Dotmim.Sync.Serialization;
 using Dotmim.Sync.Web.Client;
+#if NET48
+using System.Net.Http;
+using System.Web;
+using HttpRequest = System.Net.Http.HttpRequestMessage;
+using HttpResponse = System.Net.Http.HttpResponseMessage;
+using HttpContext = System.Web.HttpContextBase;
+#else
 using Microsoft.AspNetCore.Http;
+#endif
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;

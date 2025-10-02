@@ -2,7 +2,11 @@
 {
     using Dotmim.Sync.Tests.Core;
     using Dotmim.Sync.Tests.Misc;
+#if NET48
+    using System.Data.Entity;
+#else
     using Microsoft.EntityFrameworkCore;
+#endif
     using System;
     using System.Collections.Generic;
     using System.Data.Common;
@@ -52,7 +56,7 @@
 
         public static async Task<List<ProductCategory>> GetProductCategoriesAsync(this CoreProvider provider, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -64,7 +68,7 @@
 
         public static async Task<ProductCategory> GetProductCategoryAsync(this CoreProvider provider, string productCategoryId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -79,7 +83,7 @@
             string productCategoryId = default, string parentProductCategoryId = default, string name = default, Guid? rowguid = default,
             DateTime? modifiedDate = default, string attributeWithSpace = default, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -87,7 +91,7 @@
             }
 
             name = string.IsNullOrEmpty(name) ? HelperDatabase.GetRandomName() : name;
-            productCategoryId = string.IsNullOrEmpty(productCategoryId) ? name.ToUpperInvariant()[..11] : productCategoryId;
+            productCategoryId = string.IsNullOrEmpty(productCategoryId) ? name.ToUpperInvariant().Substring(0,11) : productCategoryId;
 
             var pc = new ProductCategory
             {
@@ -107,7 +111,7 @@
 
         public static async Task<ProductCategory> UpdateProductCategoryAsync(this CoreProvider provider, ProductCategory productCategory, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -124,7 +128,7 @@
 
         public static async Task DeleteProductCategoryAsync(this CoreProvider provider, string productCategoryId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -144,7 +148,7 @@
             string color = default, decimal? standardCost = default, decimal? listPrice = default, string size = default, decimal? weight = default, Guid? rowguid = default,
             DateTime? modifiedDate = default, byte[] thumbNailPhoto = default, string thumbnailPhotoFileName = default, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -153,11 +157,11 @@
 
             productId ??= Guid.NewGuid();
             name = string.IsNullOrEmpty(name) ? HelperDatabase.GetRandomName() : name;
-            productNumber = string.IsNullOrEmpty(productNumber) ? name.ToUpperInvariant()[..10] : productNumber;
+            productNumber = string.IsNullOrEmpty(productNumber) ? name.ToUpperInvariant().Substring(0,10) : productNumber;
 
             var p = new Product
             {
-                ProductId = productId.Value,
+                ProductId = productId.Value.ToProductId(),
                 ProductNumber = productNumber,
                 ProductCategoryId = productCategoryId,
                 Name = name,
@@ -180,7 +184,7 @@
 
         public static async Task<List<Product>> GetProductsAsync(this CoreProvider provider, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -190,9 +194,23 @@
             return await ctx.Product.ToListAsync();
         }
 
+
+#if NET48
+        public static string ToProductId(this Guid productId) => productId.ToString();
+
+#else
+        public static Guid ToProductId(this Guid productId) => productId;
+#endif
+
+#if NET48
+        public static async Task<Product> GetProductAsync(this CoreProvider provider, string productId, DbTransaction transaction = null)
+        {
+#else    
         public static async Task<Product> GetProductAsync(this CoreProvider provider, Guid productId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+
+#endif
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -204,7 +222,7 @@
 
         public static async Task<Product> UpdateProductAsync(this CoreProvider provider, Product product, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -219,9 +237,14 @@
             return product;
         }
 
+#if NET48
+        public static async Task DeleteProductAsync(this CoreProvider provider, string productId, DbTransaction transaction = null)
+
+#else
         public static async Task DeleteProductAsync(this CoreProvider provider, Guid productId, DbTransaction transaction = null)
+#endif
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -237,7 +260,7 @@
         public static async Task<PriceList> AddPriceListAsync(this CoreProvider provider, Guid? priceListId = default, string description = default, DateTime? from = default,
            DateTime? to = default, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -263,7 +286,7 @@
 
         public static async Task<PriceList> GetPriceListAsync(this CoreProvider provider, Guid priceListId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -276,7 +299,7 @@
         public static async Task<Customer> AddCustomerAsync(this CoreProvider provider, Guid? customerId = default, string firstName = default,
             string lastName = default, string companyName = default, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -301,7 +324,7 @@
         public static async Task<Address> AddAddressAsync(this CoreProvider provider, int? addressId = default, string addressLine1 = default, string addressLine2 = default,
           string city = default, string postalCode = default, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             var (providerType, _) = HelperDatabase.GetDatabaseType(provider);
 
@@ -342,7 +365,7 @@
 
         public static async Task<Address> UpdateAddressAsync(this CoreProvider provider, Address address, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -359,7 +382,7 @@
 
         public static async Task DeleteAddressAsync(this CoreProvider provider, int addressId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -374,7 +397,7 @@
 
         public static async Task<Address> GetAddressAsync(this CoreProvider provider, int addressId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -387,7 +410,7 @@
         public static async Task<CustomerAddress> AddCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, string addressType = default,
             DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -410,7 +433,7 @@
 
         public static async Task<CustomerAddress> UpdateCustomerAddressAsync(this CoreProvider provider, CustomerAddress customerAddress, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -427,7 +450,7 @@
 
         public static async Task DeleteCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -442,7 +465,7 @@
 
         public static async Task<CustomerAddress> GetCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -455,7 +478,7 @@
         public static async Task<SalesOrderHeader> AddSalesOrderHeaderAsync(this CoreProvider provider, Guid? customerId, int? salesOrderId = default,
           DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             var (providerType, _) = HelperDatabase.GetDatabaseType(provider);
 
@@ -505,7 +528,7 @@
 
         public static async Task<SalesOrderHeader> UpdateSalesOrderHeaderAsync(this CoreProvider provider, SalesOrderHeader salesOrderHeader, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -522,7 +545,7 @@
 
         public static async Task DeleteSalesOrderHeaderAsync(this CoreProvider provider, int salesOrderId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -537,7 +560,7 @@
 
         public static async Task<SalesOrderHeader> GetSalesOrderHeaderAsync(this CoreProvider provider, int salesOrderId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -551,7 +574,7 @@
            int? salesOrderDetailId = default, short? orderQty = default, decimal? unitPrice = default,
            DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             var (providerType, _) = HelperDatabase.GetDatabaseType(provider);
 
@@ -566,7 +589,7 @@
             {
                 SalesOrderId = salesOrderId,
                 SalesOrderDetailId = salesOrderDetailId.HasValue ? salesOrderDetailId.Value : default,
-                ProductId = productId,
+                ProductId = productId.ToProductId(),
                 OrderQty = orderQty.HasValue ? orderQty.Value : (short)1,
                 UnitPrice = unitPrice.HasValue ? unitPrice.Value : 10M,
                 UnitPriceDiscount = 0M,
@@ -599,7 +622,7 @@
 
         public static async Task<SalesOrderDetail> UpdateSalesOrderDetailAsync(this CoreProvider provider, SalesOrderDetail salesOrderDetail, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -616,7 +639,7 @@
 
         public static async Task DeleteSalesOrderDetailAsync(this CoreProvider provider, int salesOrderDetailId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -631,7 +654,7 @@
 
         public static async Task<SalesOrderDetail> GetSalesOrderDetailAsync(this CoreProvider provider, int salesOrderDetailId, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             if (transaction != null)
             {
@@ -643,7 +666,7 @@
 
         public static async Task ExecuteSqlRawAsync(this CoreProvider provider, string sql, DbTransaction transaction = null)
         {
-            await using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
+            using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
             var (providerType, _) = HelperDatabase.GetDatabaseType(provider);
 
@@ -667,7 +690,7 @@
             new AdventureWorksContext(coreProvider, seeding).Database.EnsureCreated();
 
             var localOrchestrator = new LocalOrchestrator(coreProvider);
-            await using var c = coreProvider.CreateConnection();
+            using var c = coreProvider.CreateConnection();
             c.Open();
 
             var setup = await localOrchestrator.GetAllTablesAsync(c);

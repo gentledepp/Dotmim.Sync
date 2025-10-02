@@ -15,12 +15,17 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using System.Xml.Linq;
+#if NET48
+using Dotmim.Sync.SqlServer;
+using Dotmim.Sync.Sqlite;
+#else
 using Npgsql;
 using Dotmim.Sync.SqlServer;
 using Dotmim.Sync.MySql;
 using Dotmim.Sync.MariaDB;
 using Dotmim.Sync.Sqlite;
 using Dotmim.Sync.PostgreSql;
+#endif
 using Dotmim.Sync.Tests.Fixtures;
 using Dotmim.Sync.Tests.Models;
 using Microsoft.Extensions.Configuration;
@@ -67,7 +72,7 @@ namespace Dotmim.Sync.Tests.Misc
         /// </summary>
         internal static string GetSqlAzureDatabaseConnectionString(string dbName) =>
             string.Format(configuration.GetSection("ConnectionStrings")["AzureSqlConnection"], dbName);
-
+#if !NET48
         /// <summary>
         /// Returns the database connection string for MySql
         /// </summary>
@@ -137,6 +142,8 @@ namespace Dotmim.Sync.Tests.Misc
             return cn;
         }
 
+#endif
+
         public static ConcurrentDictionary<string, string> names = new ConcurrentDictionary<string, string>();
 
         public static string GetRandomName(string pref = default)
@@ -191,21 +198,25 @@ namespace Dotmim.Sync.Tests.Misc
                 case ProviderType.Sql:
                     con = GetSqlDatabaseConnectionString(dbName);
                     break;
+#if !NET48
                 case ProviderType.MySql:
                     con = GetMySqlDatabaseConnectionString(dbName);
                     break;
                 case ProviderType.MariaDB:
                     con = GetMariaDBDatabaseConnectionString(dbName);
                     break;
+#endif
                 case ProviderType.Sqlite:
                     con = GetSqliteDatabaseConnectionString(dbName);
                     break;
+#if !NET48
                 case ProviderType.Postgres:
                     con = GetPostgresDatabaseConnectionString(dbName);
                     break;
+#endif
             }
 
-            // default 
+            // default
             return con;
         }
 
@@ -217,10 +228,14 @@ namespace Dotmim.Sync.Tests.Misc
             return coreProvider switch
             {
                 SqlSyncProvider _ => (ProviderType.Sql, dbName),
+#if !NET48
                 MySqlSyncProvider _ => (ProviderType.MySql, dbName),
                 MariaDBSyncProvider _ => (ProviderType.MariaDB, dbName),
+#endif
                 SqliteSyncProvider _ => (ProviderType.Sqlite, dbName),
+#if !NET48
                 NpgsqlSyncProvider _ => (ProviderType.Postgres, dbName),
+#endif
                 _ => (ProviderType.Sql, dbName),
             };
         }
@@ -231,15 +246,23 @@ namespace Dotmim.Sync.Tests.Misc
             CoreProvider provider = providerType switch
             {
                 ProviderType.Sql => new SqlSyncProvider(GetSqlDatabaseConnectionString(dbName)),
+#if !NET48
                 ProviderType.MySql => new MySqlSyncProvider(GetMySqlDatabaseConnectionString(dbName)),
                 ProviderType.MariaDB => new MariaDBSyncProvider(GetMariaDBDatabaseConnectionString(dbName)),
+#endif
                 ProviderType.Sqlite => new SqliteSyncProvider(GetSqliteDatabaseConnectionString(dbName)),
+#if !NET48
                 ProviderType.Postgres => new NpgsqlSyncProvider(GetPostgresDatabaseConnectionString(dbName)),
+#endif
                 _ => null,
             };
 
+#if !NET48
             // Can't drop postgres sql databases on azure devops for ... some reasons...
             provider.UseShouldDropDatabase(providerType != ProviderType.Postgres);
+#else
+            provider.UseShouldDropDatabase(true);
+#endif
 
             if (useFallbackSchema)
                 provider.UseFallbackSchema(true);
@@ -250,9 +273,13 @@ namespace Dotmim.Sync.Tests.Misc
         public static void ClearAllPools()
         {
             SqlConnection.ClearAllPools();
+#if !NET48
             MySqlConnection.ClearAllPools();
+#endif
             SqliteConnection.ClearAllPools();
+#if !NET48
             NpgsqlConnection.ClearAllPools();
+#endif
 
         }
 
@@ -263,18 +290,22 @@ namespace Dotmim.Sync.Tests.Misc
                 case ProviderType.Sql:
                     SqlConnection.ClearAllPools();
                     break;
+#if !NET48
                 case ProviderType.MySql:
                     MySqlConnection.ClearAllPools();
                     break;
                 case ProviderType.MariaDB:
                     MySqlConnection.ClearAllPools();
                     break;
+#endif
                 case ProviderType.Sqlite:
                     SqliteConnection.ClearAllPools();
                     break;
+#if !NET48
                 case ProviderType.Postgres:
                     NpgsqlConnection.ClearAllPools();
                     break;
+#endif
                 default:
                     break;
             }
@@ -290,6 +321,7 @@ namespace Dotmim.Sync.Tests.Misc
                 case ProviderType.Sql:
                     await CreateSqlServerDatabaseAsync(dbName, recreateDb);
                     break;
+#if !NET48
                 case ProviderType.MySql:
                     await CreateMySqlDatabaseAsync(dbName, recreateDb);
                     break;
@@ -299,6 +331,7 @@ namespace Dotmim.Sync.Tests.Misc
                 case ProviderType.Postgres:
                     await CreatePostgresDatabaseAsync(dbName, recreateDb);
                     break;
+#endif
                 case ProviderType.Sqlite:
                     await Task.CompletedTask;
                     break;
@@ -326,11 +359,21 @@ namespace Dotmim.Sync.Tests.Misc
 
             await policy.ExecuteAsync(async () =>
             {
+#if NET48
+                using var masterConnection = new SqlConnection(GetSqlDatabaseConnectionString("master"));
+                masterConnection.Open();
+
+                using (var cmdDb = new SqlCommand(GetSqlCreationScript(dbName, recreateDb), masterConnection))
+                    await cmdDb.ExecuteNonQueryAsync();
+
+#else
                 await using var masterConnection = new SqlConnection(GetSqlDatabaseConnectionString("master"));
                 masterConnection.Open();
 
                 await using (var cmdDb = new SqlCommand(GetSqlCreationScript(dbName, recreateDb), masterConnection))
                     await cmdDb.ExecuteNonQueryAsync();
+
+#endif
 
                 masterConnection.Close();
             });
@@ -347,6 +390,17 @@ namespace Dotmim.Sync.Tests.Misc
             if (isChangeTrackingEnabled)
                 return;
 
+#if NET48
+            using var masterConnection = new SqlConnection(GetSqlDatabaseConnectionString("master"));
+
+            var script = $"ALTER DATABASE {dbName} SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON)";
+
+
+            masterConnection.Open();
+
+            using (var cmdCT = new SqlCommand(script, masterConnection))
+                await cmdCT.ExecuteNonQueryAsync();
+#else
             await using var masterConnection = new SqlConnection(GetSqlDatabaseConnectionString("master"));
 
             var script = $"ALTER DATABASE {dbName} SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON)";
@@ -356,9 +410,12 @@ namespace Dotmim.Sync.Tests.Misc
 
             await using (var cmdCT = new SqlCommand(script, masterConnection))
                 await cmdCT.ExecuteNonQueryAsync();
+#endif
 
             masterConnection.Close();
         }
+
+#if !NET48
         /// <summary>
         /// Create a new MySql Server database
         /// </summary>
@@ -451,6 +508,7 @@ namespace Dotmim.Sync.Tests.Misc
                 sysConnection.Close();
             });
         }
+#endif
 
         /// <summary>
         /// Drop a database, depending the Provider type
@@ -465,18 +523,22 @@ namespace Dotmim.Sync.Tests.Misc
                     case ProviderType.Sql:
                         DropSqlDatabase(dbName);
                         break;
+#if !NET48
                     case ProviderType.MySql:
                         DropMySqlDatabase(dbName);
                         break;
                     case ProviderType.MariaDB:
                         DropMariaDBDatabase(dbName);
                         break;
+#endif
                     case ProviderType.Sqlite:
                         DropSqliteDatabase(dbName);
                         break;
+#if !NET48
                     case ProviderType.Postgres:
                         DropPostgresDatabase(dbName);
                         break;
+#endif
                 }
                 Debug.WriteLine($"- Database {providerType} {dbName} dropped");
             }
@@ -501,18 +563,22 @@ namespace Dotmim.Sync.Tests.Misc
                     case ProviderType.Sql:
                         TruncateSqlTable(dbName, tableName, schemaName);
                         break;
+#if !NET48
                     case ProviderType.MySql:
                         TruncateMySqlTable(dbName, tableName);
                         break;
                     case ProviderType.MariaDB:
                         TruncateMariaDbTable(dbName, tableName);
                         break;
+#endif
                     case ProviderType.Sqlite:
                         TruncateSqliteTable(dbName, tableName);
                         break;
+#if !NET48
                     case ProviderType.Postgres:
                         TruncatePostgresTable(dbName, tableName, schemaName);
                         break;
+#endif
                 }
                 Debug.WriteLine($"- Database {providerType} {dbName} dropped");
             }
@@ -534,20 +600,24 @@ namespace Dotmim.Sync.Tests.Misc
             {
                 case ProviderType.Sql:
                     return ExistsSqlDatabase(dbName);
+#if !NET48
                 case ProviderType.MySql:
                     return ExistsMySqlDatabase(dbName);
                 case ProviderType.MariaDB:
                     return ExistsMariaDbDatabase(dbName);
+#endif
                 case ProviderType.Sqlite:
                     return ExistsSqliteDatabase(dbName);
+#if !NET48
                 case ProviderType.Postgres:
                     return ExistsPostgresDatabase(dbName);
+#endif
             }
 
             return false;
         }
 
-
+#if !NET48
         /// <summary>
         /// Drop a mysql database
         /// </summary>
@@ -676,6 +746,7 @@ namespace Dotmim.Sync.Tests.Misc
 
             return exists != null && exists != DBNull.Value && (long)exists == 1;
         }
+#endif
 
         /// <summary>
         /// Drop a sqlite database
@@ -779,19 +850,25 @@ namespace Dotmim.Sync.Tests.Misc
         {
             switch (providerType)
             {
+#if !NET48
                 case ProviderType.MySql:
                     return ExecuteMySqlScriptAsync(dbName, script);
                 case ProviderType.MariaDB:
                     return ExecuteMariaDBScriptAsync(dbName, script);
+#endif
                 case ProviderType.Sqlite:
                     return ExecuteSqliteScriptAsync(dbName, script);
+#if !NET48
                 case ProviderType.Postgres:
                     return ExecutePostgreSqlScriptAsync(dbName, script);
+#endif
                 case ProviderType.Sql:
                 default:
                     return ExecuteSqlScriptAsync(dbName, script);
             }
         }
+
+#if !NET48
 
         private static async Task ExecuteMariaDBScriptAsync(string dbName, string script)
         {
@@ -829,6 +906,7 @@ namespace Dotmim.Sync.Tests.Misc
             }
             connection.Close();
         }
+
         private static async Task ExecuteSqliteScriptAsync(string dbName, string script)
         {
             await using var connection = new SqliteConnection(GetSqliteDatabaseConnectionString(dbName));
@@ -837,6 +915,35 @@ namespace Dotmim.Sync.Tests.Misc
                 await cmdDb.ExecuteNonQueryAsync();
             connection.Close();
         }
+#else
+        private static async Task ExecuteSqlScriptAsync(string dbName, string script)
+        {
+            using var connection = new SqlConnection(GetSqlDatabaseConnectionString(dbName));
+            connection.Open();
+
+            //split the script on "GO" commands
+            var splitter = new string[] { "\r\nGO\r\n" };
+            var commandTexts = script.Split(splitter, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var commandText in commandTexts)
+            {
+                using var cmdDb = new SqlCommand(commandText, connection);
+                await cmdDb.ExecuteNonQueryAsync();
+            }
+            connection.Close();
+        }
+
+        private static async Task ExecuteSqliteScriptAsync(string dbName, string script)
+        {
+            using var connection = new SqliteConnection(GetSqliteDatabaseConnectionString(dbName));
+            connection.Open();
+            using (var cmdDb = new SqliteCommand(script, connection))
+                await cmdDb.ExecuteNonQueryAsync();
+            connection.Close();
+        }
+#endif
+
+#if !NET48
         private static async Task ExecutePostgreSqlScriptAsync(string dbName, string script)
         {
             await using var connection = new NpgsqlConnection(GetPostgresDatabaseConnectionString(dbName));
@@ -845,6 +952,7 @@ namespace Dotmim.Sync.Tests.Misc
                 await cmdDb.ExecuteNonQueryAsync();
             connection.Close();
         }
+#endif
 
         /// <summary>
         /// Backup a SQL Server database

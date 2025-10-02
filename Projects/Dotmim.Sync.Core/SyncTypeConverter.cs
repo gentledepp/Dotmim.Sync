@@ -118,6 +118,8 @@ namespace Dotmim.Sync
                     return (T)Convert.ChangeType(j, typeOfT, provider);
                 else if (value.GetType() == typeof(byte[]))
                     return (T)Convert.ChangeType(new Guid(value as byte[]), typeOfT, provider);
+                else if(valueStr is {} v && v.EndsWith("=="))
+                    return (T)Convert.ChangeType(new Guid(Convert.FromBase64String(valueStr)), typeOfT, provider);
                 else
                     return (T)Convert.ChangeType(new Guid(value.ToString()), typeOfT, provider);
             }
