@@ -27,6 +27,12 @@
 		</None>
 	</ItemGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<IncludeSource>True</IncludeSource>
+		<IncludeSymbols>True</IncludeSymbols>
+	</PropertyGroup>
+
 
 	<ItemGroup>
 		<PackageReference Include="System.Text.Json" Version="8.0.5" />

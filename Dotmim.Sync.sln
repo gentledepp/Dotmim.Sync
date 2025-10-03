@@ -29,28 +29,19 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dotmim.Sync.PostgreSql", "Projects\Dotmim.Sync.PostgreSql\Dotmim.Sync.PostgreSql.csproj", "{2A908822-8731-4174-AD12-569531E4E33D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Root Files", "Root Files", "{E976D8CE-D258-4F56-8334-DA3898E5EF3C}"
-	ProjectSection(SolutionItems) = preProject
-		.editorconfig = .editorconfig
-		.gitattributes = .gitattributes
-		.gitignore = .gitignore
-		Directory.Build.props = Directory.Build.props
-		LICENSE = LICENSE
-		Readme.md = Readme.md
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PIpelines", "PIpelines", "{95D9538D-99B9-4341-AFBD-32A01647E65F}"
-	ProjectSection(SolutionItems) = preProject
-		pipelines\azure-pipelines-mysql.yml = pipelines\azure-pipelines-mysql.yml
-		pipelines\azure-pipelines-nuget.yml = pipelines\azure-pipelines-nuget.yml
-		pipelines\azure-pipelines-sql.yml = pipelines\azure-pipelines-sql.yml
-		pipelines\azure-pipelines-template.yml = pipelines\azure-pipelines-template.yml
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Benchmarks", "Benchmarks", "{16AD50B6-D2E0-472B-8900-83BDEC0D96A3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmarks", "Benchmarks\Benchmarks\Benchmarks.csproj", "{6BF3A0FA-2DD7-4BD2-9AD3-80A2078D489E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dotmim.Sync.Tests.WebApi2", "Tests\Dotmim.Sync.Tests.WebApi2\Dotmim.Sync.Tests.WebApi2.csproj", "{D05D557E-5962-42AC-1797-F681B6C310EB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "solution files", "solution files", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -282,8 +273,8 @@ Global
 		{D05D557E-5962-42AC-1797-F681B6C310EB} = {AC37FDEF-1057-4915-806D-DC22DD68F44B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {348020ED-748B-4CC8-AA1D-9F7D36E2AC12}
 		BuildVersion_StartDate = 2000/1/1
+		SolutionGuid = {348020ED-748B-4CC8-AA1D-9F7D36E2AC12}
 	EndGlobalSection
 	GlobalSection(Performance) = preSolution
 		HasPerformanceSessions = true
