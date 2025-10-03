@@ -109,7 +109,6 @@ namespace Wormhole.Sync
         /// Default: 1 hour. Set to TimeSpan.Zero to disable time-based cleanup.
         /// </summary>
         public TimeSpan BatchRetentionPeriod { get; set; }
-
         
         /// <summary>
         /// Gets or sets whether the optimized flow is enabled. This tries to reduce the number of requests/responses for incremental synchronizations to a bare minimum
@@ -124,11 +123,6 @@ namespace Wormhole.Sync
         /// </summary>
         public bool UseUnifiedBatching { get; set; } = true;
         
-        /// <summary>
-        /// Gets or sets whether the optimized flow is enabled. This tries to reduce the number of requests/responses for incremental synchronizations to a bare minimum
-        /// </summary>
-        public bool OptimizedFlowEnabled { get; set; } = true;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.
         /// Create a new instance of options with default values.
