@@ -3,6 +3,8 @@ using Microsoft.Owin.Hosting;
 using Owin;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net.NetworkInformation;
 using System.Runtime.Remoting.Contexts;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -34,6 +36,14 @@ namespace Wormhole.Sync.Tests
 
             var randomPort = new Random().Next(8900, 10000);
 
+            for (int i = 0; i < 10; i++)
+            {
+                if(IsPortAvailable(randomPort))
+                    break;
+                
+                randomPort = new Random().Next(8900, 10000);
+            }
+
             string serviceUrl = $"http://localhost:{randomPort}/";
 
             this.webApp = WebApp.Start(serviceUrl, (appBuilder) =>
@@ -57,6 +67,19 @@ namespace Wormhole.Sync.Tests
                 serviceUrl = $"http://localhost.fiddler:{randomPort}/";
 
             return new Uri(new Uri(serviceUrl), "/api/sync").ToString();
+        }
+
+        /// <summary>
+        /// Checks if the specified port is available for binding.
+        /// </summary>
+        /// <param name="port">The port number to check.</param>
+        /// <returns>True if the port is available; otherwise, false.</returns>
+        public static bool IsPortAvailable(int port)
+        {
+            var ipGlobalProperties = IPGlobalProperties.GetIPGlobalProperties();
+            var listeners = ipGlobalProperties.GetActiveTcpListeners();
+        
+            return !listeners.Any(l => l.Port == port);
         }
 
         public Task StopAsync()
