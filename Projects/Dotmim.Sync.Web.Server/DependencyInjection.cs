@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 #endif
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -95,6 +96,76 @@ namespace Microsoft.Extensions.DependencyInjection
 
             // Create orchestrator
             serviceCollection.AddScoped(sp => new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
+
+            return serviceCollection;
+        }
+
+        /// <summary>
+        /// Add the server provider (inherited from CoreProvider) and register in the DI as a new WebServerAgent.
+        /// In Your controller, inject a WebServerAgent to get your agent.
+        /// </summary>
+        /// <param name="serviceCollection">services collections.</param>
+        /// <param name="setup">Configuration server side. Adding at least tables to be synchronized.</param>
+        /// <param name="options">Options, not shared with client, but only applied locally. Can be null.</param>
+        /// <param name="webServerOptions">Specific web server options.</param>
+        /// <param name="scopeName">scope name.</param>
+        /// <param name="identifier">Can be use to differentiate configuration where you are using the same provider in a multiple databases scenario.</param>
+        public static IServiceCollection AddSyncServer<TCoreProvider>(this IServiceCollection serviceCollection,
+                                                        SyncSetup setup = null, SyncOptions options = null,
+                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+            where TCoreProvider : CoreProvider
+        {
+
+            webServerOptions ??= new WebServerOptions();
+            options ??= new SyncOptions();
+            setup = setup ?? throw new ArgumentNullException(nameof(setup));
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            var isRegistered = serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(TCoreProvider));
+            if(!isRegistered)
+                serviceCollection.AddScoped<TCoreProvider>();
+
+            serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
+
+            // Create orchestrator
+            serviceCollection.AddScoped(sp => new WebServerAgent(sp.GetRequiredService<TCoreProvider>(), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
+
+            return serviceCollection;
+        }
+
+
+        /// <summary>
+        /// Add the server provider (inherited from CoreProvider) and register in the DI as a new WebServerAgent.
+        /// In Your controller, inject a WebServerAgent to get your agent.
+        /// </summary>
+        /// <param name="serviceCollection">services collections.</param>
+        /// <param name="providerKey">Allows to resolve a keyed coreprovider</param>
+        /// <param name="setup">Configuration server side. Adding at least tables to be synchronized.</param>
+        /// <param name="options">Options, not shared with client, but only applied locally. Can be null.</param>
+        /// <param name="webServerOptions">Specific web server options.</param>
+        /// <param name="scopeName">scope name.</param>
+        /// <param name="identifier">Can be use to differentiate configuration where you are using the same provider in a multiple databases scenario.</param>
+        public static IServiceCollection AddSyncServer<TCoreProvider>(this IServiceCollection serviceCollection, object providerKey,
+                                                        SyncSetup setup = null, SyncOptions options = null,
+                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+            where TCoreProvider : CoreProvider
+        {
+            if (providerKey == null)
+                throw new ArgumentNullException(nameof(providerKey));
+
+            webServerOptions ??= new WebServerOptions();
+            options ??= new SyncOptions();
+            setup = setup ?? throw new ArgumentNullException(nameof(setup));
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            var isRegistered = serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(TCoreProvider) && descriptor.IsKeyedService && descriptor.ServiceKey == providerKey);
+            if(!isRegistered)
+                serviceCollection.AddScoped<TCoreProvider>();
+
+            serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
+
+            // Create orchestrator
+            serviceCollection.AddScoped(sp => new WebServerAgent(sp.GetRequiredKeyedService<TCoreProvider>(providerKey), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
 
             return serviceCollection;
         }
