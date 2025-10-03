@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Globalization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Sync Type Converter: Convert a value to another type.

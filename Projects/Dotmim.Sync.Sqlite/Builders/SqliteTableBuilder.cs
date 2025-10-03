@@ -1,6 +1,6 @@
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.Manager;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.Manager;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Sqlite
+namespace Wormhole.Sync.Sqlite
 {
 
     /// <summary>

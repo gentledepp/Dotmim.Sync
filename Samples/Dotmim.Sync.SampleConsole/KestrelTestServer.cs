@@ -10,7 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SampleConsole
+namespace Wormhole.Sync.SampleConsole
 {
     public delegate Task ResponseDelegate(string serviceUri);
 

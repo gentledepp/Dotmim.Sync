@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Data.Common;
 using System.Globalization;
@@ -10,7 +10,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Contains the logic to apply changes to the server and get changes from the server.

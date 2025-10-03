@@ -1,14 +1,14 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.SqlServer.Builders;
-using Dotmim.Sync.SqlServer.Manager;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.SqlServer.Builders;
+using Wormhole.Sync.SqlServer.Manager;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Text;
 
-namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
+namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
 {
 
     /// <inheritdoc />

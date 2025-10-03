@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Web.Client;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Web.Client;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// When Getting response from remote orchestrator.

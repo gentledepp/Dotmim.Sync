@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using System.Linq;
 
-namespace Dotmim.Sync.Tests.Models
+namespace Wormhole.Sync.Tests.Models
 {
 #if NET8_0
     public class AdventureWorksTriggerAddingConvention : IModelFinalizingConvention

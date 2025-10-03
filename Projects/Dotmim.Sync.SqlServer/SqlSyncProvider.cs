@@ -1,14 +1,14 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Manager;
-using Dotmim.Sync.SqlServer.Builders;
-using Dotmim.Sync.SqlServer.Manager;
-using Dotmim.Sync.SqlServer.Scope;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Manager;
+using Wormhole.Sync.SqlServer.Builders;
+using Wormhole.Sync.SqlServer.Manager;
+using Wormhole.Sync.SqlServer.Scope;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Data.Common;
 
-namespace Dotmim.Sync.SqlServer
+namespace Wormhole.Sync.SqlServer
 {
     /// <summary>
     /// SqlSyncProvider provider for Sql Server.

@@ -1,7 +1,7 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.SqlServer.Builders;
-using Dotmim.Sync.SqlServer.ChangeTracking.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.SqlServer.Builders;
+using Wormhole.Sync.SqlServer.ChangeTracking.Builders;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Data.Common;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer
+namespace Wormhole.Sync.SqlServer
 {
     /// <inheritdoc />
     public class SqlChangeTrackingSyncAdapter : SqlSyncAdapter

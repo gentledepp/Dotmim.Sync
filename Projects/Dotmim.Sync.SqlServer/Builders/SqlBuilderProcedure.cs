@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.SqlServer.Manager;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.SqlServer.Manager;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Data;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer.Builders
+namespace Wormhole.Sync.SqlServer.Builders
 {
     /// <summary>
     /// Sql Builder for Sql Server stored procedures.

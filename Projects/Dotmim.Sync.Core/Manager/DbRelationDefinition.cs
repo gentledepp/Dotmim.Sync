@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Dotmim.Sync.Manager
+namespace Wormhole.Sync.Manager
 {
     /// <summary>
     /// Relation definition from the datastore.

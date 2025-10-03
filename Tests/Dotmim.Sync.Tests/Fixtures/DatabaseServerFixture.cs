@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Models;
 #if !NET48
 using Microsoft.AspNetCore.Hosting.Server;
 #endif
@@ -21,7 +21,7 @@ using System.Transactions;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 #endif
 
-namespace Dotmim.Sync.Tests.Fixtures
+namespace Wormhole.Sync.Tests.Fixtures
 {
 
     public class DatabaseServerFixture : IDisposable

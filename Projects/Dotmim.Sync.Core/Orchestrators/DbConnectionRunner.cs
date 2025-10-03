@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Extensions for the DbConnectionRunner. This class is used to encapsulate a connection and a transaction.

@@ -2,10 +2,12 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-
+		<AssemblyName>Wormhole.Sync.MySql</AssemblyName>
+		<PackageId>Wormhole.Sync.MySql</PackageId>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
 		<Authors>Sébastien Pertus</Authors>
 		<Company>Microsoft</Company>
-		<Title>Dotmim.Sync.MySql</Title>
+		<Title>Wormhole.Sync.MySql</Title>
 		<Summary>MySql Sync Provider. Client or Server provider .Net Standard 2.0</Summary>
 		<Description>MySql Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used as Client or Server provider .Net Standard 2.0</Description>
 		<RepositoryType>git</RepositoryType>

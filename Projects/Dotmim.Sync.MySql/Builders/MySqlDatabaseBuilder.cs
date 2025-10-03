@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 
 #if NETCOREAPP
 using MySqlConnector;
@@ -10,9 +10,9 @@ using System.Data.Common;
 using System.Threading.Tasks;
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB.Builders
+namespace Wormhole.Sync.MariaDB.Builders
 #elif MYSQL
-namespace Dotmim.Sync.MySql.Builders
+namespace Wormhole.Sync.MySql.Builders
 #endif
 {
 

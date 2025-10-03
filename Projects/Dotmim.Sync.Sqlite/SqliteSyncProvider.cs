@@ -1,7 +1,7 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Manager;
-using Dotmim.Sync.Sqlite.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Manager;
+using Wormhole.Sync.Sqlite.Builders;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Data.Common;
@@ -9,7 +9,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Sqlite
+namespace Wormhole.Sync.Sqlite
 {
     /// <summary>
     /// Sqlite sync provider.

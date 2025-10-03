@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Dotmim.Sync.DatabaseStringParsers
+namespace Wormhole.Sync.DatabaseStringParsers
 {
 
     /// <summary>

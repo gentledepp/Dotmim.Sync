@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Dotmim.Sync.DatabaseStringParsers
+namespace Wormhole.Sync.DatabaseStringParsers
 {
     /// <summary>
     /// A low-level tokenizer that walks a span of characters and

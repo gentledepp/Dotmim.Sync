@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
 using System;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Message exchanged during the Begin session sync stage.

@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync
+﻿namespace Wormhole.Sync
 {
     /// <summary>
     /// Represents a synchronization command that is prepared (or not).

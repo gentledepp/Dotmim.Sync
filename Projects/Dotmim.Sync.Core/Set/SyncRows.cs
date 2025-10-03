@@ -5,7 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

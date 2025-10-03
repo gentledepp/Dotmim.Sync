@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Dotmim.Sync.Builders
+namespace Wormhole.Sync.Builders
 {
     /// <summary>
     /// All commands type for the scope info tables used during sync.

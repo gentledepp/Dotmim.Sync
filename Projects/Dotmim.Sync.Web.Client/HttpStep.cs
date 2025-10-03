@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Web.Client
+﻿namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Http steps involved during a sync beetween a proxy client and proxy server.

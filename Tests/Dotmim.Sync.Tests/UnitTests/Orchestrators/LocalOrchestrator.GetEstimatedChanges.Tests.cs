@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Models;
-using Dotmim.Sync.Web.Client;
-using Dotmim.Sync.Web.Server;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Models;
+using Wormhole.Sync.Web.Client;
+using Wormhole.Sync.Web.Server;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public partial class LocalOrchestratorTests : IDisposable
     {

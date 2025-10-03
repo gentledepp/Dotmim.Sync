@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Manager;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public class MockTableBuilder : DbTableBuilder
     {

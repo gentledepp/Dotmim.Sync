@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Client environment information for error reporting and diagnostics.

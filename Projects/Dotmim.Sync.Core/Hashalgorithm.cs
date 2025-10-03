@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Calculate a hash for each BatchInfo

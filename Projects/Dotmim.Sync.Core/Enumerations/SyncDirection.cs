@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Dotmim.Sync.Enumerations
+namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Sync direction : Can be Bidirectional (default), DownloadOnly, UploadOnly.

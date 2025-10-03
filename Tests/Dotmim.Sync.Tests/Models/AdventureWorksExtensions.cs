@@ -1,7 +1,7 @@
-﻿namespace Dotmim.Sync.Tests.Models
+﻿namespace Wormhole.Sync.Tests.Models
 {
-    using Dotmim.Sync.Tests.Core;
-    using Dotmim.Sync.Tests.Misc;
+    using Wormhole.Sync.Tests.Core;
+    using Wormhole.Sync.Tests.Misc;
 #if NET48
     using System.Data.Entity;
 #else

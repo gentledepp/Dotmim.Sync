@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlClient.Server;
 using System;
@@ -8,7 +8,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer.Builders
+namespace Wormhole.Sync.SqlServer.Builders
 {
 
     /// <summary>

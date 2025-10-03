@@ -1,13 +1,13 @@
-using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Models;
+using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public class ScopeInfoTests
     {

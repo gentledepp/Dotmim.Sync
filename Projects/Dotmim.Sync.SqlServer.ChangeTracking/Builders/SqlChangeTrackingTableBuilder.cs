@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.SqlServer.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.SqlServer.Builders;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
+namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
 {
     /// <inheritdoc />
     public class SqlChangeTrackingTableBuilder : SqlTableBuilder

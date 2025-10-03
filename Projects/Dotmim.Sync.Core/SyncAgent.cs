@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

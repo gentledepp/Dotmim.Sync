@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Data;
 
-namespace Dotmim.Sync.Manager
+namespace Wormhole.Sync.Manager
 {
     /// <summary>
     /// Db Metadata class. Abstract class to get database specific metadata.

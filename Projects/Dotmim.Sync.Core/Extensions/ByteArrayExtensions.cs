@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Dotmim.Sync.Extensions
+namespace Wormhole.Sync.Extensions
 {
     /// <summary>
     /// Byte array extensions.

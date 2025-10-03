@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Contains the logic to get the hypothetical override operation from the server.

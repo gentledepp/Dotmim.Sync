@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 
-namespace Dotmim.Sync.Sqlite
+namespace Wormhole.Sync.Sqlite
 {
     /// <summary>
     ///     Detects the exceptions caused by SQL Server transient failures.

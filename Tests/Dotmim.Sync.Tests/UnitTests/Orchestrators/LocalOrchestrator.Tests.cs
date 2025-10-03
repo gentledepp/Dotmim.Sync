@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public abstract partial class LocalOrchestratorTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
     {

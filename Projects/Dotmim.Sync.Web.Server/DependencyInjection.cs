@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync;
-using Dotmim.Sync.Web.Client;
-using Dotmim.Sync.Web.Server;
+﻿using Wormhole.Sync;
+using Wormhole.Sync.Web.Client;
+using Wormhole.Sync.Web.Server;
 #if NET48
 using System.Web;
 using HttpContext = System.Web.HttpContextBase;
@@ -13,7 +13,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-[assembly: InternalsVisibleTo("Dotmim.Sync.Tests")]
+[assembly: InternalsVisibleTo("Wormhole.Sync.Tests")]
 
 namespace Microsoft.Extensions.DependencyInjection
 {

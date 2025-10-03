@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// This class determines all the options you can set on Client and Server, that could potentially be different.

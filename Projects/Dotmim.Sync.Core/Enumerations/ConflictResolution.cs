@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Enumerations
+﻿namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Resolution when a conflict occurs.

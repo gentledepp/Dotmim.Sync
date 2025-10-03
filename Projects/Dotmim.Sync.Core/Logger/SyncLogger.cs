@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
@@ -12,7 +12,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

@@ -1,10 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-
+		<AssemblyName>Wormhole.Sync.SqlServer</AssemblyName>
+		<PackageId>Wormhole.Sync.SqlServer</PackageId>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
 		<Authors>Sébastien Pertus</Authors>
 		<Company>Microsoft</Company>
-		<Title>Dotmim.Sync.SqlServer</Title>
+		<Title>Wormhole.Sync.SqlServer</Title>
 		<Summary>Sql Server Sync Provider. Client or Server provider .Net Standard 2.0</Summary>
 		<Description>Sql Server Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used as Client or Server provider .Net Standard 2.0</Description>
 		<RepositoryType>git</RepositoryType>

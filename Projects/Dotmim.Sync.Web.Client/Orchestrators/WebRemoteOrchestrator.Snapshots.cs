@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Batch;
+﻿using Wormhole.Sync.Batch;
 using System;
 using System.Data.Common;
 using System.Globalization;
@@ -6,7 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Contains the logic to handle snapshot on the server side.

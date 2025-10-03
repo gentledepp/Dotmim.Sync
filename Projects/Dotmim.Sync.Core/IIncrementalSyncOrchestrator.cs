@@ -1,9 +1,9 @@
-using Dotmim.Sync.Enumerations;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Interface for orchestrators that support incremental sync protocol optimizations.

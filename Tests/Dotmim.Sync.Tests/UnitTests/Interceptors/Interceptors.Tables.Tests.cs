@@ -1,13 +1,13 @@
-﻿using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public partial class InterceptorsTests
     {

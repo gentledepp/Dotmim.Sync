@@ -1,9 +1,9 @@
-using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Mapping sur la table ScopeInfo.

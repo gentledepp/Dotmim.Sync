@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Batch;
+﻿using Wormhole.Sync.Batch;
 using System;
 using System.Globalization;
 using System.Runtime.Serialization;
 using System.Text;
 
-namespace Dotmim.Sync.Web.Server
+namespace Wormhole.Sync.Web.Server
 {
     /// <summary>
     /// Cache object used by each client to cache sync process batches.

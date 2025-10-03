@@ -1,16 +1,16 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Manager;
 using System.Data.Common;
 #if NET6_0 || NET8_0
 using MySqlConnector;
 #elif NETSTANDARD
 using MySql.Data.MySqlClient;
 #endif
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.MySql.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.MySql.Builders;
 using System;
 
-namespace Dotmim.Sync.MySql
+namespace Wormhole.Sync.MySql
 {
 
     /// <summary>

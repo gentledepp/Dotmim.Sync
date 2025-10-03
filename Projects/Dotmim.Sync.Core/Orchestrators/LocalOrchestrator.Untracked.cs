@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to update all the rows that are not tracked on the client side.

@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Dotmim.Sync.Tests.Misc
+namespace Wormhole.Sync.Tests.Misc
 {
     public class SyncOptionsData : IEnumerable<object[]>
     {

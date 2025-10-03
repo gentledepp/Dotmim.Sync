@@ -1,6 +1,6 @@
-using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains methods to load and save batch info.

@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.IntegrationTests;
-using Dotmim.Sync.Tests.Misc;
+﻿using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.IntegrationTests;
+using Wormhole.Sync.Tests.Misc;
 using System;
 using System.Collections.Generic;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     /// <summary>
     /// Setup class is all you need to setup connection string, tables and client enabled for your provider tests.

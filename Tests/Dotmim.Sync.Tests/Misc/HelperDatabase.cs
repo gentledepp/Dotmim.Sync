@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Tests.Core;
+﻿using Wormhole.Sync.Tests.Core;
 using Microsoft.Data.Sqlite;
 #if NET6_0 || NET8_0 
 using MySqlConnector;
@@ -16,23 +16,23 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using System.Xml.Linq;
 #if NET48
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Sqlite;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Sqlite;
 #else
 using Npgsql;
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.MySql;
-using Dotmim.Sync.MariaDB;
-using Dotmim.Sync.Sqlite;
-using Dotmim.Sync.PostgreSql;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.MySql;
+using Wormhole.Sync.MariaDB;
+using Wormhole.Sync.Sqlite;
+using Wormhole.Sync.PostgreSql;
 #endif
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.Models;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.Models;
 using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.Threading;
 
-namespace Dotmim.Sync.Tests.Misc
+namespace Wormhole.Sync.Tests.Misc
 {
     public static class HelperDatabase
     {

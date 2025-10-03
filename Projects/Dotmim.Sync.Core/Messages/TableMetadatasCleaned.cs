@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

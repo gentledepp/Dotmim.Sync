@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.PostgreSql.Builders;
+﻿using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.PostgreSql.Builders;
 using Npgsql;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Text;
 
-namespace Dotmim.Sync.PostgreSql
+namespace Wormhole.Sync.PostgreSql
 {
     /// <summary>
     /// Npgsql sync adapter.

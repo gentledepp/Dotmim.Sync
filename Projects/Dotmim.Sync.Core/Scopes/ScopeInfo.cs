@@ -1,15 +1,15 @@
-﻿using Dotmim.Sync.Extensions;
+﻿using Wormhole.Sync.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Serialization;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

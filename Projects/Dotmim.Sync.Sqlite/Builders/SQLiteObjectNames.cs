@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Data;
 using System.Linq;
 using System.Text;
 
-namespace Dotmim.Sync.Sqlite
+namespace Wormhole.Sync.Sqlite
 {
     /// <summary>
     /// Sqlite object names.

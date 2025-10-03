@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Builders;
+﻿using Wormhole.Sync.Builders;
 using System;
 using System.Collections.Concurrent;
 using System.Data;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains internal methods to get command from provider, check connection is opened, affect connection and transaction.

@@ -1,6 +1,6 @@
-using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public class UnifiedBatchSerializerTests : IDisposable
     {

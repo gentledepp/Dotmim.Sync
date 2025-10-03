@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to get the last timestamp from the orchestrator database.

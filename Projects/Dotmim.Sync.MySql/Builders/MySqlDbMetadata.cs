@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Manager;
 using System;
 using System.Data;
 #if NET6_0 || NET8_0
@@ -8,9 +8,9 @@ using MySql.Data.MySqlClient;
 #endif
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB.Builders
+namespace Wormhole.Sync.MariaDB.Builders
 #elif MYSQL
-namespace Dotmim.Sync.MySql.Builders
+namespace Wormhole.Sync.MySql.Builders
 #endif
 {
 

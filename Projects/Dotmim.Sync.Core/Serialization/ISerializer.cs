@@ -2,7 +2,7 @@
 using System.IO;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
 
     /// <summary>

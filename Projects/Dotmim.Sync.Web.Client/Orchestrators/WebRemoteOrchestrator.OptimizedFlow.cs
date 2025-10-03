@@ -1,6 +1,6 @@
-using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -11,7 +11,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Enhanced WebRemoteOrchestrator with incremental sync optimization support.

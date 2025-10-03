@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Data;
 using System.Data.Common;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.PostgreSql.Builders
+namespace Wormhole.Sync.PostgreSql.Builders
 {
     /// <summary>
     /// Represents a trigger builder for PostgreSql.

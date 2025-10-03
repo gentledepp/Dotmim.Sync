@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Enumerations
+﻿namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Sync progress step. Used for the user feedback.

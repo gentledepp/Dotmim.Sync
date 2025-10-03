@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Sqlite;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Sqlite;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
 using Microsoft.EntityFrameworkCore;
 #if NET6_0 || NET8_0
 using MySqlConnector;
@@ -15,7 +15,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.IntegrationTests
+namespace Wormhole.Sync.Tests.IntegrationTests
 {
     public abstract partial class TcpTests
     {

@@ -4,7 +4,7 @@ using System;
 using System.Data.Common;
 using System.Linq;
 
-namespace Dotmim.Sync.Tests.Models
+namespace Wormhole.Sync.Tests.Models
 {
 
 

@@ -1,30 +1,30 @@
-using Dotmim.Sync.Builders;
+using Wormhole.Sync.Builders;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
 #if NET6_0 || NET8_0
-using Dotmim.Sync.DatabaseStringParsers;
+using Wormhole.Sync.DatabaseStringParsers;
 using MySqlConnector;
 using System.Reflection.Metadata;
 
 #elif NETSTANDARD
-using Dotmim.Sync.DatabaseStringParsers;
+using Wormhole.Sync.DatabaseStringParsers;
 using MySql.Data.MySqlClient;
 
 #endif
 #if MARIADB
-using Dotmim.Sync.MariaDB.Builders;
+using Wormhole.Sync.MariaDB.Builders;
 #elif MYSQL
-using Dotmim.Sync.MySql.Builders;
+using Wormhole.Sync.MySql.Builders;
 #endif
 using System.Threading.Tasks;
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB
+namespace Wormhole.Sync.MariaDB
 #elif MYSQL
-namespace Dotmim.Sync.MySql
+namespace Wormhole.Sync.MySql
 #endif
 {
 

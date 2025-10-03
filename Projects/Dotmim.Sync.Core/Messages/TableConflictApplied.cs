@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Table Conflict Error Applied.

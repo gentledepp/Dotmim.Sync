@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Setup;
+﻿using Wormhole.Sync.Setup;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Text;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public class SetupFilterParameterTests
     {

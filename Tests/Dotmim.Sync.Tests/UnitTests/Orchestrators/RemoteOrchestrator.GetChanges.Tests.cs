@@ -1,13 +1,13 @@
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Tests.Models;
-using Dotmim.Sync.Web.Client;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Tests.Models;
+using Wormhole.Sync.Web.Client;
 using System;
 using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public partial class RemoteOrchestratorTests : IDisposable
     {

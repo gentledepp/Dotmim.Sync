@@ -1,12 +1,12 @@
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.SqlServer.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.SqlServer.Builders;
 using Microsoft.Data.SqlClient;
 using System.Collections.Generic;
 using System.Data;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer
+namespace Wormhole.Sync.SqlServer
 {
     /// <summary>
     /// Sql Management Utils.

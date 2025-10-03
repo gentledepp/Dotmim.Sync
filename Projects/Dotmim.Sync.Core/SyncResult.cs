@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Compute all the results after a successfull sync.

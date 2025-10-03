@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using Microsoft.Data.SqlClient;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer.Builders
+namespace Wormhole.Sync.SqlServer.Builders
 {
     /// <summary>
     /// Sql builder for Sql Server.

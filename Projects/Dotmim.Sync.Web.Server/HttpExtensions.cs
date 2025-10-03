@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 #endif
 
-namespace Dotmim.Sync.Web.Server
+namespace Wormhole.Sync.Web.Server
 {
     internal static class HttpExtensions
     {

@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Web.Server;
+﻿using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Web.Server;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -16,7 +16,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     public delegate Task ResponseDelegate(string serviceUri);
 

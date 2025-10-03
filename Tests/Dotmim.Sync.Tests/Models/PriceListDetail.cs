@@ -1,6 +1,6 @@
 using System;
 
-namespace Dotmim.Sync.Tests.Models
+namespace Wormhole.Sync.Tests.Models
 {
     public class PriceListDetail
     {

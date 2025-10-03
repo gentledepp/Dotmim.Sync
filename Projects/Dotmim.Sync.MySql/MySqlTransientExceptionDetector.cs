@@ -5,9 +5,9 @@ using MySql.Data.MySqlClient;
 #endif
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB
+namespace Wormhole.Sync.MariaDB
 #elif MYSQL
-namespace Dotmim.Sync.MySql
+namespace Wormhole.Sync.MySql
 #endif
 {
     /// <summary>

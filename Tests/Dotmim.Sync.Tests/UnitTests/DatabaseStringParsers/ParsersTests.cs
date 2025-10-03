@@ -1,7 +1,7 @@
-﻿using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.DatabaseStringParsers;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public class ParsersTests
     {

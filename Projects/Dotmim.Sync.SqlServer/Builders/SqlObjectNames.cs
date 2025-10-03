@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Linq;
 using System.Text;
 
-namespace Dotmim.Sync.SqlServer.Builders
+namespace Wormhole.Sync.SqlServer.Builders
 {
     /// <summary>
     /// Sql Object Names.

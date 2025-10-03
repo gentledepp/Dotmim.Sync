@@ -1,13 +1,13 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Extensions;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to handle client scope info.

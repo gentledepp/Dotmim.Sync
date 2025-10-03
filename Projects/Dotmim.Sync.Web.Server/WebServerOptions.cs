@@ -1,7 +1,7 @@
-﻿using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Serialization;
 using System.Collections.ObjectModel;
 
-namespace Dotmim.Sync.Web.Server
+namespace Wormhole.Sync.Web.Server
 {
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Serialization
+﻿namespace Wormhole.Sync.Serialization
 {
     /// <summary>
     /// Interface for converters.

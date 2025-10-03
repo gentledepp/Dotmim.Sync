@@ -1,6 +1,6 @@
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Manager;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Manager;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to get the schema from the database.

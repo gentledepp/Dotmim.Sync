@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to get changes from the server side.

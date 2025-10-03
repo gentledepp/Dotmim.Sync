@@ -1,13 +1,13 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Manager;
-using Dotmim.Sync.PostgreSql.Builders;
-using Dotmim.Sync.PostgreSql.Scope;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Manager;
+using Wormhole.Sync.PostgreSql.Builders;
+using Wormhole.Sync.PostgreSql.Scope;
 using Npgsql;
 using System;
 using System.Data.Common;
 
-namespace Dotmim.Sync.PostgreSql
+namespace Wormhole.Sync.PostgreSql
 {
     /// <summary>
     /// Represents a Npgsql provider that can handle every PostgreSQL database for sync.

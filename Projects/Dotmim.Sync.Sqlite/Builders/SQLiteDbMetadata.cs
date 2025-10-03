@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Manager;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Data;
 
-namespace Dotmim.Sync.Sqlite
+namespace Wormhole.Sync.Sqlite
 {
     /// <summary>
     /// Sqlite database metadata.

@@ -1,6 +1,6 @@
 ﻿using System.Net;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// HttpSyncWebException is thrown when an HTTP request fails with a specific status code.

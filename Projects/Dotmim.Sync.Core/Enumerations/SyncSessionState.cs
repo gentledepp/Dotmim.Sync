@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Enumerations
+﻿namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Defines the state that a synchronization session is in.

@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -10,7 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the logic to handle errors during the sync process.

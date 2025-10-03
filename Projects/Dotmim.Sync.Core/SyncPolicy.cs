@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Simulate a Polly Policy. You're defining a policy, then you're executing a code that could potentially be retried a number of times, based on your policy.

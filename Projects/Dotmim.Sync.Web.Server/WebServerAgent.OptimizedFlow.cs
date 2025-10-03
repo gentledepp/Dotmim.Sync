@@ -1,7 +1,7 @@
-using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
-using Dotmim.Sync.Web.Client;
+using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
+using Wormhole.Sync.Web.Client;
 #if NET48
 using System.Net.Http;
 using System.Web;
@@ -21,7 +21,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Server
+namespace Wormhole.Sync.Web.Server
 {
     /// <summary>
     /// Enhanced WebServerAgent with incremental sync optimization support.
