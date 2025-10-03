@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Dotmim.Sync.SampleConsole
+namespace Wormhole.Sync.SampleConsole
 {
     public class DateConverter : IConverter
     {

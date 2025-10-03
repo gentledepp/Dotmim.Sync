@@ -1,4 +1,4 @@
-using Dotmim.Sync.Enumerations;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
     /// <summary>
     /// Serialize json rows locally.

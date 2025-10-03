@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Setup
+namespace Wormhole.Sync.Setup
 {
     /// <summary>
     /// Setup filter where clause.

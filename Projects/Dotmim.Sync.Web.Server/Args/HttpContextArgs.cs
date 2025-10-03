@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Web.Client;
-using Dotmim.Sync.Web.Server;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Web.Client;
+using Wormhole.Sync.Web.Server;
 #if NET48
 using System.Web;
 using HttpContext = System.Web.HttpContextBase;
@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

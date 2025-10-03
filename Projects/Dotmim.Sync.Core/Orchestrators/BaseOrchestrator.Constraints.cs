@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Data;
 using System.Data.Common;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains methods to reset a table, disable and enable constraints.

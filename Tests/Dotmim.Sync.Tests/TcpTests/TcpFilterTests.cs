@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
 #if NET6_0 || NET8_0 
 using MySqlConnector;
 using Npgsql;
@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.IntegrationTests
+namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
     public abstract partial class TcpFilterTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable

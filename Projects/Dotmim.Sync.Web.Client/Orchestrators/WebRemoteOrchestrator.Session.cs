@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Batch;
+﻿using Wormhole.Sync.Batch;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Contains the logic to handle session on the server side.

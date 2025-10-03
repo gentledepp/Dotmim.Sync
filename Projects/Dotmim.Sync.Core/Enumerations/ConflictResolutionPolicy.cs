@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Enumerations
+﻿namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Represents the options for the conflict resolution policy to use for synchronization.

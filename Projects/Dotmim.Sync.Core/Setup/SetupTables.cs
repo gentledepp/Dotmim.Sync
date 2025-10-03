@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Represents a list of tables to be added to the sync process.

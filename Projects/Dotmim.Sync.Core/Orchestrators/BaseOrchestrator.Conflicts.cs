@@ -1,13 +1,13 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.Enumerations;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains methods to handle conflicts.

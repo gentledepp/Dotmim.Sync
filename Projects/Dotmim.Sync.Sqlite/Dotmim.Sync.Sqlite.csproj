@@ -1,10 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-
+		<AssemblyName>Wormhole.Sync.Sqlite</AssemblyName>
+		<PackageId>Wormhole.Sync.Sqlite</PackageId>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
 		<Authors>Sébastien Pertus</Authors>
 		<Company>Microsoft</Company>
-		<Title>Dotmim.Sync.Sqlite</Title>
+		<Title>Wormhole.Sync.Sqlite</Title>
 		<Summary>SQLite Sync Provider. Client provider .Net Standard 2.0</Summary>
 		<Description>SQLite Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used only as Client provider. Use SqlSyncProvider or MySqlSyncProvider for the server side .Net Standard 2.0</Description>
 		<PackageProjectUrl>https://dotmimsync.readthedocs.io/</PackageProjectUrl>

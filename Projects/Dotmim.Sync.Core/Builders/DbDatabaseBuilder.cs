@@ -1,7 +1,7 @@
 ﻿using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Builders
+namespace Wormhole.Sync.Builders
 {
     /// <summary>
     /// Abstract class for all database builders.

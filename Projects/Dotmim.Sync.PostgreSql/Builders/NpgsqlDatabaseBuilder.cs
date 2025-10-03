@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using Npgsql;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.PostgreSql.Builders
+namespace Wormhole.Sync.PostgreSql.Builders
 {
     /// <summary>
     /// Represents a database builder for Npgsql.

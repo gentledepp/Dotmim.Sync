@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Represents a table to be synchronized.

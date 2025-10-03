@@ -2,7 +2,7 @@
 using System.Data.Common;
 using System.Linq;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains internals methods to set commands parameters.

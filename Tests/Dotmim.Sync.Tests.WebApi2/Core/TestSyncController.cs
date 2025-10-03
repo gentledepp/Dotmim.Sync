@@ -1,4 +1,4 @@
-using Dotmim.Sync.Web.Server;
+using Wormhole.Sync.Web.Server;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web.Http;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     [RoutePrefix("api/sync")]
     public class TestSyncController : ApiController

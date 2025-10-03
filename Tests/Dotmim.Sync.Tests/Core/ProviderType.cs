@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Dotmim.Sync.Tests.Core
+namespace Wormhole.Sync.Tests.Core
 {
     [Flags]
     public enum ProviderType

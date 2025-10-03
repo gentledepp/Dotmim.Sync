@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Builders
+﻿namespace Wormhole.Sync.Builders
 {
     /// <summary>
     /// All commands type used during sync.

@@ -2,10 +2,12 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-
+		<AssemblyName>Wormhole.Sync.MariaDB</AssemblyName>
+		<PackageId>Wormhole.Sync.MariaDB</PackageId>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
 		<Authors>Sébastien Pertus</Authors>
 		<Company>Microsoft</Company>
-		<Title>Dotmim.Sync.MariaDB</Title>
+		<Title>Wormhole.Sync.MariaDB</Title>
 		<Summary>MariaDB Sync Provider. Client or Server provider .Net Standard 2.0</Summary>
 		<Description>MariaDB Sync Provider. Manage a sync process beetween two relational databases provider. This provider can be used as Client or Server provider .Net Standard 2.0</Description>
 		<RepositoryType>git</RepositoryType>

@@ -1,10 +1,10 @@
-using Dotmim.Sync.Enumerations;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Comprehensive exception information for error reporting.

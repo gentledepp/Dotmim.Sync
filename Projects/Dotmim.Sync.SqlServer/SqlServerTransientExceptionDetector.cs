@@ -1,7 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using System;
 
-namespace Dotmim.Sync.SqlServer
+namespace Wormhole.Sync.SqlServer
 {
     /// <summary>
     ///     Detects the exceptions caused by SQL Server transient failures.

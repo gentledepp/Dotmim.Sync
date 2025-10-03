@@ -1,11 +1,11 @@
-using Dotmim.Sync.Enumerations;
+using Wormhole.Sync.Enumerations;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Tests.Models
+namespace Wormhole.Sync.Tests.Models
 {
 
 

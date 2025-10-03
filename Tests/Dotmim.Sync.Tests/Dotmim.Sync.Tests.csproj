@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-
+		<AssemblyName>Wormhole.Sync.Tests</AssemblyName>
+		<RootNamespace>Wormhole.Sync.Tests</RootNamespace>
 		<NoWarn>$(NoWarn);CS1587;CS1591</NoWarn>
 
 		<IsPackable>false</IsPackable>

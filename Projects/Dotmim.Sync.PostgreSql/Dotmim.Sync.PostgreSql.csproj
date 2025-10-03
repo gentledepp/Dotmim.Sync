@@ -2,9 +2,12 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+		<AssemblyName>Wormhole.Sync.PostgreSql</AssemblyName>
+		<PackageId>Wormhole.Sync.PostgreSql</PackageId>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
 		<Authors>Sébastien Pertus, Waseem Ahmad Mughal</Authors>
 		<Company>Microsoft</Company>
-		<Title>Dotmim.Sync.PostgreSql</Title>
+		<Title>Wormhole.Sync.PostgreSql</Title>
 		<Summary>PostgreSql Sync Provider. Client or Server provider .Net Standard 2.0</Summary>
 		<Description>PostgreSql Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used as Client or Server provider .Net Standard 2.0</Description>
 		<RepositoryType>git</RepositoryType>

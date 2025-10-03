@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Sqlite;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Sqlite;
+using Wormhole.Sync.Tests.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +11,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SampleConsole
+namespace Wormhole.Sync.SampleConsole
 {
     public static class DBHelper
     {

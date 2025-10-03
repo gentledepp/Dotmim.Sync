@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Setup
+namespace Wormhole.Sync.Setup
 {
     /// <summary>
     /// Represents a filter parameters

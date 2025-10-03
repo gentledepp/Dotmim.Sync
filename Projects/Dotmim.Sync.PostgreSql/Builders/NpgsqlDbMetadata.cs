@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Manager;
 using NpgsqlTypes;
 using System;
 using System.Data;
 
-namespace Dotmim.Sync.PostgreSql.Builders
+namespace Wormhole.Sync.PostgreSql.Builders
 {
     /// <summary>
     /// Represents a PostgreSQL database metadata.

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
     /// <summary>
     /// ArrayJsonConverter used to convert an array of objects to a json array.

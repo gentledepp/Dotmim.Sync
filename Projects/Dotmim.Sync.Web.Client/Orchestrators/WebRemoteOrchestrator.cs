@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 using Microsoft.Net.Http.Headers;
 #endif
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
     /// <summary>
     /// Represents a web remote orchestrator able to communicate with a web server orchestrator.

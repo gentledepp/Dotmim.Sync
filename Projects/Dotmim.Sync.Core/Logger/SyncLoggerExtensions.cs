@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Sync logger factory extensions.

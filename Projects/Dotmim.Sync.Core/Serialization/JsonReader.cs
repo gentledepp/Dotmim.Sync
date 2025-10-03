@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
 
     /// <summary>

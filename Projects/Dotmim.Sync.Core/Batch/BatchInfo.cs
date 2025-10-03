@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -7,7 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Batch
+namespace Wormhole.Sync.Batch
 {
     /// <summary>
     /// Represents a collection of files serialized in a directory, and containing all the batch parts.

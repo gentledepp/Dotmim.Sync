@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.SqlServer.Scope;
+﻿using Wormhole.Sync.SqlServer.Scope;
 using System.Data;
 using System.Data.Common;
 
-namespace Dotmim.Sync.SqlServer.ChangeTracking.Builders
+namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
 {
     /// <inheritdoc />
     public class SqlChangeTrackingScopeBuilder : SqlScopeBuilder

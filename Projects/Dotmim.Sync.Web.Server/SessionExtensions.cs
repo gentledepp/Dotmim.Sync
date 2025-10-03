@@ -1,12 +1,12 @@
-using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 #if NET48
 using System.Web.SessionState;
 #else
 using Microsoft.AspNetCore.Http;
 #endif
 
-namespace Dotmim.Sync.Web.Server
+namespace Wormhole.Sync.Web.Server
 {
     /// <summary>
     /// Session extensions.

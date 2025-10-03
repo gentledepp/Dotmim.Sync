@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Extensions;
-using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -8,7 +8,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Linq;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Exception.

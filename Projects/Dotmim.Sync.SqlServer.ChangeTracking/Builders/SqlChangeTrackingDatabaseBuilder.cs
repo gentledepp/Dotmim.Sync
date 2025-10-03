@@ -2,7 +2,7 @@
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.SqlServer.Builders
+namespace Wormhole.Sync.SqlServer.Builders
 {
     /// <inheritdoc />
     public class SqlChangeTrackingDatabaseBuilder : SqlDatabaseBuilder

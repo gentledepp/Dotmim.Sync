@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 #if NET6_0 || NET8_0
@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests.IntegrationTests
+namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
     public abstract class TcpConflictsTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable

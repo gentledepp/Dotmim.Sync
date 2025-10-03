@@ -1,6 +1,6 @@
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.PostgreSql.Builders;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.PostgreSql.Builders;
 using Npgsql;
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.PostgreSql
+namespace Wormhole.Sync.PostgreSql
 {
     /// <summary>
     /// Represents a class that contains utility methods for managing a PostgreSql database.

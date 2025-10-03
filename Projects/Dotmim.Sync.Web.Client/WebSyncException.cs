@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Web
+namespace Wormhole.Sync.Web
 {
     /// <summary>
     /// Serialize exception to be sent over the wire.

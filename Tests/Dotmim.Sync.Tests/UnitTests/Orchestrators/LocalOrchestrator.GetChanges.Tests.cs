@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Tests.Models;
+﻿using Wormhole.Sync.Tests.Models;
 using System;
 using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.UnitTests
+namespace Wormhole.Sync.Tests.UnitTests
 {
     public partial class LocalOrchestratorTests : IDisposable
     {

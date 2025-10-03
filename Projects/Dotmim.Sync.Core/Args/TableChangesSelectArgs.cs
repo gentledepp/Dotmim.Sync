@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
 
     /// <summary>

@@ -1,4 +1,4 @@
-using Dotmim.Sync.Web.Server;
+using Wormhole.Sync.Web.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Web.Http.Controllers;
 using System.Web.Http.Dispatcher;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     public class TestControllerActivator : IHttpControllerActivator
     {

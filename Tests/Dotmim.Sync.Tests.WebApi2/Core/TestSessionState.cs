@@ -1,7 +1,7 @@
 using System;
 using System.Web;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     public class TestSessionState : HttpSessionStateBase
     {

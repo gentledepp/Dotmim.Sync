@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Manager;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Builders
+namespace Wormhole.Sync.Builders
 {
     /// <summary>
     /// Table builder for a database provider.

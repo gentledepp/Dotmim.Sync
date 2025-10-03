@@ -1,7 +1,7 @@
 ﻿using BenchmarkDotNet.Attributes;
-using Dotmim.Sync;
-using Dotmim.Sync.Sqlite;
-using Dotmim.Sync.SqlServer;
+using Wormhole.Sync;
+using Wormhole.Sync.Sqlite;
+using Wormhole.Sync.SqlServer;
 
 namespace Benchmarks
 {

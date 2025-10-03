@@ -1,11 +1,11 @@
-using Dotmim.Sync.Batch;
+using Wormhole.Sync.Batch;
 using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
     /// <summary>
     /// Serializes unified batch data (ContainerSet with multiple tables) to JSON incrementally.

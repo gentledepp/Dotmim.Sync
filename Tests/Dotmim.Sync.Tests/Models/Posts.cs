@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Dotmim.Sync.Tests.Models
+namespace Wormhole.Sync.Tests.Models
 {
     public partial class Posts
     {

@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
+﻿using Wormhole.Sync.Builders;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// The SyncAdapter is the datasource manager for ONE table

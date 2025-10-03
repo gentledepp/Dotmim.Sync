@@ -1,7 +1,7 @@
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Serialization;
-using Dotmim.Sync.Tests.UnitTests;
-using Dotmim.Sync.Web.Client;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Serialization;
+using Wormhole.Sync.Tests.UnitTests;
+using Wormhole.Sync.Web.Client;
 using MessagePack;
 using System;
 using System.Data;
@@ -10,7 +10,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Dotmim.Sync.Tests.StandAlone
+namespace Wormhole.Sync.Tests.StandAlone
 {
     public class SerializerTests
     {

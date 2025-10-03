@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.SqlServer.Builders;
-using Dotmim.Sync.SqlServer.ChangeTracking.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.SqlServer.Builders;
+using Wormhole.Sync.SqlServer.ChangeTracking.Builders;
 using Microsoft.Data.SqlClient;
 using System;
 
-namespace Dotmim.Sync.SqlServer
+namespace Wormhole.Sync.SqlServer
 {
     /// <inheritdoc />
     public class SqlSyncChangeTrackingProvider : SqlSyncProvider

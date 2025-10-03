@@ -1,4 +1,4 @@
-﻿// using Dotmim.Sync.Enumerations;
+﻿// using Wormhole.Sync.Enumerations;
 // using System;
 // using System.Collections.Generic;
 // using System.Linq;

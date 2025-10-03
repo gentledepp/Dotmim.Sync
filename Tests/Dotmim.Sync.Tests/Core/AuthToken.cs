@@ -5,13 +5,13 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
-namespace Dotmim.Sync.Tests.Core
+namespace Wormhole.Sync.Tests.Core
 {
     public class AuthToken
     {
 
-        public static string Issuer => "Dotmim.Sync.Bearer";
-        public static string Audience => "Dotmim.Sync.Bearer";
+        public static string Issuer => "Wormhole.Sync.Bearer";
+        public static string Audience => "Wormhole.Sync.Bearer";
 
         public static string SecurityKey => "SOME_RANDOM_KEY_DO_NOT_SHARE";
 

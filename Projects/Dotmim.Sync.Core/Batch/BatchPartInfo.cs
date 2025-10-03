@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Enumerations;
+﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Batch
+namespace Wormhole.Sync.Batch
 {
     /// <summary>
     /// Info about a BatchPart

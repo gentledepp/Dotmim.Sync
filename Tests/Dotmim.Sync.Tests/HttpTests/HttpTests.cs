@@ -1,12 +1,12 @@
-﻿using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.SampleConsole;
-using Dotmim.Sync.Serialization;
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Core;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
-using Dotmim.Sync.Web.Client;
-using Dotmim.Sync.Web.Server;
+﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.SampleConsole;
+using Wormhole.Sync.Serialization;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
+using Wormhole.Sync.Web.Client;
+using Wormhole.Sync.Web.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 #if NET48
@@ -38,9 +38,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 #endif
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.Sqlite;
-using Dotmim.Sync.Tests.Fixtures;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.Sqlite;
+using Wormhole.Sync.Tests.Fixtures;
 using System.Security.Cryptography;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
@@ -48,7 +48,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
 #endif
 
-namespace Dotmim.Sync.Tests.IntegrationTests
+namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
     public abstract partial class HttpTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable

@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Batch;
-using Dotmim.Sync.Enumerations;
-using Dotmim.Sync.Web.Client.BackwardCompatibility;
+﻿using Wormhole.Sync.Batch;
+using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Web.Client.BackwardCompatibility;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Web.Client
+namespace Wormhole.Sync.Web.Client
 {
 
     /// <summary>

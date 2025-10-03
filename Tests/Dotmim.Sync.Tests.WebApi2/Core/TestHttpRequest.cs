@@ -2,7 +2,7 @@ using System.Collections.Specialized;
 using System.Net.Http;
 using System.Web;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     public class TestHttpRequest : HttpRequestBase
     {

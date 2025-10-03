@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.PostgreSql.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.PostgreSql.Builders;
 using System.Data;
 using System.Data.Common;
 
-namespace Dotmim.Sync.PostgreSql.Scope
+namespace Wormhole.Sync.PostgreSql.Scope
 {
     /// <summary>
     /// Represents a scope builder for Npgsql.

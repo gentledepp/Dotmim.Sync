@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 
-namespace Dotmim.Sync.Builders
+namespace Wormhole.Sync.Builders
 {
     /// <summary>
     /// Abstract class for all database scope info  builders.

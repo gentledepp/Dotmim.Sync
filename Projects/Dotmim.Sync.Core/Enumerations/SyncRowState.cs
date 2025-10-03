@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Dotmim.Sync.Enumerations
+namespace Wormhole.Sync.Enumerations
 {
     /// <summary>
     /// Gets the state of a SyncRow object.

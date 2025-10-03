@@ -1,10 +1,10 @@
-using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 
 #if MARIADB
-using Dotmim.Sync.MariaDB.Builders;
+using Wormhole.Sync.MariaDB.Builders;
 #elif MYSQL
-using Dotmim.Sync.MySql.Builders;
+using Wormhole.Sync.MySql.Builders;
 #endif
 
 #if NET6_0 || NET8_0
@@ -20,9 +20,9 @@ using System.Text;
 using System.Threading.Tasks;
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB
+namespace Wormhole.Sync.MariaDB
 #elif MYSQL
-namespace Dotmim.Sync.MySql
+namespace Wormhole.Sync.MySql
 #endif
 {
 

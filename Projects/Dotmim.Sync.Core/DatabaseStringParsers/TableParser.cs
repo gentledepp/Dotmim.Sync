@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Dotmim.Sync.DatabaseStringParsers
+namespace Wormhole.Sync.DatabaseStringParsers
 {
 
     /// <summary>

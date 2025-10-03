@@ -1,22 +1,22 @@
-﻿using Dotmim.Sync.Tests.Core;
+﻿using Wormhole.Sync.Tests.Core;
 #if NET6_0 || NET8_0
 using MySqlConnector;
 #elif NETCOREAPP3_1
 using MySql.Data.MySqlClient;
 #endif
 
-using Dotmim.Sync.SqlServer;
-using Dotmim.Sync.Tests.Fixtures;
-using Dotmim.Sync.Tests.IntegrationTests;
-using Dotmim.Sync.Tests.Misc;
-using Dotmim.Sync.Tests.Models;
-using Dotmim.Sync.Tests.UnitTests;
+using Wormhole.Sync.SqlServer;
+using Wormhole.Sync.Tests.Fixtures;
+using Wormhole.Sync.Tests.IntegrationTests;
+using Wormhole.Sync.Tests.Misc;
+using Wormhole.Sync.Tests.Models;
+using Wormhole.Sync.Tests.UnitTests;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     /// <summary>
     /// Setup class is all you need to setup connection string, tables and client enabled for your provider tests.

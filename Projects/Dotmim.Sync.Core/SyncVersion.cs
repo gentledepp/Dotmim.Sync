@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Contains the current version of the library.

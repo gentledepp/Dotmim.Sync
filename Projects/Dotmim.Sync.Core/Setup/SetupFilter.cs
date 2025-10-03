@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Setup;
+﻿using Wormhole.Sync.Setup;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Design a filter clause on Dmtable.

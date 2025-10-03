@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync.Web.Client.BackwardCompatibility
+namespace Wormhole.Sync.Web.Client.BackwardCompatibility
 {
 
     /// <summary>

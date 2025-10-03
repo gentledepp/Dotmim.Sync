@@ -1,5 +1,5 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using System.Data;
 using System.Data.Common;
 using System.Text;
@@ -11,9 +11,9 @@ using MySql.Data.MySqlClient;
 #endif
 
 #if MARIADB
-namespace Dotmim.Sync.MariaDB.Builders
+namespace Wormhole.Sync.MariaDB.Builders
 #elif MYSQL
-namespace Dotmim.Sync.MySql.Builders
+namespace Wormhole.Sync.MySql.Builders
 #endif
 {
     /// <summary>

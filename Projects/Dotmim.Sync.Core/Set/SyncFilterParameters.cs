@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Builders;
+﻿using Wormhole.Sync.Builders;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.Serialization;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Sync filter parameters collection.

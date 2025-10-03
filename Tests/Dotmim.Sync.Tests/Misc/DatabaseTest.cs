@@ -1,4 +1,4 @@
-﻿using Dotmim.Sync.Tests.Fixtures;
+﻿using Wormhole.Sync.Tests.Fixtures;
 using Microsoft.Data.SqlClient;
 #if NET6_0 || NET8_0 
 using MySqlConnector;
@@ -16,11 +16,11 @@ using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
 using System.Threading.Tasks;
-using Dotmim.Sync.Tests.Models;
-using Dotmim.Sync.Tests.Core;
+using Wormhole.Sync.Tests.Models;
+using Wormhole.Sync.Tests.Core;
 using System.Data;
 
-namespace Dotmim.Sync.Tests.Misc
+namespace Wormhole.Sync.Tests.Misc
 {
     public abstract class DatabaseTest : IDisposable, IAsyncLifetime
     {

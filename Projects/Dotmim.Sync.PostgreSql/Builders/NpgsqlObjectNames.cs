@@ -1,9 +1,9 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
 using System;
 using System.Linq;
 
-namespace Dotmim.Sync.PostgreSql.Builders
+namespace Wormhole.Sync.PostgreSql.Builders
 {
     /// <summary>
     /// Represents the object names used during the sync process for a PostgreSql provider.

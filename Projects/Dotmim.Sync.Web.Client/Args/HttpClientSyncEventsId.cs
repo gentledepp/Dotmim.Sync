@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync.Web.Client.Args
+﻿namespace Wormhole.Sync.Web.Client.Args
 {
     /// <summary>
     /// Http Client Sync Events Id.

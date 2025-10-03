@@ -1,4 +1,4 @@
-﻿namespace Dotmim.Sync
+﻿namespace Wormhole.Sync
 {
     /// <summary>
     /// Http server interceptors extensions.

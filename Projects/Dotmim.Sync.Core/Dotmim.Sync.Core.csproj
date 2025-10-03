@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+		<AssemblyName>Wormhole.Sync.Core</AssemblyName>
+		<PackageId>Wormhole.Sync.Core</PackageId>
 		<Authors>Sébastien Pertus</Authors>
 		<Company>Microsoft</Company>
-		<RootNamespace>Dotmim.Sync</RootNamespace>
-		<Title>Dotmim.Sync.Core</Title>
+		<RootNamespace>Wormhole.Sync</RootNamespace>
+		<Title>Wormhole.Sync.Core</Title>
 		<Summary>Manage a sync process beetween two relational databases provider. Core assembly .Net Standard 2.0</Summary>
-		<Description>Dotmim Sync core assembly. Manage a sync process beetween two relational databases provider. Can't be used alone. Choose a server and a client provider such as Dotmim.Sync.SqlServerProvider or Dotmim.Sync.SqliteProvider</Description>
+		<Description>Wormhole Sync core assembly. Manage a sync process beetween two relational databases provider. Can't be used alone. Choose a server and a client provider such as Wormhole.Sync.SqlServerProvider or Wormhole.Sync.SqliteProvider</Description>
 		<RepositoryType>git</RepositoryType>
 		<ApplicationIcon>favicon.ico</ApplicationIcon>
 		<PackageIcon>packageIcon.png</PackageIcon>

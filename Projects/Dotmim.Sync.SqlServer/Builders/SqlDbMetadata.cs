@@ -1,8 +1,8 @@
-﻿using Dotmim.Sync.Manager;
+﻿using Wormhole.Sync.Manager;
 using System;
 using System.Data;
 
-namespace Dotmim.Sync.SqlServer.Manager
+namespace Wormhole.Sync.SqlServer.Manager
 {
     /// <summary>
     /// SqlDbMetadata class is a helper to get information about tables and columns from a SqlConnection.

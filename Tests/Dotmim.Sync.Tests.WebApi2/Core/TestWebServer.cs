@@ -1,4 +1,4 @@
-using Dotmim.Sync.Web.Server;
+using Wormhole.Sync.Web.Server;
 using Microsoft.Owin.Hosting;
 using Owin;
 using System;
@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.Dispatcher;
 
-namespace Dotmim.Sync.Tests
+namespace Wormhole.Sync.Tests
 {
     public class TestWebServer : IDisposable
     {

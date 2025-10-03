@@ -1,11 +1,11 @@
-﻿using Dotmim.Sync.Serialization;
+﻿using Wormhole.Sync.Serialization;
 using MessagePack;
 using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotmim.Sync.Tests.Serializers
+namespace Wormhole.Sync.Tests.Serializers
 {
     public class CustomMessagePackSerializerFactory : ISerializerFactory
     {

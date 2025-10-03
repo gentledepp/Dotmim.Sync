@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Dotmim.Sync.Tests.Misc
+namespace Wormhole.Sync.Tests.Misc
 {
     internal static class Extensibility
     {

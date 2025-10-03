@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Dotmim.Sync.Serialization
+namespace Wormhole.Sync.Serialization
 {
     /// <summary>
     /// Convert an object to an inferred type (string, bool, long, double or datetimeoffset).

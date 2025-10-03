@@ -1,10 +1,10 @@
-﻿using Dotmim.Sync.Builders;
-using Dotmim.Sync.DatabaseStringParsers;
-using Dotmim.Sync.SqlServer.Builders;
+﻿using Wormhole.Sync.Builders;
+using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.SqlServer.Builders;
 using System.Data;
 using System.Data.Common;
 
-namespace Dotmim.Sync.SqlServer.Scope
+namespace Wormhole.Sync.SqlServer.Scope
 {
     /// <summary>
     /// Sql scope builder for Sql Server.

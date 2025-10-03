@@ -1,6 +1,6 @@
-﻿using Dotmim.Sync.Batch;
+﻿using Wormhole.Sync.Batch;
 
-namespace Dotmim.Sync
+namespace Wormhole.Sync
 {
     /// <summary>
     /// Client changes selected and server changes applied on client + stats.
