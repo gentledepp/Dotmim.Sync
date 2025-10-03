@@ -647,7 +647,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         [ClassData(typeof(SyncOptionsData))]
         public async Task InsertOneRowInOneTableOnClientSideThenInsertAgainDuringGetChanges(SyncOptions options)
         {
-            options.OptimizedFlowEnabled = true;
+            options.UseOptimizedFlow = true;
             
             // Execute a sync on all clients to initialize client and server schema 
             foreach (var clientProvider in clientsProvider)
@@ -1763,7 +1763,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             { 
                 DisableConstraintsOnApplyChanges = true, 
                 // In case of the optimizedflow, this works differntly: Instead of throwing an error, the Server chagnes the operation to ReinitializeWithUpload
-                OptimizedFlowEnabled = false
+                UseOptimizedFlow = false
             };
 
             // Execute a sync on all clients and check results
@@ -1820,7 +1820,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
             var options = new SyncOptions
             {
                 DisableConstraintsOnApplyChanges = true, 
-                OptimizedFlowEnabled = true
+                UseOptimizedFlow = true
             };
 
             // Execute a sync on all clients to establish baseline and enable optimized sync
@@ -2830,7 +2830,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
-            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseOptimizedFlow = true; // tests only work for optimized flow
             options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
@@ -2877,7 +2877,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
-            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseOptimizedFlow = true; // tests only work for optimized flow
             options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
@@ -2977,7 +2977,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
-            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseOptimizedFlow = true; // tests only work for optimized flow
             options.UseUnifiedBatching = true; // tests only work with unified batching enabled
             
             // Execute a sync on all clients to initialize client and server schema 
@@ -3045,7 +3045,7 @@ namespace Dotmim.Sync.Tests.IntegrationTests
         {
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
-            options.OptimizedFlowEnabled = true; // tests only work for optimized flow
+            options.UseOptimizedFlow = true; // tests only work for optimized flow
             options.UseUnifiedBatching = true; // tests only work with unified batching enabled
 
             // Execute a sync on all clients to initialize client and server schema 

@@ -121,7 +121,7 @@ namespace Dotmim.Sync
         /// <summary>
         /// Gets or sets whether the optimized flow is enabled. This tries to reduce the number of requests/responses for incremental synchronizations to a bare minimum
         /// </summary>
-        public bool OptimizedFlowEnabled { get; set; } = true;
+        public bool UseOptimizedFlow { get; set; } = true;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.

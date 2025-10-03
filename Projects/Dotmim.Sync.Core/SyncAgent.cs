@@ -239,7 +239,7 @@ namespace Dotmim.Sync
                         context.UseUnifiedBatching = true;
                     
                     // Check if remote orchestrator supports optimization
-                    if (this.Options.OptimizedFlowEnabled && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
+                    if (this.Options.UseOptimizedFlow && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
                     {
                         canUseOptimizedFlow = optimized.CanUseOptimizedSync(cScopeInfo, cScopeInfoClient);
                     }
