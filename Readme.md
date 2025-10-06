@@ -89,3 +89,7 @@ Yes it's blazing fast !
 * Check the full documentation, available here : [https://dotmimsync.readthedocs.io/](https://dotmimsync.readthedocs.io/)
 * Feel free to ping me: [@sebpertus](http://www.twitter.com/sebpertus)
 * DMS font is created from the awesome **Cubic** font from [https://www.dafont.com/cubic.font](https://www.dafont.com/cubic.font)
+
+
+## Icon
+Wormhole icon from https://www.flaticon.com/free-icon/wormhole_8967306?related_id=8966927&origin=search
