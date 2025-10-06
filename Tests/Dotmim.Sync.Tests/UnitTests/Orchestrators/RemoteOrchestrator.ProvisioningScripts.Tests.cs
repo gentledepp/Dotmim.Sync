@@ -10,6 +10,7 @@ using System;
 using System.Data.Common;
 using System.IO;
 using System.Threading.Tasks;
+using VerifyXunit;
 using Wormhole.Sync.Builders;
 using Xunit;
 using Xunit.Abstractions;
@@ -19,6 +20,7 @@ namespace Wormhole.Sync.Tests.UnitTests
     public class RemoteOrchestratorProvisioningScriptsTests : IDisposable
     {
         private readonly ITestOutputHelper output;
+        private string dbName;
 
         public RemoteOrchestratorProvisioningScriptsTests(ITestOutputHelper output)
         {
@@ -28,7 +30,7 @@ namespace Wormhole.Sync.Tests.UnitTests
         [Fact]
         public async Task GetProvisioningSqlScripts_SingleTable_SqlServer()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -60,15 +62,15 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine(scripts);
             output.WriteLine("====================================================");
             
-            await VerifyXunit.Verifier.Verify(scripts);
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_SingleTable_WithCustomTriggerAndTrackingTableNames_SqlServer()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -105,15 +107,15 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine(scripts);
             output.WriteLine("====================================================");
 
-            await VerifyXunit.Verifier.Verify(scripts);
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_TwoRelatedTables_SqlServer()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -162,9 +164,9 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine(scripts);
             output.WriteLine("=================================================");
 
-            await VerifyXunit.Verifier.Verify(scripts);
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
@@ -202,7 +204,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine(scripts);
             output.WriteLine("=================================================");
             
-            await VerifyXunit.Verifier.Verify(scripts);
+            await Verifier.Verify(scripts);
 
             // Clean up - clear SQLite connection pool and delete file
             SqliteConnection.ClearAllPools();
@@ -262,7 +264,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine(scripts);
             output.WriteLine("=======================================================");
             
-            await VerifyXunit.Verifier.Verify(scripts);
+            await Verifier.Verify(scripts);
 
 
             // Clean up - clear SQLite connection pool and delete file
@@ -276,7 +278,7 @@ namespace Wormhole.Sync.Tests.UnitTests
         [Fact]
         public async Task GetProvisioningSqlScripts_WithSetupTableTriggerInterceptor_ShouldModifyTriggerScript()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -318,13 +320,16 @@ namespace Wormhole.Sync.Tests.UnitTests
 
             Assert.Contains("-- CUSTOM INSERT TRIGGER INTERCEPTED", scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
+            await Verifier.Verify(scripts);
+
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithSetupTableStoredProcedureInterceptor_ShouldModifyStoredProcedureScript()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -365,14 +370,16 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine("========================================================");
 
             Assert.Contains("-- CUSTOM SELECT CHANGES PROCEDURE", scripts);
+            
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithSetupTableTrackingTableInterceptor_ShouldModifyTrackingTableScript()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -413,14 +420,16 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine("======================================================");
 
             Assert.Contains("-- INTERCEPTED TRACKING TABLE", scripts);
+            
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithSetupTableInterceptorCancelling_ShouldSkipTrigger()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -464,15 +473,16 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("ProductCategory_insert_trigger", scripts, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("ProductCategory_update_trigger", scripts, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("ProductCategory_delete_trigger", scripts, StringComparison.OrdinalIgnoreCase);
-
             
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            await Verifier.Verify(scripts);
+            
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithCustomProvisioningSql_ShouldIncludeCustomSql()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_custom_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_custom_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -511,14 +521,16 @@ namespace Wormhole.Sync.Tests.UnitTests
 
             Assert.Contains("-- Custom Provisioning SQL for ProductCategory", scripts);
             Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name]", scripts);
+            
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithMultipleCustomProvisioningSql_ShouldIncludeAllStatements()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_custom_multi_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_custom_multi_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -560,18 +572,15 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name]", scripts);
             Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Description]", scripts);
 
-            // Verify the correct separator is used (GO for SQL Server)
-            var customSqlSection = scripts.Substring(scripts.IndexOf("-- Custom Provisioning SQL for table"));
-            var separatorCount = System.Text.RegularExpressions.Regex.Matches(customSqlSection, "GO").Count;
-            Assert.True(separatorCount >= 2, "Should have at least 2 GO separators between custom SQL statements");
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+            
         }
 
         [Fact]
         public async Task GetProvisioningSqlScripts_WithTrackedColumns_SqlServer()
         {
-            var dbName = HelperDatabase.GetRandomName("tcp_prov_tracked_");
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_tracked_");
             await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
             var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
 
@@ -641,12 +650,14 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("Product_delete_trigger", scripts);
             var deleteTriggerSection = scripts.Substring(scripts.IndexOf("Product_delete_trigger"));
             Assert.Contains("[ProductCategoryID]", deleteTriggerSection.Substring(0, Math.Min(2000, deleteTriggerSection.Length)));
+            
+            await Verifier.Verify(scripts);
 
-            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
 
         public void Dispose()
         {
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
     }
 }
