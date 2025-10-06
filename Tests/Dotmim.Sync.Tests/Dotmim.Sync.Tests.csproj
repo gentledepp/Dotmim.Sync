@@ -34,6 +34,7 @@
 		<Compile Include="UnitTests\Orchestrators\LocalOrchestrator.ScopeClients.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\LocalOrchestrator.Scopes.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\LocalOrchestrator.Tests.cs" />
+		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.CustomProvisioning.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.GetChanges.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.GetEstimatedChanges.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.ProvisioningScripts.Tests.cs" />

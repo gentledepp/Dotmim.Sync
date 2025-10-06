@@ -94,6 +94,13 @@ namespace Wormhole.Sync
         public Action<StoredProcedureCreatingArgs> StoredProcedureInterceptor { get; set; }
 
         /// <summary>
+        /// Gets or sets custom SQL commands to execute after provisioning this table.
+        /// These will be executed after triggers, tracking tables, and stored procedures are created.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<string> CustomProvisioningSql { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SetupTable"/> class.
         /// Specify a table to add to the sync process
         /// If you don't specify any columns, all columns in the data source will be imported.
@@ -198,6 +205,22 @@ namespace Wormhole.Sync
         public SetupTable OnStoredProcedureCreating(Action<StoredProcedureCreatingArgs> action)
         {
             this.StoredProcedureInterceptor = action;
+            return this;
+        }
+
+        /// <summary>
+        /// Add custom SQL statement to execute during provisioning (e.g., creating indexes).
+        /// </summary>
+        /// <param name="sql">The SQL statement to execute.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable AddCustomProvisioningSql(string sql)
+        {
+            if (this.CustomProvisioningSql == null)
+                this.CustomProvisioningSql = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(sql))
+                this.CustomProvisioningSql.Add(sql);
+
             return this;
         }
 

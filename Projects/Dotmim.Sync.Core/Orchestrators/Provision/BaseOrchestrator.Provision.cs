@@ -164,6 +164,25 @@ namespace Wormhole.Sync
                             atLeastOneStoredProcedureHasBeenCreated = true;
                     }
 
+                    // Execute custom provisioning SQL if configured
+                    var setupTable = scopeInfo.Setup?.Tables[schemaTable.TableName, schemaTable.SchemaName];
+                    if (setupTable?.CustomProvisioningSql != null && setupTable.CustomProvisioningSql.Count > 0)
+                    {
+                        foreach (var customSql in setupTable.CustomProvisioningSql)
+                        {
+                            if (!string.IsNullOrWhiteSpace(customSql))
+                            {
+                                using var cmd = connection.CreateCommand();
+                                cmd.Connection = connection;
+                                cmd.Transaction = transaction;
+                                cmd.CommandText = customSql;
+
+                                await this.InterceptAsync(new ExecuteCommandArgs(context, cmd, default, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+                                await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                            }
+                        }
+                    }
+
                     // Check if we have created something on the current table.
                     var atLeastSomethingHasBeenCreatedOnThisTable = stCreated || tCreated || trackingTableExist || tgCreated || spCreated;
 
@@ -570,6 +589,22 @@ namespace Wormhole.Sync
                                 if (allScripts.Length > 0)
                                     allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
                                 allScripts.Append(spScript);
+                            }
+                        }
+
+                        // Custom provisioning SQL
+                        if (setupTable?.CustomProvisioningSql != null && setupTable.CustomProvisioningSql.Count > 0)
+                        {
+                            foreach (var customSql in setupTable.CustomProvisioningSql)
+                            {
+                                if (!string.IsNullOrWhiteSpace(customSql))
+                                {
+                                    if (allScripts.Length > 0)
+                                        allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+
+                                    allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
+                                    allScripts.Append(customSql);
+                                }
                             }
                         }
                     }

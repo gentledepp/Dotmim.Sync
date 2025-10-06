@@ -469,6 +469,105 @@ namespace Wormhole.Sync.Tests.UnitTests
             HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
 
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithCustomProvisioningSql_ShouldIncludeCustomSql()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_custom_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom provisioning SQL to create an index
+            setup.Tables["ProductCategory"].AddCustomProvisioningSql(
+                "CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name] ON [dbo].[ProductCategory] ([Name])"
+            );
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Custom Provisioning SQL Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("===================================================");
+
+            Assert.Contains("-- Custom Provisioning SQL for ProductCategory", scripts);
+            Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name]", scripts);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithMultipleCustomProvisioningSql_ShouldIncludeAllStatements()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_custom_multi_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [Description] [nvarchar](200) NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "Description", "ModifiedDate");
+
+            // Add multiple custom provisioning SQL statements
+            setup.Tables["ProductCategory"]
+                .AddCustomProvisioningSql("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name] ON [dbo].[ProductCategory] ([Name])")
+                .AddCustomProvisioningSql("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Description] ON [dbo].[ProductCategory] ([Description])");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Multiple Custom Provisioning SQL Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("============================================================");
+
+            Assert.Contains("-- Custom Provisioning SQL for ProductCategory", scripts);
+            Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Name]", scripts);
+            Assert.Contains("CREATE NONCLUSTERED INDEX [IX_ProductCategory_Description]", scripts);
+
+            // Verify the correct separator is used (GO for SQL Server)
+            var customSqlSection = scripts.Substring(scripts.IndexOf("-- Custom Provisioning SQL for table"));
+            var separatorCount = System.Text.RegularExpressions.Regex.Matches(customSqlSection, "GO").Count;
+            Assert.True(separatorCount >= 2, "Should have at least 2 GO separators between custom SQL statements");
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
         public void Dispose()
         {
         }
