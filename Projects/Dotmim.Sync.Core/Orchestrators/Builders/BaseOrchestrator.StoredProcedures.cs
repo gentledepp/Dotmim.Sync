@@ -339,8 +339,16 @@ namespace Wormhole.Sync
                 if (command == null)
                     return (context, false);
 
-                var action = new StoredProcedureCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, storedProcedureType, command, connection, transaction);
-                await this.InterceptAsync(action, progress, cancellationToken).ConfigureAwait(false);
+                var args = new StoredProcedureCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, storedProcedureType, command, connection, transaction);
+
+                // Invoke setup-level interceptor if configured
+                var setupTable = scopeInfo.Setup?.Tables[tableBuilder.TableDescription.TableName, tableBuilder.TableDescription.SchemaName];
+                setupTable?.StoredProcedureInterceptor?.Invoke(args);
+
+                // Invoke global interceptor
+                await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
+
+                var action = args; // For compatibility with existing code below
 
                 if (action.Cancel || action.Command == null)
                     return (context, false);

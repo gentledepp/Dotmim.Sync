@@ -41,7 +41,15 @@
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.Snapshots.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.StoredProcedures.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.Tests.cs" />
+		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.TrackingTable.Tests.cs" />
 		<Compile Include="UnitTests\Orchestrators\RemoteOrchestrator.Triggers.Tests.cs" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_Sqlite.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_SqlServer.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_WithCustomTriggerAndTrackingTableNames_SqlServer.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_TwoRelatedTables_Sqlite.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_TwoRelatedTables_SqlServer.verified.txt" />
 	</ItemGroup>
 
 	<ItemGroup>

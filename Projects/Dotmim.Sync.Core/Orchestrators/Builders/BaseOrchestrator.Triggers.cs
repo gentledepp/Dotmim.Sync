@@ -350,7 +350,14 @@ namespace Wormhole.Sync
                 if (command == null)
                     return (context, false);
 
-                var action = await this.InterceptAsync(new TriggerCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, triggerType, command, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+                var args = new TriggerCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, triggerType, command, connection, transaction);
+
+                // Invoke setup-level interceptor if configured
+                var setupTable = scopeInfo.Setup?.Tables[tableBuilder.TableDescription.TableName, tableBuilder.TableDescription.SchemaName];
+                setupTable?.TriggerInterceptor?.Invoke(args);
+
+                // Invoke global interceptor
+                var action = await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
 
                 if (action.Cancel || action.Command == null)
                     return (context, false);

@@ -250,5 +250,73 @@ namespace Wormhole.Sync.Tests.UnitTests
                 c.Close();
             }
         }
+
+        [Fact]
+        public async Task RemoteOrchestrator_CreateTrigger_WithSetupTableInterceptor_ShouldModifyCommand()
+        {
+            var scopeName = "scope";
+            var setup = new SyncSetup("SalesLT.Product");
+
+            var interceptorCalled = false;
+            var commandTextModified = false;
+
+            // Configure setup-level interceptor
+            setup.Tables["Product", "SalesLT"].OnTriggerCreating(args =>
+            {
+                interceptorCalled = true;
+                if (args.TriggerType == DbTriggerType.Insert)
+                {
+                    // Modify the command text (add a comment)
+                    args.Command.CommandText = "-- SETUP INTERCEPTOR MODIFIED\n" + args.Command.CommandText;
+                    commandTextModified = true;
+                }
+            });
+
+            var remoteOrchestrator = new RemoteOrchestrator(serverProvider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table first (required for triggers)
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable);
+
+            // Now create the insert trigger
+            await remoteOrchestrator.CreateTriggerAsync(scopeInfo, "Product", "SalesLT", DbTriggerType.Insert, false);
+
+            Assert.True(interceptorCalled, "Setup-level interceptor should have been called");
+            Assert.True(commandTextModified, "Command text should have been modified by setup-level interceptor");
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_CreateTrigger_WithSetupTableInterceptor_ShouldCancel()
+        {
+            var scopeName = "scope";
+            var setup = new SyncSetup("SalesLT.Product");
+
+            var interceptorCalled = false;
+
+            // Configure setup-level interceptor to cancel
+            setup.Tables["Product", "SalesLT"].OnTriggerCreating(args =>
+            {
+                interceptorCalled = true;
+                if (args.TriggerType == DbTriggerType.Delete)
+                {
+                    args.Cancel = true; // Cancel delete trigger creation
+                }
+            });
+
+            var remoteOrchestrator = new RemoteOrchestrator(serverProvider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table first (required for triggers)
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable);
+
+            // Try to create delete trigger (should be cancelled)
+            await remoteOrchestrator.CreateTriggerAsync(scopeInfo, "Product", "SalesLT", DbTriggerType.Delete, false);
+
+            Assert.True(interceptorCalled, "Setup-level interceptor should have been called");
+
+            // Verify the trigger was NOT created
+            var exists = await remoteOrchestrator.ExistTriggerAsync(scopeInfo, "Product", "SalesLT", DbTriggerType.Delete);
+            Assert.False(exists, "Delete trigger should not exist because it was cancelled");
+        }
     }
 }

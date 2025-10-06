@@ -372,9 +372,14 @@ namespace Wormhole.Sync
 
                     var trackingTableNames = tableBuilder.GetParsedTrackingTableNames();
 
-                    var action = await this.InterceptAsync(
-                        new TrackingTableCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, trackingTableNames.QuotedFullName, command, runner.Connection, runner.Transaction),
-                        runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                    var args = new TrackingTableCreatingArgs(context, scopeInfo, tableBuilder.TableDescription, trackingTableNames.QuotedFullName, command, runner.Connection, runner.Transaction);
+
+                    // Invoke setup-level interceptor if configured
+                    var setupTable = scopeInfo.Setup?.Tables[tableBuilder.TableDescription.TableName, tableBuilder.TableDescription.SchemaName];
+                    setupTable?.TrackingTableInterceptor?.Invoke(args);
+
+                    // Invoke global interceptor
+                    var action = await this.InterceptAsync(args, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
                     if (action.Cancel || action.Command == null)
                         return (context, false);
