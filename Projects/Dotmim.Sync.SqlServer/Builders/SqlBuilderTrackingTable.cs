@@ -55,6 +55,22 @@ namespace Wormhole.Sync.SqlServer.Builders
                 stringBuilder.AppendLine($"{qColumnName.QuotedShortName} {columnType} {nullableColumn}, ");
             }
 
+            // Adding tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    // Find the column in the table description
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var qColumnName = new ObjectParser(column.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                        var columnType = this.SqlDbMetadata.GetCompatibleColumnTypeDeclarationString(column, this.TableDescription.OriginalProvider);
+                        stringBuilder.AppendLine($"{qColumnName.QuotedShortName} {columnType} NULL, ");
+                    }
+                }
+            }
+
             // adding the tracking columns
             stringBuilder.AppendLine($"[update_scope_id] [uniqueidentifier] NULL, ");
             stringBuilder.AppendLine($"[timestamp] [timestamp] NULL, ");

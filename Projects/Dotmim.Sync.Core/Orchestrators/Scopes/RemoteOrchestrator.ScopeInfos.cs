@@ -233,6 +233,13 @@ namespace Wormhole.Sync
                     // Copy custom provisioning SQL
                     if (inputTable.CustomProvisioningSql != null && inputTable.CustomProvisioningSql.Count > 0)
                         loadedTable.CustomProvisioningSql = new List<string>(inputTable.CustomProvisioningSql);
+
+                    // copy tracked colmns
+                    if (inputTable.TrackedColumns != null && inputTable.TrackedColumns.Count > 0)
+                    {
+                        loadedTable.TrackedColumns = new SetupColumns();
+                        loadedTable.TrackedColumns.AddRange(inputTable.TrackedColumns);
+                    }
                 }
             }
         }

@@ -568,6 +568,83 @@ namespace Wormhole.Sync.Tests.UnitTests
             HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
 
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithTrackedColumns_SqlServer()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_tracked_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create ProductCategory and Product tables with FK relationship
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    );
+
+                    CREATE TABLE [dbo].[Product] (
+                        [ProductID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ProductNumber] [nvarchar](25) NULL,
+                        [ProductCategoryID] [uniqueidentifier] NULL,
+                        [ModifiedDate] [datetime] NULL,
+                        CONSTRAINT [FK_Product_ProductCategory] FOREIGN KEY ([ProductCategoryID])
+                            REFERENCES [dbo].[ProductCategory] ([ProductCategoryID])
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory", "Product");
+
+            // Explicitly set columns
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+            setup.Tables["Product"].Columns.AddRange("ProductID", "Name", "ProductNumber", "ProductCategoryID", "ModifiedDate");
+
+            // Add ProductCategoryID as a tracked column on Product table
+            setup.Tables["Product"].AddTrackedColumn("ProductCategoryID");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Tracked Columns Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("===========================================");
+
+            // Verify that ProductCategoryID appears in the Product tracking table
+            Assert.Contains("Product_tracking", scripts);
+            var trackingTableSection = scripts.Substring(scripts.IndexOf("CREATE TABLE") + scripts.Substring(scripts.IndexOf("CREATE TABLE")).IndexOf("Product"));
+            Assert.Contains("[ProductCategoryID]", trackingTableSection);
+            Assert.Contains("uniqueidentifier", trackingTableSection);
+
+            // Verify that ProductCategoryID appears in INSERT trigger
+            Assert.Contains("Product_insert_trigger", scripts);
+            var insertTriggerSection = scripts.Substring(scripts.IndexOf("Product_insert_trigger"));
+            Assert.Contains("[ProductCategoryID]", insertTriggerSection.Substring(0, Math.Min(2000, insertTriggerSection.Length)));
+
+            // Verify that ProductCategoryID appears in UPDATE trigger
+            Assert.Contains("Product_update_trigger", scripts);
+            var updateTriggerSection = scripts.Substring(scripts.IndexOf("Product_update_trigger"));
+            Assert.Contains("[ProductCategoryID]", updateTriggerSection.Substring(0, Math.Min(2000, updateTriggerSection.Length)));
+
+            // Verify that ProductCategoryID appears in DELETE trigger
+            Assert.Contains("Product_delete_trigger", scripts);
+            var deleteTriggerSection = scripts.Substring(scripts.IndexOf("Product_delete_trigger"));
+            Assert.Contains("[ProductCategoryID]", deleteTriggerSection.Substring(0, Math.Min(2000, deleteTriggerSection.Length)));
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
         public void Dispose()
         {
         }

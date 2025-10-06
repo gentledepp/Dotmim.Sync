@@ -138,6 +138,20 @@ namespace Wormhole.Sync.PostgreSql.Builders
                 argAnd = " AND ";
             }
 
+            // Add tracked columns from table description
+            var fkColumnsUpdate = new StringBuilder();
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+                    idColumns.Append($"{argComma}{columnParser.QuotedShortName}");
+                    idColumnsSelects.Append($"{argComma}NEW.{columnParser.QuotedShortName}");
+                    fkColumnsUpdate.Append($", {columnParser.QuotedShortName} = NEW.{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
+            }
+
             var stringBuilder = new StringBuilder();
             stringBuilder.AppendLine($"CREATE OR REPLACE FUNCTION \"{this.NpgsqlObjectNames.TableSchemaName}\".{commandTriggerName.ToLowerInvariant()}_function()");
             stringBuilder.AppendLine($"  RETURNS trigger");
@@ -149,8 +163,8 @@ namespace Wormhole.Sync.PostgreSql.Builders
             stringBuilder.AppendLine($"  INSERT INTO {this.NpgsqlObjectNames.TrackingTableQuotedFullName} ");
             stringBuilder.AppendLine($"  ({idColumns}, \"update_scope_id\", \"timestamp\" ,\"sync_row_is_tombstone\" ,\"last_change_datetime\")");
             stringBuilder.AppendLine($"  VALUES( {idColumnsSelects}, null, {NpgsqlSyncAdapter.TimestampValue}, 0, now())");
-            stringBuilder.AppendLine($"  ON CONFLICT({idColumns}) DO UPDATE");
-            stringBuilder.AppendLine($"  SET \"timestamp\" = {NpgsqlSyncAdapter.TimestampValue}, \"sync_row_is_tombstone\" = 0, \"update_scope_id\" = null ,\"last_change_datetime\" = now();");
+            stringBuilder.AppendLine($"  ON CONFLICT({primaryKeys.Where(c => !c.IsReadOnly).Select(c => new ObjectParser(c.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote).QuotedShortName).Aggregate((a, b) => $"{a},{b}")}) DO UPDATE");
+            stringBuilder.AppendLine($"  SET \"timestamp\" = {NpgsqlSyncAdapter.TimestampValue}, \"sync_row_is_tombstone\" = 0, \"update_scope_id\" = null ,\"last_change_datetime\" = now(){fkColumnsUpdate};");
             stringBuilder.AppendLine($"return NEW;");
             stringBuilder.AppendLine($"END;");
             stringBuilder.AppendLine($"$new$;");
@@ -184,6 +198,20 @@ namespace Wormhole.Sync.PostgreSql.Builders
                 argAnd = " AND ";
             }
 
+            // Add tracked columns from table description
+            var fkColumnsUpdate = new StringBuilder();
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+                    idColumns.Append($"{argComma}{columnParser.QuotedShortName}");
+                    idColumnsSelects.Append($"{argComma}OLD.{columnParser.QuotedShortName}");
+                    fkColumnsUpdate.Append($", {columnParser.QuotedShortName} = OLD.{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
+            }
+
             var stringBuilder = new StringBuilder();
             stringBuilder.AppendLine($"CREATE OR REPLACE FUNCTION \"{this.NpgsqlObjectNames.TableSchemaName}\".{commandTriggerName.ToLowerInvariant()}_function()");
             stringBuilder.AppendLine($"  RETURNS trigger");
@@ -195,8 +223,8 @@ namespace Wormhole.Sync.PostgreSql.Builders
             stringBuilder.AppendLine($"  INSERT INTO {this.NpgsqlObjectNames.TrackingTableQuotedFullName} ");
             stringBuilder.AppendLine($"  ({idColumns}, \"update_scope_id\", \"timestamp\" ,\"sync_row_is_tombstone\" ,\"last_change_datetime\")");
             stringBuilder.AppendLine($"  VALUES( {idColumnsSelects}, null, {NpgsqlSyncAdapter.TimestampValue}, 1, now())");
-            stringBuilder.AppendLine($"  ON CONFLICT({idColumns}) DO UPDATE");
-            stringBuilder.AppendLine($"  SET \"timestamp\" = {NpgsqlSyncAdapter.TimestampValue}, \"sync_row_is_tombstone\" = 1, \"update_scope_id\" = null ,\"last_change_datetime\" = now();");
+            stringBuilder.AppendLine($"  ON CONFLICT({primaryKeys.Where(c => !c.IsReadOnly).Select(c => new ObjectParser(c.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote).QuotedShortName).Aggregate((a, b) => $"{a},{b}")}) DO UPDATE");
+            stringBuilder.AppendLine($"  SET \"timestamp\" = {NpgsqlSyncAdapter.TimestampValue}, \"sync_row_is_tombstone\" = 1, \"update_scope_id\" = null ,\"last_change_datetime\" = now(){fkColumnsUpdate};");
             stringBuilder.AppendLine($"return OLD;");
             stringBuilder.AppendLine($"END;");
             stringBuilder.AppendLine($"$new$;");

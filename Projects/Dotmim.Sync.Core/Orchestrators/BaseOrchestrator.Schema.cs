@@ -200,6 +200,13 @@ namespace Wormhole.Sync
                 // Validate the column list and get the dmTable configuration object.
                 this.FillSyncTableWithColumns(context, setupTable, syncTable, lstColumns);
 
+                // Copy tracked columns from setup table to sync table
+                if (setupTable.TrackedColumns != null && setupTable.TrackedColumns.Count > 0)
+                {
+                    foreach (var trackedColumn in setupTable.TrackedColumns)
+                        syncTable.TrackedColumns.Add(trackedColumn);
+                }
+
                 // Check primary Keys
                 await this.SetPrimaryKeysAsync(context, syncTable, tableBuilder, connection, transaction).ConfigureAwait(false);
 

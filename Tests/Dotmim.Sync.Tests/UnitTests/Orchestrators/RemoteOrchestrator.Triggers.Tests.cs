@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Wormhole.Sync.Tests.Misc;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -317,6 +318,142 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Verify the trigger was NOT created
             var exists = await remoteOrchestrator.ExistTriggerAsync(scopeInfo, "Product", "SalesLT", DbTriggerType.Delete);
             Assert.False(exists, "Delete trigger should not exist because it was cancelled");
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_CreateTrigger_WithTrackedColumns_ShouldIncludeTrackedColumnsInTriggers()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_trg_tracked_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create ProductCategory and Product tables with FK relationship
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL
+                    );
+
+                    CREATE TABLE [dbo].[Product] (
+                        [ProductID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ProductCategoryID] [uniqueidentifier] NULL,
+                        CONSTRAINT [FK_Product_ProductCategory] FOREIGN KEY ([ProductCategoryID])
+                            REFERENCES [dbo].[ProductCategory] ([ProductCategoryID])
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var scopeName = "scope";
+            var setup = new SyncSetup("ProductCategory", "Product");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name");
+            setup.Tables["Product"].Columns.AddRange("ProductID", "Name", "ProductCategoryID");
+
+            // Add ProductCategoryID as a tracked column
+            setup.Tables["Product"].AddTrackedColumn("ProductCategoryID");
+
+            var provider = new SqlSyncProvider(cs);
+            var remoteOrchestrator = new RemoteOrchestrator(provider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table first (required for triggers)
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable);
+
+            // Create INSERT trigger
+            await remoteOrchestrator.CreateTriggerAsync(scopeInfo, "Product", null, DbTriggerType.Insert, false);
+
+            // Verify trigger exists and contains ProductCategoryID
+            await using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+
+                var getTriggerSql = @"
+                    SELECT OBJECT_DEFINITION(OBJECT_ID(N'dbo.Product_insert_trigger')) AS TriggerDefinition";
+
+                using var cmd = new SqlCommand(getTriggerSql, connection);
+                var triggerDef = (string)await cmd.ExecuteScalarAsync();
+
+                Assert.NotNull(triggerDef);
+                Assert.Contains("[ProductCategoryID]", triggerDef);
+            }
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_CreateTrigger_WithMultipleTrackedColumns_ShouldIncludeAllColumns()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_trg_multi_tracked_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create ProductCategory and Product tables
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL
+                    );
+
+                    CREATE TABLE [dbo].[Product] (
+                        [ProductID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ProductCategoryID] [uniqueidentifier] NULL,
+                        [ModifiedDate] [datetime] NULL,
+                        CONSTRAINT [FK_Product_ProductCategory] FOREIGN KEY ([ProductCategoryID])
+                            REFERENCES [dbo].[ProductCategory] ([ProductCategoryID])
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var scopeName = "scope";
+            var setup = new SyncSetup("ProductCategory", "Product");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name");
+            setup.Tables["Product"].Columns.AddRange("ProductID", "Name", "ProductCategoryID", "ModifiedDate");
+
+            // Add both ProductCategoryID and ModifiedDate as tracked columns
+            setup.Tables["Product"]
+                .AddTrackedColumn("ProductCategoryID")
+                .AddTrackedColumn("ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var remoteOrchestrator = new RemoteOrchestrator(provider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table first
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable);
+
+            // Create UPDATE trigger
+            await remoteOrchestrator.CreateTriggerAsync(scopeInfo, "Product", null, DbTriggerType.Update, false);
+
+            // Verify trigger contains both tracked columns
+            await using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+
+                var getTriggerSql = @"
+                    SELECT OBJECT_DEFINITION(OBJECT_ID(N'dbo.Product_update_trigger')) AS TriggerDefinition";
+
+                using var cmd = new SqlCommand(getTriggerSql, connection);
+                var triggerDef = (string)await cmd.ExecuteScalarAsync();
+
+                Assert.NotNull(triggerDef);
+                Assert.Contains("[ProductCategoryID]", triggerDef);
+                Assert.Contains("[ModifiedDate]", triggerDef);
+            }
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
     }
 }

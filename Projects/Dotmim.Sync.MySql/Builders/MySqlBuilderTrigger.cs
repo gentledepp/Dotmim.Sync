@@ -79,6 +79,18 @@ namespace Wormhole.Sync.MySql.Builders
                 argAnd = " AND ";
             }
 
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t\t{argComma}old.{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
+            }
+
             createTrigger.Append(stringBuilderArguments);
             createTrigger.AppendLine("\t\t,`update_scope_id`");
             createTrigger.AppendLine("\t\t,`timestamp`");
@@ -146,6 +158,18 @@ namespace Wormhole.Sync.MySql.Builders
                 stringPkAreNull.Append($"{argAnd}{this.MySqlObjectNames.TrackingTableQuotedShortName}.{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t\t{argComma}new.{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
             }
 
             createTrigger.Append(stringBuilderArguments);
@@ -225,6 +249,18 @@ namespace Wormhole.Sync.MySql.Builders
                 stringPkAreNull.Append($"{argAnd}{this.MySqlObjectNames.TrackingTableQuotedShortName}.{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t\t{argComma}new.{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
             }
 
             createTrigger.Append(stringBuilderArguments);

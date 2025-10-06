@@ -49,6 +49,14 @@ namespace Wormhole.Sync
         public Collection<string> PrimaryKeys { get; set; } = [];
 
         /// <summary>
+        /// Gets or Sets the tracked columns.
+        /// These columns will be added to the tracking table and updated by triggers.
+        /// Copied from SetupTable.TrackedColumns during table creation.
+        /// </summary>
+        [DataMember(Name = "tcols", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        public List<string> TrackedColumns { get; set; }
+
+        /// <summary>
         /// Gets the ShemaTable's rows.
         /// </summary>
         [IgnoreDataMember]
@@ -70,6 +78,7 @@ namespace Wormhole.Sync
         {
             this.Rows = new SyncRows(this);
             this.Columns = new SyncColumns(this);
+            this.TrackedColumns = [];
         }
 
         /// <summary>
@@ -141,6 +150,12 @@ namespace Wormhole.Sync
 
             foreach (var pkey in this.PrimaryKeys)
                 clone.PrimaryKeys.Add(pkey);
+
+            if (this.TrackedColumns != null)
+            {
+                foreach (var trackedColumn in this.TrackedColumns)
+                    clone.TrackedColumns.Add(trackedColumn);
+            }
 
             return clone;
         }

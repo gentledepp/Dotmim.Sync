@@ -133,6 +133,17 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine("SET  [sync_row_is_tombstone] = 1");
             stringBuilder.AppendLine("\t,[update_scope_id] = NULL -- scope id is always NULL when update is made locally");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
+
+            // Update tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilder.AppendLine($"\t,[{columnParser.ObjectName}] = [d].{columnParser.QuotedShortName}");
+                }
+            }
+
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
             stringBuilder.Append($"JOIN DELETED AS [d] ON ");
             stringBuilder.AppendLine(SqlManagementUtils.JoinTwoTablesOnClause(this.TableDescription.PrimaryKeys, "[side]", "[d]"));
@@ -157,6 +168,18 @@ namespace Wormhole.Sync.SqlServer.Builders
                 stringPkAreNull.Append($"{argAnd}[side].{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t{argComma}[d].{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t{argComma}{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
             }
 
             stringBuilder.Append(stringBuilderArguments2);
@@ -189,6 +212,17 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine("SET  [sync_row_is_tombstone] = 0");
             stringBuilder.AppendLine("\t,[update_scope_id] = NULL -- scope id is always NULL when update is made locally");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
+
+            // Update tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilder.AppendLine($"\t,[{columnParser.ObjectName}] = [i].{columnParser.QuotedShortName}");
+                }
+            }
+
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
             stringBuilder.Append($"JOIN INSERTED AS [i] ON ");
             stringBuilder.AppendLine(SqlManagementUtils.JoinTwoTablesOnClause(this.TableDescription.PrimaryKeys, "[side]", "[i]"));
@@ -212,6 +246,18 @@ namespace Wormhole.Sync.SqlServer.Builders
                 stringPkAreNull.Append($"{argAnd}[side].{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t{argComma}[i].{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t{argComma}{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
             }
 
             stringBuilder.Append(stringBuilderArguments2);
@@ -243,6 +289,17 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine("UPDATE [side] ");
             stringBuilder.AppendLine("SET \t[update_scope_id] = NULL -- since the update if from local, it's a NULL");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
+
+            // Update tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilder.AppendLine($"\t,[{columnParser.ObjectName}] = [i].{columnParser.QuotedShortName}");
+                }
+            }
+
             stringBuilder.AppendLine();
 
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
@@ -267,6 +324,18 @@ namespace Wormhole.Sync.SqlServer.Builders
                 stringPkAreNull.Append($"{argAnd}[side].{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var columnParser = new ObjectParser(trackedColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    stringBuilderArguments.AppendLine($"\t{argComma}[i].{columnParser.QuotedShortName}");
+                    stringBuilderArguments2.AppendLine($"\t{argComma}{columnParser.QuotedShortName}");
+                    argComma = ",";
+                }
             }
 
             stringBuilder.Append(stringBuilderArguments2);

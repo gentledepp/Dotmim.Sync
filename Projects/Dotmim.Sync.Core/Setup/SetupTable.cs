@@ -70,6 +70,14 @@ namespace Wormhole.Sync
         public string CustomTrackingTableName { get; set; }
 
         /// <summary>
+        /// Gets or Sets the tracked columns collection.
+        /// These columns will be added to the tracking table and updated by triggers.
+        /// Useful for tracking foreign key values or filter columns.
+        /// </summary>
+        [DataMember(Name = "tcols", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        public SetupColumns TrackedColumns { get; set; }
+
+        /// <summary>
         /// Gets a value indicating whether check if SetupTable has columns. If not columns specified, all the columns from server database are retrieved.
         /// </summary>
         [IgnoreDataMember]
@@ -121,6 +129,7 @@ namespace Wormhole.Sync
             this.SchemaName = string.IsNullOrEmpty(tableParser.SchemaName) ? string.Empty : tableParser.SchemaName;
 
             this.Columns = [];
+            this.TrackedColumns = [];
         }
 
         /// <summary>
@@ -225,6 +234,23 @@ namespace Wormhole.Sync
         }
 
         /// <summary>
+        /// Add a column to track in the tracking table.
+        /// The column will be added to the tracking table and updated by triggers.
+        /// </summary>
+        /// <param name="columnName">The name of the column to track.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable AddTrackedColumn(string columnName)
+        {
+            if (this.TrackedColumns == null)
+                this.TrackedColumns = [];
+
+            if (!string.IsNullOrWhiteSpace(columnName) && !this.TrackedColumns.Contains(columnName))
+                this.TrackedColumns.Add(columnName);
+
+            return this;
+        }
+
+        /// <summary>
         /// ToString override. Gets the full name + columns count.
         /// </summary>
         public override string ToString() => this.GetFullName() + (this.HasColumns ? $" ({this.Columns.Count} columns)" : string.Empty);
@@ -249,6 +275,7 @@ namespace Wormhole.Sync
             // checking properties
             return this.SyncDirection == otherInstance.SyncDirection
                     && this.Columns.CompareWith(otherInstance.Columns, (c, oc) => string.Equals(c, oc, sc))
+                    && this.TrackedColumns.CompareWith(otherInstance.TrackedColumns, (c, oc) => string.Equals(c, oc, sc))
                     && string.Equals(this.CustomInsertTriggerName, otherInstance.CustomInsertTriggerName, sc)
                     && string.Equals(this.CustomUpdateTriggerName, otherInstance.CustomUpdateTriggerName, sc)
                     && string.Equals(this.CustomDeleteTriggerName, otherInstance.CustomDeleteTriggerName, sc)

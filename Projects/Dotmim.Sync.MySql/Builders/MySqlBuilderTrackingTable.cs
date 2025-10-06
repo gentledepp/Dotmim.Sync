@@ -60,6 +60,22 @@ namespace Wormhole.Sync.MySql.Builders
                 stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} NOT NULL, ");
             }
 
+            // Adding tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    // Find the column in the table description
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                        var columnType = this.MySqlDbMetadata.GetCompatibleColumnTypeDeclarationString(column, this.TableDescription.OriginalProvider);
+                        stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} NULL, ");
+                    }
+                }
+            }
+
             // adding the tracking columns
             stringBuilder.AppendLine($"`update_scope_id` VARCHAR(36) NULL, ");
             stringBuilder.AppendLine($"`timestamp` BIGINT NULL, ");

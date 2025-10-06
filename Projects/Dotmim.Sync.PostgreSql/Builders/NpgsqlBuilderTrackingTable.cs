@@ -57,6 +57,22 @@ namespace Wormhole.Sync.PostgreSql.Builders
                 stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} {nullableColumn}, ");
             }
 
+            // Adding tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    // Find the column in the table description
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+                        var columnType = this.NpgsqlDbMetadata.GetCompatibleColumnTypeDeclarationString(column, this.TableDescription.OriginalProvider);
+                        stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} NULL, ");
+                    }
+                }
+            }
+
             // adding the tracking columns
             stringBuilder.AppendLine($"\"update_scope_id\" uuid NULL, ");
             stringBuilder.AppendLine($"\"timestamp\" bigint NULL, ");
