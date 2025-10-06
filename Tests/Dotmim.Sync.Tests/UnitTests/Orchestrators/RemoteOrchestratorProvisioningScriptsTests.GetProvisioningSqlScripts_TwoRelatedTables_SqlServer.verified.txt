@@ -53,6 +53,21 @@ CREATE TRIGGER [dbo].[ProductCategory_update_trigger] ON [ProductCategory] FOR U
 
 SET NOCOUNT ON;
 
+-- Stage 1: Fast column-level check - exit early if no tracked columns were updated
+IF NOT (UPDATE([ProductCategoryID]) OR UPDATE([Name]) OR UPDATE([ModifiedDate]))
+	RETURN;
+
+-- Stage 2: Precise value-level comparison using EXCEPT
+IF NOT EXISTS (
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM INSERTED
+	EXCEPT
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM DELETED
+)
+	RETURN;
+
+-- Stage 3: Perform the actual tracking update
 UPDATE [side] 
 SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
 	,[last_change_datetime] = GetUtcDate()
@@ -394,6 +409,21 @@ CREATE TRIGGER [dbo].[Product_update_trigger] ON [Product] FOR UPDATE AS
 
 SET NOCOUNT ON;
 
+-- Stage 1: Fast column-level check - exit early if no tracked columns were updated
+IF NOT (UPDATE([ProductID]) OR UPDATE([Name]) OR UPDATE([ProductNumber]) OR UPDATE([ProductCategoryID]) OR UPDATE([ModifiedDate]))
+	RETURN;
+
+-- Stage 2: Precise value-level comparison using EXCEPT
+IF NOT EXISTS (
+	SELECT [ProductID], [Name], [ProductNumber], [ProductCategoryID], [ModifiedDate]
+	FROM INSERTED
+	EXCEPT
+	SELECT [ProductID], [Name], [ProductNumber], [ProductCategoryID], [ModifiedDate]
+	FROM DELETED
+)
+	RETURN;
+
+-- Stage 3: Perform the actual tracking update
 UPDATE [side] 
 SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
 	,[last_change_datetime] = GetUtcDate()

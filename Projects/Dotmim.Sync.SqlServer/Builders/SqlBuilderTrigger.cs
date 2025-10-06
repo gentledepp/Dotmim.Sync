@@ -2,6 +2,7 @@
 using Wormhole.Sync.DatabaseStringParsers;
 using Wormhole.Sync.SqlServer.Manager;
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
@@ -286,6 +287,52 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine();
             stringBuilder.AppendLine("SET NOCOUNT ON;");
             stringBuilder.AppendLine();
+
+            // Stage 1: Fast column-level check - exit early if no tracked columns were updated
+            var mutableColumns = this.TableDescription.GetMutableColumns(false, true).ToList();
+
+            if (mutableColumns.Count > 0)
+            {
+                stringBuilder.AppendLine("-- Stage 1: Fast column-level check - exit early if no tracked columns were updated");
+                stringBuilder.Append("IF NOT (");
+
+                var updateChecks = new List<string>();
+                foreach (var column in mutableColumns)
+                {
+                    var columnParser = new ObjectParser(column.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    updateChecks.Add($"UPDATE({columnParser.QuotedShortName})");
+                }
+
+                stringBuilder.Append(string.Join(" OR ", updateChecks));
+                stringBuilder.AppendLine(")");
+                stringBuilder.AppendLine("\tRETURN;");
+                stringBuilder.AppendLine();
+
+                // Stage 2: Precise value-level comparison using EXCEPT
+                stringBuilder.AppendLine("-- Stage 2: Precise value-level comparison using EXCEPT");
+                stringBuilder.AppendLine("IF NOT EXISTS (");
+                stringBuilder.Append("\tSELECT ");
+
+                var columnSelects = new List<string>();
+                foreach (var column in mutableColumns)
+                {
+                    var columnParser = new ObjectParser(column.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                    columnSelects.Add(columnParser.QuotedShortName);
+                }
+
+                stringBuilder.AppendLine(string.Join(", ", columnSelects));
+                stringBuilder.AppendLine("\tFROM INSERTED");
+                stringBuilder.AppendLine("\tEXCEPT");
+                stringBuilder.Append("\tSELECT ");
+                stringBuilder.AppendLine(string.Join(", ", columnSelects));
+                stringBuilder.AppendLine("\tFROM DELETED");
+                stringBuilder.AppendLine(")");
+                stringBuilder.AppendLine("\tRETURN;");
+                stringBuilder.AppendLine();
+            }
+
+            // Stage 3: Perform the actual tracking update
+            stringBuilder.AppendLine("-- Stage 3: Perform the actual tracking update");
             stringBuilder.AppendLine("UPDATE [side] ");
             stringBuilder.AppendLine("SET \t[update_scope_id] = NULL -- since the update if from local, it's a NULL");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");

@@ -1,0 +1,41 @@
+﻿CREATE TRIGGER [SalesLT].[Product_update_trigger] ON [SalesLT].[Product] FOR UPDATE AS
+
+SET NOCOUNT ON;
+
+-- Stage 1: Fast column-level check - exit early if no tracked columns were updated
+IF NOT (UPDATE([ProductID]) OR UPDATE([Name]) OR UPDATE([ProductNumber]))
+	RETURN;
+
+-- Stage 2: Precise value-level comparison using EXCEPT
+IF NOT EXISTS (
+	SELECT [ProductID], [Name], [ProductNumber]
+	FROM INSERTED
+	EXCEPT
+	SELECT [ProductID], [Name], [ProductNumber]
+	FROM DELETED
+)
+	RETURN;
+
+-- Stage 3: Perform the actual tracking update
+UPDATE [side] 
+SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
+	,[last_change_datetime] = GetUtcDate()
+
+FROM [SalesLT].[Product_tracking] [side]
+JOIN INSERTED AS [i] ON [side].[ProductID] = [i].[ProductID]
+INSERT INTO [SalesLT].[Product_tracking] (
+	 [ProductID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [i].[ProductID]
+	,NULL
+	,0
+	,GetUtcDate()
+FROM INSERTED [i]
+JOIN DELETED AS [d] ON [d].[ProductID] = [i].[ProductID]
+LEFT JOIN [SalesLT].[Product_tracking] [side] ON [i].[ProductID] = [side].[ProductID]
+WHERE [side].[ProductID] IS NULL
+

@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using VerifyXunit;
 using Wormhole.Sync.Tests.Misc;
 using Xunit;
 using Xunit.Abstractions;
@@ -454,6 +455,255 @@ namespace Wormhole.Sync.Tests.UnitTests
             }
 
             HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_UpdateTrigger_ShouldOnlyUpdateTrackingTable_WhenTrackedColumnsChange()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_trg_optimized_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a test table with both tracked and untracked columns
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[TestProduct] (
+                        [ProductID] [int] NOT NULL PRIMARY KEY IDENTITY(1,1),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [Price] [decimal](18, 2) NOT NULL,
+                        [UntrackedMetadata] [nvarchar](100) NULL,
+                        [LastModified] [datetime] NOT NULL DEFAULT GETDATE()
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var scopeName = "scope";
+            // Only include Name and Price in the sync scope, exclude UntrackedMetadata
+            var setup = new SyncSetup("TestProduct");
+            setup.Tables["TestProduct"].Columns.AddRange("ProductID", "Name", "Price", "LastModified");
+
+            var provider = new SqlSyncProvider(cs);
+            var remoteOrchestrator = new RemoteOrchestrator(provider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table and triggers
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable | SyncProvision.Triggers);
+
+            // Insert a test row
+            int productId;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var insertSql = "INSERT INTO [dbo].[TestProduct] ([Name], [Price], [UntrackedMetadata]) VALUES ('Product1', 100.00, 'Initial'); SELECT SCOPE_IDENTITY();";
+                using var cmd = new SqlCommand(insertSql, connection);
+                productId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+
+            // Get initial tracking table timestamp
+            DateTime? initialTimestamp;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var getSql = "SELECT [last_change_datetime] FROM [dbo].[TestProduct_tracking] WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(getSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                initialTimestamp = (DateTime?)await cmd.ExecuteScalarAsync();
+            }
+
+            Assert.NotNull(initialTimestamp);
+
+            // Wait a small amount to ensure timestamp would change if updated
+            await Task.Delay(50);
+
+            // Update ONLY the untracked column (UntrackedMetadata) - tracking table should NOT be updated
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var updateSql = "UPDATE [dbo].[TestProduct] SET [UntrackedMetadata] = 'Modified' WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(updateSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Check tracking table timestamp - should be UNCHANGED
+            DateTime? timestampAfterUntrackedUpdate;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var getSql = "SELECT [last_change_datetime] FROM [dbo].[TestProduct_tracking] WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(getSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                timestampAfterUntrackedUpdate = (DateTime?)await cmd.ExecuteScalarAsync();
+            }
+
+            Assert.Equal(initialTimestamp, timestampAfterUntrackedUpdate);
+
+            // Wait a small amount
+            await Task.Delay(100);
+
+            // Update a TRACKED column (Price) - tracking table SHOULD be updated
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var updateSql = "UPDATE [dbo].[TestProduct] SET [Price] = 200.00 WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(updateSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Check tracking table timestamp - should be CHANGED
+            DateTime? timestampAfterTrackedUpdate;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var getSql = "SELECT [last_change_datetime] FROM [dbo].[TestProduct_tracking] WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(getSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                timestampAfterTrackedUpdate = (DateTime?)await cmd.ExecuteScalarAsync();
+            }
+
+            Assert.NotEqual(initialTimestamp, timestampAfterTrackedUpdate);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_UpdateTrigger_ShouldNotUpdateTrackingTable_WhenNoValueChanges()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_trg_nochange_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a test table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[TestProduct] (
+                        [ProductID] [int] NOT NULL PRIMARY KEY IDENTITY(1,1),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [Price] [decimal](18, 2) NOT NULL
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var scopeName = "scope";
+            var setup = new SyncSetup("TestProduct");
+            setup.Tables["TestProduct"].Columns.AddRange("ProductID", "Name", "Price");
+
+            var provider = new SqlSyncProvider(cs);
+            var remoteOrchestrator = new RemoteOrchestrator(provider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table and triggers
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable | SyncProvision.Triggers);
+
+            // Insert a test row
+            int productId;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var insertSql = "INSERT INTO [dbo].[TestProduct] ([Name], [Price]) VALUES ('Product1', 100.00); SELECT SCOPE_IDENTITY();";
+                using var cmd = new SqlCommand(insertSql, connection);
+                productId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+
+            // Get initial tracking table timestamp
+            DateTime? initialTimestamp;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var getSql = "SELECT [last_change_datetime] FROM [dbo].[TestProduct_tracking] WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(getSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                initialTimestamp = (DateTime?)await cmd.ExecuteScalarAsync();
+            }
+
+            Assert.NotNull(initialTimestamp);
+
+            // Wait a small amount to ensure timestamp would change if updated
+            await Task.Delay(100);
+
+            // Update with SAME values - tracking table should NOT be updated (thanks to EXCEPT)
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var updateSql = "UPDATE [dbo].[TestProduct] SET [Name] = 'Product1', [Price] = 100.00 WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(updateSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Check tracking table timestamp - should be UNCHANGED
+            DateTime? timestampAfterNoValueChange;
+            using (var connection = new SqlConnection(cs))
+            {
+                await connection.OpenAsync();
+                var getSql = "SELECT [last_change_datetime] FROM [dbo].[TestProduct_tracking] WHERE [ProductID] = @ProductID";
+                using var cmd = new SqlCommand(getSql, connection);
+                cmd.Parameters.AddWithValue("@ProductID", productId);
+                timestampAfterNoValueChange = (DateTime?)await cmd.ExecuteScalarAsync();
+            }
+
+            Assert.Equal(initialTimestamp, timestampAfterNoValueChange);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task RemoteOrchestrator_UpdateTrigger_ShouldContainOptimizationStages()
+        {
+            var scopeName = "scope";
+            var setup = new SyncSetup("SalesLT.Product");
+            setup.Tables["Product", "SalesLT"].Columns.AddRange("ProductID", "Name", "ProductNumber");
+
+            var remoteOrchestrator = new RemoteOrchestrator(serverProvider, options);
+            var scopeInfo = await remoteOrchestrator.GetScopeInfoAsync(scopeName, setup);
+
+            // Provision tracking table first
+            await remoteOrchestrator.ProvisionAsync(scopeInfo, SyncProvision.TrackingTable);
+
+            // Create UPDATE trigger
+            await remoteOrchestrator.CreateTriggerAsync(scopeInfo, "Product", "SalesLT", DbTriggerType.Update, true);
+
+            // Verify trigger contains optimization stages
+            await using (var connection = new SqlConnection(serverProvider.ConnectionString))
+            {
+                await connection.OpenAsync();
+
+                var getTriggerSql = @"
+                    SELECT OBJECT_DEFINITION(OBJECT_ID(N'SalesLT.Product_update_trigger')) AS TriggerDefinition";
+
+                using var cmd = new SqlCommand(getTriggerSql, connection);
+                var triggerDef = (string)await cmd.ExecuteScalarAsync();
+
+                Assert.NotNull(triggerDef);
+
+                // Verify Stage 1 comment exists
+                Assert.Contains("Stage 1: Fast column-level check", triggerDef);
+
+                // Verify Stage 2 comment exists
+                Assert.Contains("Stage 2: Precise value-level comparison using EXCEPT", triggerDef);
+
+                // Verify Stage 3 comment exists
+                Assert.Contains("Stage 3: Perform the actual tracking update", triggerDef);
+
+                // Verify UPDATE() function is used
+                Assert.Contains("UPDATE(", triggerDef);
+
+                // Verify EXCEPT operator is used
+                Assert.Contains("EXCEPT", triggerDef);
+
+                await Verifier.Verify(triggerDef);
+            }
         }
     }
 }
