@@ -337,7 +337,7 @@ WHERE (
 END
 
 -- ---------------------------------
-;
+GO
 
 CREATE TABLE [Product_tracking] (
 [ProductID] uniqueidentifier NOT NULL, 

@@ -392,12 +392,100 @@ namespace Wormhole.Sync
         }
 
         /// <summary>
+        /// Internal method to get tracking table provisioning SQL script with interceptor support.
+        /// </summary>
+        internal async Task<string> InternalGetTrackingTableProvisioningSqlAsync(
+            SyncContext context, ScopeInfo scopeInfo, SyncTable schemaTable, SetupTable setupTable,
+            DbTableBuilder tableBuilder, DbConnection connection, DbTransaction transaction,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            var trackingTableCmd = await tableBuilder.GetCreateTrackingTableCommandAsync(connection, transaction).ConfigureAwait(false);
+
+            if (trackingTableCmd == null || string.IsNullOrEmpty(trackingTableCmd.CommandText))
+                return null;
+
+            var trackingTableNames = tableBuilder.GetParsedTrackingTableNames();
+
+            // Fire TrackingTableCreatingArgs interceptor
+            var args = new TrackingTableCreatingArgs(context, scopeInfo, schemaTable, trackingTableNames.QuotedFullName, trackingTableCmd, connection, transaction);
+
+            // Invoke setup-level interceptor if configured
+            setupTable?.TrackingTableInterceptor?.Invoke(args);
+
+            // Invoke global interceptor
+            await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
+
+            if (args.Cancel || args.Command == null)
+                return null;
+
+            return args.Command.CommandText;
+        }
+
+        /// <summary>
+        /// Internal method to get trigger provisioning SQL script with interceptor support.
+        /// </summary>
+        internal async Task<string> InternalGetTriggerProvisioningSqlAsync(
+            SyncContext context, ScopeInfo scopeInfo, SyncTable schemaTable, SetupTable setupTable,
+            DbTableBuilder tableBuilder, DbTriggerType triggerType,
+            DbConnection connection, DbTransaction transaction,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            var triggerCmd = await tableBuilder.GetCreateTriggerCommandAsync(triggerType, connection, transaction).ConfigureAwait(false);
+
+            if (triggerCmd == null || string.IsNullOrEmpty(triggerCmd.CommandText))
+                return null;
+
+            // Fire TriggerCreatingArgs interceptor
+            var args = new TriggerCreatingArgs(context, scopeInfo, schemaTable, triggerType, triggerCmd, connection, transaction);
+
+            // Invoke setup-level interceptor if configured
+            setupTable?.TriggerInterceptor?.Invoke(args);
+
+            // Invoke global interceptor
+            await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
+
+            if (args.Cancel || args.Command == null)
+                return null;
+
+            return args.Command.CommandText;
+        }
+
+        /// <summary>
+        /// Internal method to get stored procedure provisioning SQL script with interceptor support.
+        /// </summary>
+        internal async Task<string> InternalGetStoredProcedureProvisioningSqlAsync(
+            SyncContext context, ScopeInfo scopeInfo, SyncTable schemaTable, SetupTable setupTable,
+            DbTableBuilder tableBuilder, DbStoredProcedureType storedProcedureType, SyncFilter filter,
+            DbConnection connection, DbTransaction transaction,
+            IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            var spCmd = await tableBuilder.GetCreateStoredProcedureCommandAsync(storedProcedureType, filter, connection, transaction).ConfigureAwait(false);
+
+            if (spCmd == null || string.IsNullOrEmpty(spCmd.CommandText))
+                return null;
+
+            // Fire StoredProcedureCreatingArgs interceptor
+            var args = new StoredProcedureCreatingArgs(context, scopeInfo, schemaTable, storedProcedureType, spCmd, connection, transaction);
+
+            // Invoke setup-level interceptor if configured
+            setupTable?.StoredProcedureInterceptor?.Invoke(args);
+
+            // Invoke global interceptor
+            await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
+
+            if (args.Cancel || args.Command == null)
+                return null;
+
+            return args.Command.CommandText;
+        }
+
+        /// <summary>
         /// Gets all provisioning SQL scripts for all tables in the setup.
         /// Requires connection to discover schema but generates scripts without executing them.
         /// </summary>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, DbConnection connection = null, DbTransaction transaction = null)
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
         {
-            var context = new SyncContext(Guid.NewGuid(), SyncOptions.DefaultScopeName);
+            var context = new SyncContext(Guid.NewGuid(), scopeName??SyncOptions.DefaultScopeName);
 
             try
             {
@@ -432,21 +520,57 @@ namespace Wormhole.Sync
                     foreach (var schemaTable in schemaTables)
                     {
                         var syncAdapter = this.GetSyncAdapter(schemaTable, scopeInfo);
-                        var tableScripts = await syncAdapter.GetProvisioningSqlScriptsAsync(runner.Connection, runner.Transaction).ConfigureAwait(false);
+                        var tableBuilder = syncAdapter.GetTableBuilder();
+                        var setupTable = setup.Tables[schemaTable.TableName, schemaTable.SchemaName];
+                        var filter = schemaTable.GetFilter();
 
-                        if (!string.IsNullOrEmpty(tableScripts))
+                        // Tracking Table
+                        var trackingTableScript = await this.InternalGetTrackingTableProvisioningSqlAsync(
+                            context, scopeInfo, schemaTable, setupTable, tableBuilder,
+                            runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                        if (!string.IsNullOrEmpty(trackingTableScript))
                         {
                             if (allScripts.Length > 0)
-                            {
-                                // Add separator between tables
-                                allScripts.Append("\n\n-- ---------------------------------\n");
-                                allScripts.Append(this.Provider.GetProviderTypeName() == "SqlSyncProvider" ||
-                                                 this.Provider.GetProviderTypeName() == "SqlChangeTrackingSyncProvider"
-                                                 ? "GO" : ";");
-                                allScripts.Append("\n\n");
-                            }
+                                allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                            allScripts.Append(trackingTableScript);
+                        }
 
-                            allScripts.Append(tableScripts);
+                        // Triggers (Insert, Update, Delete)
+                        foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
+                        {
+                            var triggerScript = await this.InternalGetTriggerProvisioningSqlAsync(
+                                context, scopeInfo, schemaTable, setupTable, tableBuilder, triggerType,
+                                runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                            if (!string.IsNullOrEmpty(triggerScript))
+                            {
+                                if (allScripts.Length > 0)
+                                    allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                allScripts.Append(triggerScript);
+                            }
+                        }
+
+                        // Stored Procedures
+                        var storedProcedureTypes = Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
+
+                        foreach (var spType in storedProcedureTypes)
+                        {
+                            // Check if filter-specific SP should be skipped
+                            if ((spType == DbStoredProcedureType.SelectChangesWithFilters ||
+                                 spType == DbStoredProcedureType.SelectInitializedChangesWithFilters) && filter == null)
+                                continue;
+
+                            var spScript = await this.InternalGetStoredProcedureProvisioningSqlAsync(
+                                context, scopeInfo, schemaTable, setupTable, tableBuilder, spType, filter,
+                                runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                            if (!string.IsNullOrEmpty(spScript))
+                            {
+                                if (allScripts.Length > 0)
+                                    allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                allScripts.Append(spScript);
+                            }
                         }
                     }
 

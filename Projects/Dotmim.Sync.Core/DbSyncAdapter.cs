@@ -119,8 +119,9 @@ namespace Wormhole.Sync
                 : !command.Parameters.Contains(parameterName) ? null : command.Parameters[parameterName];
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for the table as a concatenated string.
+        /// Gets the script separator used when concatenating provisioning SQL scripts.
+        /// Default is semicolon separator. Override in provider implementations as needed (e.g., SQL Server uses "GO").
         /// </summary>
-        public abstract Task<string> GetProvisioningSqlScriptsAsync(DbConnection connection, DbTransaction transaction);
+        public virtual string ProvisioningScriptSeparator { get; } = "\n\n-- ---------------------------------\n;\n\n";
     }
 }

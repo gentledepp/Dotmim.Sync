@@ -76,6 +76,24 @@ namespace Wormhole.Sync
         public bool HasColumns => this.Columns?.Count > 0;
 
         /// <summary>
+        /// Gets or sets the interceptor action for tracking table creation during provisioning scripts generation.
+        /// </summary>
+        [IgnoreDataMember]
+        public Action<TrackingTableCreatingArgs> TrackingTableInterceptor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interceptor action for trigger creation during provisioning scripts generation.
+        /// </summary>
+        [IgnoreDataMember]
+        public Action<TriggerCreatingArgs> TriggerInterceptor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interceptor action for stored procedure creation during provisioning scripts generation.
+        /// </summary>
+        [IgnoreDataMember]
+        public Action<StoredProcedureCreatingArgs> StoredProcedureInterceptor { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SetupTable"/> class.
         /// Specify a table to add to the sync process
         /// If you don't specify any columns, all columns in the data source will be imported.
@@ -147,6 +165,39 @@ namespace Wormhole.Sync
         public SetupTable WithTrackingTableName(string name)
         {
             this.CustomTrackingTableName = name;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify an interceptor to modify tracking table provisioning scripts.
+        /// </summary>
+        /// <param name="action">The action to invoke when creating tracking table provisioning scripts.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnTrackingTableCreating(Action<TrackingTableCreatingArgs> action)
+        {
+            this.TrackingTableInterceptor = action;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify an interceptor to modify trigger provisioning scripts.
+        /// </summary>
+        /// <param name="action">The action to invoke when creating trigger provisioning scripts.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnTriggerCreating(Action<TriggerCreatingArgs> action)
+        {
+            this.TriggerInterceptor = action;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify an interceptor to modify stored procedure provisioning scripts.
+        /// </summary>
+        /// <param name="action">The action to invoke when creating stored procedure provisioning scripts.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnStoredProcedureCreating(Action<StoredProcedureCreatingArgs> action)
+        {
+            this.StoredProcedureInterceptor = action;
             return this;
         }
 

@@ -10,6 +10,7 @@ using System;
 using System.Data.Common;
 using System.IO;
 using System.Threading.Tasks;
+using Wormhole.Sync.Builders;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -270,6 +271,202 @@ namespace Wormhole.Sync.Tests.UnitTests
             GC.WaitForPendingFinalizers();
             if (File.Exists(dbName))
                 File.Delete(dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithSetupTableTriggerInterceptor_ShouldModifyTriggerScript()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            setup.Tables["ProductCategory"].OnTriggerCreating(args =>
+            {
+                if (args.TriggerType == DbTriggerType.Insert)
+                {
+                    args.Command.CommandText = "-- CUSTOM INSERT TRIGGER INTERCEPTED\n" + args.Command.CommandText;
+                }
+            });
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Trigger Interceptor Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("===============================================");
+
+            Assert.Contains("-- CUSTOM INSERT TRIGGER INTERCEPTED", scripts);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithSetupTableStoredProcedureInterceptor_ShouldModifyStoredProcedureScript()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            setup.Tables["ProductCategory"].OnStoredProcedureCreating(args =>
+            {
+                if (args.StoredProcedureType == DbStoredProcedureType.SelectChanges)
+                {
+                    args.Command.CommandText = "-- CUSTOM SELECT CHANGES PROCEDURE\n" + args.Command.CommandText;
+                }
+            });
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Stored Procedure Interceptor Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("========================================================");
+
+            Assert.Contains("-- CUSTOM SELECT CHANGES PROCEDURE", scripts);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithSetupTableTrackingTableInterceptor_ShouldModifyTrackingTableScript()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            setup.Tables["ProductCategory"].OnTrackingTableCreating(args =>
+            {
+                args.Command.CommandText = args.Command.CommandText.Replace(
+                    "CREATE TABLE",
+                    "-- INTERCEPTED TRACKING TABLE\nCREATE TABLE"
+                );
+            });
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Tracking Table Interceptor Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("======================================================");
+
+            Assert.Contains("-- INTERCEPTED TRACKING TABLE", scripts);
+
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithSetupTableInterceptorCancelling_ShouldSkipTrigger()
+        {
+            var dbName = HelperDatabase.GetRandomName("tcp_prov_interceptor_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            setup.Tables["ProductCategory"].OnTriggerCreating(args =>
+            {
+                if (args.TriggerType == DbTriggerType.Delete)
+                {
+                    args.Cancel = true; // Skip delete trigger
+                }
+            });
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Trigger Cancellation Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("================================================");
+
+            // Verify that Insert and Update triggers are present
+            Assert.Contains("ProductCategory_insert_trigger", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("ProductCategory_update_trigger", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("ProductCategory_delete_trigger", scripts, StringComparison.OrdinalIgnoreCase);
+
+            
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbName);
         }
 
         public void Dispose()

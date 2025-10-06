@@ -302,64 +302,6 @@ namespace Wormhole.Sync.SqlServer.Builders
         }
 
         /// <inheritdoc/>
-        public override async Task<string> GetProvisioningSqlScriptsAsync(DbConnection connection, DbTransaction transaction)
-        {
-            var scripts = new System.Text.StringBuilder();
-            var tableBuilder = this.GetTableBuilder();
-
-            // Tracking Table
-            var trackingTableCmd = await tableBuilder.GetCreateTrackingTableCommandAsync(connection, transaction).ConfigureAwait(false);
-            if (trackingTableCmd != null && !string.IsNullOrEmpty(trackingTableCmd.CommandText))
-            {
-                scripts.Append(trackingTableCmd.CommandText);
-            }
-
-            // Triggers: Insert, Update, Delete
-            foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
-            {
-                var triggerCmd = await tableBuilder.GetCreateTriggerCommandAsync(triggerType, connection, transaction).ConfigureAwait(false);
-                if (triggerCmd != null && !string.IsNullOrEmpty(triggerCmd.CommandText))
-                {
-                    scripts.Append("\n\n-- ---------------------------------\nGO\n\n");
-                    scripts.Append(triggerCmd.CommandText);
-                }
-            }
-
-            // Stored Procedures in descending order
-            var storedProcedureTypes = System.Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
-
-            // Get filters for this specific table from the schema
-            var tableFilters = this.ScopeInfo?.Schema?.Filters?
-                .Where(f => f.TableName.Equals(this.TableDescription.TableName, SyncGlobalization.DataSourceStringComparison) &&
-                           (string.IsNullOrEmpty(f.SchemaName) || f.SchemaName.Equals(this.TableDescription.SchemaName, SyncGlobalization.DataSourceStringComparison)))
-                .ToList();
-
-            foreach (var spType in storedProcedureTypes)
-            {
-                if (tableFilters != null && tableFilters.Count > 0)
-                {
-                    foreach (var filter in tableFilters)
-                    {
-                        var spCmd = await tableBuilder.GetCreateStoredProcedureCommandAsync(spType, filter, connection, transaction).ConfigureAwait(false);
-                        if (spCmd != null && !string.IsNullOrEmpty(spCmd.CommandText))
-                        {
-                            scripts.Append("\n\n-- ---------------------------------\nGO\n\n");
-                            scripts.Append(spCmd.CommandText);
-                        }
-                    }
-                }
-                else
-                {
-                    var spCmd = await tableBuilder.GetCreateStoredProcedureCommandAsync(spType, null, connection, transaction).ConfigureAwait(false);
-                    if (spCmd != null && !string.IsNullOrEmpty(spCmd.CommandText))
-                    {
-                        scripts.Append("\n\n-- ---------------------------------\nGO\n\n");
-                        scripts.Append(spCmd.CommandText);
-                    }
-                }
-            }
-
-            return scripts.ToString();
-        }
+        public override string ProvisioningScriptSeparator => "\n\n-- ---------------------------------\nGO\n\n";
     }
 }
