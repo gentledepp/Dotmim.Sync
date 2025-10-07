@@ -36,7 +36,7 @@ namespace Wormhole.Sync.Tests
 
             var randomPort = new Random().Next(8900, 10000);
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 if(IsPortAvailable(randomPort))
                     break;
