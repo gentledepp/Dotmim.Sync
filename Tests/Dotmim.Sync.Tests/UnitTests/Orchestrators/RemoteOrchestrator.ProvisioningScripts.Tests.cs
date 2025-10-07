@@ -650,9 +650,170 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("Product_delete_trigger", scripts);
             var deleteTriggerSection = scripts.Substring(scripts.IndexOf("Product_delete_trigger"));
             Assert.Contains("[ProductCategoryID]", deleteTriggerSection.Substring(0, Math.Min(2000, deleteTriggerSection.Length)));
-            
+
             await Verifier.Verify(scripts);
 
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_SqlServerToSqlite_SingleTable()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_cross_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table in SQL Server
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider);
+
+            var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
+
+            // Act - Get SQLite scripts from SQL Server connection
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+
+            // Assert
+            output.WriteLine("========== SQL Server → SQLite Scripts ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=================================================");
+
+            // Verify it's SQLite syntax, not SQL Server
+            Assert.DoesNotContain("CREATE PROCEDURE", scripts); // SQLite doesn't use stored procedures
+            Assert.DoesNotContain("GO", scripts); // SQL Server batch separator
+            Assert.Contains("ProductCategory_tracking", scripts); // Should have tracking table
+            Assert.Contains("CREATE TRIGGER", scripts); // SQLite uses triggers
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_SqlServerToSqlite_TwoRelatedTables()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_cross2_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create ProductCategory and Product tables with FK relationship
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    );
+
+                    CREATE TABLE [dbo].[Product] (
+                        [ProductID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ProductNumber] [nvarchar](25) NULL,
+                        [ProductCategoryID] [uniqueidentifier] NULL,
+                        [ModifiedDate] [datetime] NULL,
+                        CONSTRAINT [FK_Product_ProductCategory] FOREIGN KEY ([ProductCategoryID])
+                            REFERENCES [dbo].[ProductCategory] ([ProductCategoryID])
+                    )";
+
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory", "Product");
+
+            // Explicitly set columns for ProductCategory
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Explicitly set columns for Product
+            setup.Tables["Product"].Columns.AddRange("ProductID", "Name", "ProductNumber", "ProductCategoryID", "ModifiedDate");
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider);
+
+            var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
+
+            // Act - Get SQLite scripts from SQL Server connection
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+
+            // Assert
+            output.WriteLine("========== SQL Server → SQLite Two Tables Scripts ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("============================================================");
+
+            // Verify it's SQLite syntax
+            Assert.DoesNotContain("CREATE PROCEDURE", scripts); // SQLite doesn't use stored procedures
+            Assert.DoesNotContain("GO", scripts); // SQL Server batch separator
+            Assert.Contains("ProductCategory_tracking", scripts);
+            Assert.Contains("Product_tracking", scripts);
+            Assert.Contains("CREATE TRIGGER", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_SqlServerToSqlServer_CrossOrchestrator()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_cross_sql_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider);
+
+            var expectedScripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Create a second SQL Server provider (could be for a different server)
+            var targetSqlServerProvider = new SqlSyncProvider(cs);
+
+            // Act - Get SQL Server scripts using target provider
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, targetSqlServerProvider);
+
+            // Assert
+            output.WriteLine("========== SQL Server → SQL Server Cross-Orchestrator ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("================================================================");
+
+            // Verify it's SQL Server syntax
+            Assert.Contains("CREATE PROCEDURE", scripts); // SQL Server uses stored procedures
+            Assert.Contains("GO", scripts); // SQL Server batch separator
+            Assert.Contains("ProductCategory_tracking", scripts);
+            Assert.Contains("CREATE TRIGGER", scripts);
+
+            await Verifier.Verify(scripts);
+
+            Assert.Equal(expectedScripts, scripts);
         }
 
         public void Dispose()
