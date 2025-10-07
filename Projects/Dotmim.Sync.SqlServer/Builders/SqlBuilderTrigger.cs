@@ -132,7 +132,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine();
             stringBuilder.AppendLine("UPDATE [side] ");
             stringBuilder.AppendLine("SET  [sync_row_is_tombstone] = 1");
-            stringBuilder.AppendLine("\t,[update_scope_id] = NULL -- scope id is always NULL when update is made locally");
+            stringBuilder.AppendLine("\t,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
 
             // Update tracked columns from table description
@@ -190,7 +190,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine(") ");
             stringBuilder.AppendLine("SELECT");
             stringBuilder.Append(stringBuilderArguments);
-            stringBuilder.AppendLine("\t,NULL");
+            stringBuilder.AppendLine("\t,'00000000-0000-0000-0000-000000000000'");
             stringBuilder.AppendLine("\t,1");
             stringBuilder.AppendLine("\t,GetUtcDate()");
             stringBuilder.AppendLine("FROM DELETED [d]");
@@ -211,7 +211,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine("-- If row was deleted before, it already exists, so just make an update");
             stringBuilder.AppendLine("UPDATE [side] ");
             stringBuilder.AppendLine("SET  [sync_row_is_tombstone] = 0");
-            stringBuilder.AppendLine("\t,[update_scope_id] = NULL -- scope id is always NULL when update is made locally");
+            stringBuilder.AppendLine("\t,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
 
             // Update tracked columns from table description
@@ -268,7 +268,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine(") ");
             stringBuilder.AppendLine("SELECT");
             stringBuilder.Append(stringBuilderArguments);
-            stringBuilder.AppendLine("\t,NULL");
+            stringBuilder.AppendLine("\t,'00000000-0000-0000-0000-000000000000'");
             stringBuilder.AppendLine("\t,0");
             stringBuilder.AppendLine("\t,GetUtcDate()");
             stringBuilder.AppendLine("FROM INSERTED [i]");
@@ -334,7 +334,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             // Stage 3: Perform the actual tracking update
             stringBuilder.AppendLine("-- Stage 3: Perform the actual tracking update");
             stringBuilder.AppendLine("UPDATE [side] ");
-            stringBuilder.AppendLine("SET \t[update_scope_id] = NULL -- since the update if from local, it's a NULL");
+            stringBuilder.AppendLine("SET \t[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- since the update is from local, use empty GUID");
             stringBuilder.AppendLine("\t,[last_change_datetime] = GetUtcDate()");
 
             // Update tracked columns from table description
@@ -392,7 +392,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine(") ");
             stringBuilder.AppendLine("SELECT");
             stringBuilder.Append(stringBuilderArguments);
-            stringBuilder.AppendLine("\t,NULL");
+            stringBuilder.AppendLine("\t,'00000000-0000-0000-0000-000000000000'");
             stringBuilder.AppendLine("\t,0");
             stringBuilder.AppendLine("\t,GetUtcDate()");
             stringBuilder.AppendLine("FROM INSERTED [i]");

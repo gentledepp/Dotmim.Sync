@@ -132,7 +132,7 @@ namespace Wormhole.Sync
 
                     BatchInfo serverBatchInfo = null;
                     if (string.IsNullOrEmpty(this.Options.SnapshotsDirectory))
-                        return (context, new ServerSyncChanges(0, null, changesSelected, null));
+                        return (context, new ServerSyncChanges(0, null, changesSelected, null, sScopeInfo.Id));
 
                     // Direction set to Download
                     context.SyncWay = SyncWay.Download;
@@ -202,11 +202,11 @@ namespace Wormhole.Sync
                     }
 
                     if (serverBatchInfo == null)
-                        return (context, new ServerSyncChanges(0, null, changesSelected, null));
+                        return (context, new ServerSyncChanges(0, null, changesSelected, null, sScopeInfo.Id));
 
                     await runner.CommitAsync().ConfigureAwait(false);
 
-                    var serverSyncChanges = new ServerSyncChanges(serverBatchInfo.Timestamp, serverBatchInfo, changesSelected, null);
+                    var serverSyncChanges = new ServerSyncChanges(serverBatchInfo.Timestamp, serverBatchInfo, changesSelected, null, sScopeInfo.Id);
 
                     return (context, serverSyncChanges);
                 }

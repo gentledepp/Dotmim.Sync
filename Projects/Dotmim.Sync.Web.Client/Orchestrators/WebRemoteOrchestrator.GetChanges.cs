@@ -87,7 +87,7 @@ namespace Wormhole.Sync.Web.Client
                 // Reaffect context
                 context = summaryResponseContent.SyncContext;
 
-                return new ServerSyncChanges(summaryResponseContent.RemoteClientTimestamp, serverBatchInfo, summaryResponseContent.ServerChangesSelected, null);
+                return new ServerSyncChanges(summaryResponseContent.RemoteClientTimestamp, serverBatchInfo, summaryResponseContent.ServerChangesSelected, null, summaryResponseContent.ServerScopeId);
             }
             catch (HttpSyncWebException)
             {
@@ -133,7 +133,7 @@ namespace Wormhole.Sync.Web.Client
                 // generate the new scope ite
                 this.CompleteTime = DateTime.UtcNow;
 
-                return new(summaryResponseContent.RemoteClientTimestamp, null, summaryResponseContent.ServerChangesSelected, null);
+                return new(summaryResponseContent.RemoteClientTimestamp, null, summaryResponseContent.ServerChangesSelected, null, summaryResponseContent.ServerScopeId);
             }
             catch (HttpSyncWebException)
             {

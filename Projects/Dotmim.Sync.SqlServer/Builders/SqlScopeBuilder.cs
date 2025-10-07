@@ -94,6 +94,7 @@ namespace Wormhole.Sync.SqlServer.Scope
 
             var commandText =
                 $@"CREATE TABLE {this.ScopeInfoTableNames.QuotedFullName} (
+                    [sync_scope_id] [uniqueidentifier] NOT NULL DEFAULT NEWID(),
                     [sync_scope_name] [nvarchar](100) NOT NULL,
                     [sync_scope_schema] [nvarchar](max) NULL,
                     [sync_scope_setup] [nvarchar](max) NULL,
@@ -102,7 +103,7 @@ namespace Wormhole.Sync.SqlServer.Scope
                     [sync_scope_properties] [nvarchar](MAX) NULL,
                     [sync_scope_server_capabilities] [nvarchar](MAX) NULL,
                     [sync_scope_schema_hash] [nvarchar](64) NULL,
-                    CONSTRAINT [PKey_{this.ScopeInfoTableNames.NormalizedFullName}] 
+                    CONSTRAINT [PKey_{this.ScopeInfoTableNames.NormalizedFullName}]
                     PRIMARY KEY CLUSTERED ([sync_scope_name] ASC)
                     )";
 
@@ -142,9 +143,10 @@ namespace Wormhole.Sync.SqlServer.Scope
         {
 
             var commandText =
-                $@"SELECT [sync_scope_name], 
-                          [sync_scope_schema], 
-                          [sync_scope_setup], 
+                $@"SELECT [sync_scope_id],
+                          [sync_scope_name],
+                          [sync_scope_schema],
+                          [sync_scope_setup],
                           [sync_scope_version],
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
@@ -187,9 +189,10 @@ namespace Wormhole.Sync.SqlServer.Scope
         {
 
             var commandText =
-                    $@"SELECT [sync_scope_name], 
-                          [sync_scope_schema], 
-                          [sync_scope_setup], 
+                    $@"SELECT [sync_scope_id],
+                          [sync_scope_name],
+                          [sync_scope_schema],
+                          [sync_scope_setup],
                           [sync_scope_version],
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
@@ -292,9 +295,10 @@ namespace Wormhole.Sync.SqlServer.Scope
                                    [sync_scope_properties] = [changes].[sync_scope_properties],
                                    [sync_scope_server_capabilities] = [changes].[sync_scope_server_capabilities],
                                    [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash]
-                    OUTPUT  INSERTED.[sync_scope_name], 
-                            INSERTED.[sync_scope_schema], 
-                            INSERTED.[sync_scope_setup], 
+                    OUTPUT  INSERTED.[sync_scope_id],
+                            INSERTED.[sync_scope_name],
+                            INSERTED.[sync_scope_schema],
+                            INSERTED.[sync_scope_setup],
                             INSERTED.[sync_scope_version],
                             INSERTED.[sync_scope_last_clean_timestamp],
                             INSERTED.[sync_scope_properties],

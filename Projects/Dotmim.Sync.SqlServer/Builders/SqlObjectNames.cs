@@ -379,7 +379,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine($")");
             stringBuilder.Append($"SELECT ");
             stringBuilder.Append(str2);
-            stringBuilder.AppendLine($", NULL, 0, GetUtcDate()");
+            stringBuilder.AppendLine($", '00000000-0000-0000-0000-000000000000', 0, GetUtcDate()");
             stringBuilder.AppendLine($"FROM {this.TableQuotedFullName} as [base] WHERE NOT EXISTS");
             stringBuilder.Append($"(SELECT ");
             stringBuilder.Append(str3);

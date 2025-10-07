@@ -48,11 +48,11 @@ namespace Wormhole.Sync.Web.Client
 
                 // no snapshot
                 if ((serverBatchInfo.BatchPartsInfo == null || serverBatchInfo.BatchPartsInfo.Count <= 0) && serverBatchInfo.RowsCount <= 0)
-                    return (context, new ServerSyncChanges(0, null, new DatabaseChangesSelected(), null));
+                    return (context, new ServerSyncChanges(0, null, new DatabaseChangesSelected(), null, summaryResponseContent.ServerScopeId));
 
                 await this.DownladBatchInfoAsync(context, sScopeInfo.Schema, serverBatchInfo, summaryResponseContent, default, default).ConfigureAwait(false);
 
-                return (context, new ServerSyncChanges(summaryResponseContent.RemoteClientTimestamp, serverBatchInfo, summaryResponseContent.ServerChangesSelected, null));
+                return (context, new ServerSyncChanges(summaryResponseContent.RemoteClientTimestamp, serverBatchInfo, summaryResponseContent.ServerChangesSelected, null, summaryResponseContent.ServerScopeId));
             }
             catch (HttpSyncWebException)
             {

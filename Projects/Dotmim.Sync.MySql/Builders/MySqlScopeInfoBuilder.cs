@@ -93,6 +93,7 @@ namespace Wormhole.Sync.MySql.Builders
         {
             var commandText =
                     $@"CREATE TABLE IF NOT EXISTS {this.ScopeInfoTableNames.QuotedName}(
+                         sync_scope_id varchar(36) NOT NULL DEFAULT (UUID()),
                          sync_scope_name varchar(100) NOT NULL,
                          sync_scope_schema longtext NULL,
                          sync_scope_setup longtext NULL,
@@ -100,7 +101,7 @@ namespace Wormhole.Sync.MySql.Builders
                          sync_scope_last_clean_timestamp bigint NULL,
                          sync_scope_properties longtext NULL,
                          sync_scope_server_capabilities TEXT NULL,
-                         sync_scope_schema_hash VARCHAR(64) NULL
+                         sync_scope_schema_hash VARCHAR(64) NULL,
                          PRIMARY KEY (sync_scope_name)
                          )";
 
@@ -145,7 +146,8 @@ namespace Wormhole.Sync.MySql.Builders
         {
 
             var commandText =
-                $@"SELECT sync_scope_name,
+                $@"SELECT sync_scope_id,
+                          sync_scope_name,
                           sync_scope_schema,
                           sync_scope_setup,
                           sync_scope_version,
@@ -195,7 +197,8 @@ namespace Wormhole.Sync.MySql.Builders
         {
 
             var commandText =
-                $@"SELECT sync_scope_name,
+                $@"SELECT sync_scope_id,
+                          sync_scope_name,
                           sync_scope_schema,
                           sync_scope_setup,
                           sync_scope_version,
@@ -277,8 +280,8 @@ namespace Wormhole.Sync.MySql.Builders
 
             stmtText.AppendLine();
 
-            stmtText.AppendLine($"SELECT sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
-                $"sync_scope_last_clean_timestamp, sync_scope_properties " +
+            stmtText.AppendLine($"SELECT sync_scope_id, sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
+                $"sync_scope_last_clean_timestamp, sync_scope_properties, sync_scope_server_capabilities, sync_scope_schema_hash " +
                 $"FROM {this.ScopeInfoTableNames.QuotedName} " +
                 $"WHERE sync_scope_name=@sync_scope_name;");
 
@@ -433,7 +436,7 @@ namespace Wormhole.Sync.MySql.Builders
             stmtText.AppendLine();
             stmtText.AppendLine();
             stmtText.AppendLine(
-                $"SELECT sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
+                $"SELECT sync_scope_id, sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
                 $"sync_scope_last_clean_timestamp, sync_scope_properties, " +
                 $"sync_scope_server_capabilities, sync_scope_schema_hash " +
                 $"FROM {this.ScopeInfoTableNames.QuotedName} " +

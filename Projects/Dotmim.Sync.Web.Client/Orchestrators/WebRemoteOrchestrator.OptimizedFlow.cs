@@ -297,7 +297,8 @@ namespace Wormhole.Sync.Web.Client
                     summaryResponseContent.RemoteClientTimestamp,
                     serverBatchInfo,
                     summaryResponseContent.ServerChangesSelected,
-                    summaryResponseContent.ClientChangesApplied);
+                    summaryResponseContent.ClientChangesApplied,
+                    summaryResponseContent.ServerScopeId);
 
                 return (context, true, firstResponse.Operation, firstResponse.ServerScopeInfo, cScopeInfo, serverSyncChanges, summaryResponseContent.ConflictResolutionPolicy);
             }

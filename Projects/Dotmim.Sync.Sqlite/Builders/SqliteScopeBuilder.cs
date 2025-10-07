@@ -132,6 +132,7 @@ namespace Wormhole.Sync.Sqlite
         {
             var commandText =
                     $@"CREATE TABLE [{this.ScopeInfoTableNames.NormalizedName}](
+                        sync_scope_id text NOT NULL DEFAULT (lower(hex(randomblob(16)))),
                         sync_scope_name text NOT NULL,
                         sync_scope_schema text NULL,
                         sync_scope_setup text NULL,
@@ -175,7 +176,8 @@ namespace Wormhole.Sync.Sqlite
         public override DbCommand GetAllScopeInfosCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                $@"SELECT [sync_scope_name],
+                $@"SELECT [sync_scope_id],
+                          [sync_scope_name],
                           [sync_scope_schema],
                           [sync_scope_setup],
                           [sync_scope_version],
@@ -274,7 +276,8 @@ namespace Wormhole.Sync.Sqlite
             var tableName = this.ScopeInfoTableNames.NormalizedName;
 
             var commandText =
-                    $@"SELECT [sync_scope_name],
+                    $@"SELECT [sync_scope_id],
+                          [sync_scope_name],
                           [sync_scope_schema],
                           [sync_scope_setup],
                           [sync_scope_version],
@@ -386,7 +389,8 @@ namespace Wormhole.Sync.Sqlite
                       $"@sync_scope_last_clean_timestamp, @sync_scope_properties, @sync_scope_server_capabilities, " +
                       $"@sync_scope_schema_hash);");
 
-            stmtText.AppendLine(@$"SELECT sync_scope_name
+            stmtText.AppendLine(@$"SELECT sync_scope_id
+                           , sync_scope_name
                            , sync_scope_schema
                            , sync_scope_setup
                            , sync_scope_version

@@ -348,13 +348,14 @@ namespace Wormhole.Sync.Web.Server
                     ClientChangesApplied = clientChangesApplied,
                     ServerChangesSelected = serverChangesSelected,
                     ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                    ServerScopeId = serverScopeInfo.Id,
 
                     // Server capabilities for optimization
                     ServerCapabilities = serverScopeInfo.ServerCapabilities,
 
                     // Base properties
                     SyncContext = context,
-                    Step = HttpStep.SendChangesIncremental
+                    Step = HttpStep.SendChangesIncremental,
                 };
 
                 // Auto-end session for single batch scenarios

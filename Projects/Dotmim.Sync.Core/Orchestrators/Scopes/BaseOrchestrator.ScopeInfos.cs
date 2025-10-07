@@ -505,6 +505,7 @@ namespace Wormhole.Sync
         {
             var clientScopeInfo = new ScopeInfo
             {
+                Id = reader["sync_scope_id"] != DBNull.Value ? reader.GetGuid(reader.GetOrdinal("sync_scope_id")) : Guid.Empty,
                 Name = reader["sync_scope_name"] as string,
                 Schema = reader["sync_scope_schema"] == DBNull.Value ? null : Serializer.Deserialize<SyncSet>((string)reader["sync_scope_schema"]),
                 Setup = reader["sync_scope_setup"] == DBNull.Value ? null : Serializer.Deserialize<SyncSetup>((string)reader["sync_scope_setup"]),
@@ -514,7 +515,7 @@ namespace Wormhole.Sync
                 ServerCapabilities = reader["sync_scope_server_capabilities"] as string,
                 SchemaHash = reader["sync_scope_schema_hash"] as string,
             };
-            
+
             return clientScopeInfo;
         }
     }

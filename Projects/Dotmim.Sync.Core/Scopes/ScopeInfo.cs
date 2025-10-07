@@ -19,7 +19,7 @@ namespace Wormhole.Sync
     public class ScopeInfo
     {
         internal static ISerializer Serializer => SerializersFactory.JsonSerializerFactory.GetSerializer();
-        
+
         /// <summary>
         /// Initializes a new instance of the <see cref="ScopeInfo"/> class.
         /// For serialization purpose.
@@ -27,6 +27,12 @@ namespace Wormhole.Sync
         public ScopeInfo()
         {
         }
+
+        /// <summary>
+        /// Gets or sets the unique identifier of the scope.
+        /// </summary>
+        [DataMember(Name = "id", IsRequired = true, Order = 0)]
+        public Guid Id { get; set; }
 
         /// <summary>
         /// Gets or sets scope name. Shared by all clients and the server.

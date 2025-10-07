@@ -926,6 +926,7 @@ namespace Wormhole.Sync.Web.Server
                 ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
                 IsLastBatch = true,
                 RemoteClientTimestamp = changes.RemoteClientTimestamp,
+                ServerScopeId = changes.ServerScopeId,
             };
 
             return changesResponse;
@@ -1061,6 +1062,7 @@ namespace Wormhole.Sync.Web.Server
                     IsLastBatch = true,
                     RemoteClientTimestamp = 0,
                     Changes = null,
+                    ServerScopeId = sScopeInfo.Id,
                 };
                 return changesResponse;
             }
@@ -1339,6 +1341,7 @@ namespace Wormhole.Sync.Web.Server
                 ClientChangesApplied = clientChangesApplied,
                 ServerStep = HttpStep.GetMoreChanges,
                 ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                ServerScopeId = sScopeInfo.Id,
             };
 
             if (serverBatchInfo == null)
@@ -1446,7 +1449,15 @@ namespace Wormhole.Sync.Web.Server
             else
             {
                 // Legacy protocol: return empty response (cleanup only)
-                response = new HttpMessageSendChangesResponse(httpMessage.SyncContext);
+                // Get server scope info to provide ServerScopeId
+                ScopeInfo sScopeInfo;
+                (_, sScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(
+                    httpMessage.SyncContext, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
+
+                response = new HttpMessageSendChangesResponse(httpMessage.SyncContext)
+                {
+                    ServerScopeId = sScopeInfo.Id,
+                };
             }
 
             // Perform cleanup logic for both protocols

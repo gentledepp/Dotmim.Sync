@@ -170,7 +170,8 @@ namespace Wormhole.Sync.Web.Client
                     summaryResponseContent.RemoteClientTimestamp,
                     serverBatchInfo,
                     summaryResponseContent.ServerChangesSelected,
-                    summaryResponseContent.ClientChangesApplied);
+                    summaryResponseContent.ClientChangesApplied,
+                    summaryResponseContent.ServerScopeId);
 
                 return (context, serverSyncChanges, summaryResponseContent.ConflictResolutionPolicy);
             }

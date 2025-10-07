@@ -72,7 +72,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             }
 
             // adding the tracking columns
-            stringBuilder.AppendLine($"[update_scope_id] [uniqueidentifier] NULL, ");
+            stringBuilder.AppendLine($"[update_scope_id] [uniqueidentifier] NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000', ");
             stringBuilder.AppendLine($"[timestamp] [timestamp] NULL, ");
             stringBuilder.AppendLine($"[timestamp_bigint] AS (CONVERT([bigint],[timestamp])) PERSISTED, ");
             stringBuilder.AppendLine($"[sync_row_is_tombstone] [bit] NOT NULL default(0), ");

@@ -394,7 +394,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine("-- Since the delete trigger is passed, we update the tracking table to reflect the real scope deleter");
             stringBuilder.AppendLine("UPDATE [side] SET");
             stringBuilder.AppendLine("\tsync_row_is_tombstone = 1, ");
-            stringBuilder.AppendLine("\tupdate_scope_id = @sync_scope_id,");
+            stringBuilder.AppendLine("\tupdate_scope_id = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),");
             stringBuilder.AppendLine("\tlast_change_datetime = GETUTCDATE()");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
             stringBuilder.AppendLine($"JOIN @dms_changed [t] on {str6}");
@@ -563,7 +563,7 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             stringBuilder.AppendLine("-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater");
             stringBuilder.AppendLine("UPDATE [side] SET");
-            stringBuilder.AppendLine("\t[update_scope_id] = @sync_scope_id,");
+            stringBuilder.AppendLine("\t[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),");
             stringBuilder.AppendLine("\t[sync_row_is_tombstone] = 0,");
             stringBuilder.AppendLine("\t[last_change_datetime] = GETUTCDATE()");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
@@ -708,7 +708,7 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             stringBuilder.AppendLine("-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater");
             stringBuilder.AppendLine("UPDATE [side] SET");
-            stringBuilder.AppendLine("\t[update_scope_id] = @sync_scope_id,");
+            stringBuilder.AppendLine("\t[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),");
             stringBuilder.AppendLine("\t[sync_row_is_tombstone] = 1,");
             stringBuilder.AppendLine("\t[last_change_datetime] = GETUTCDATE()");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
@@ -949,7 +949,7 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             stringBuilder.AppendLine("-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater");
             stringBuilder.AppendLine("UPDATE [side] SET");
-            stringBuilder.AppendLine("\t[update_scope_id] = @sync_scope_id,");
+            stringBuilder.AppendLine("\t[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),");
             stringBuilder.AppendLine("\t[sync_row_is_tombstone] = 0,");
             stringBuilder.AppendLine("\t[last_change_datetime] = GETUTCDATE()");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TrackingTableQuotedFullName} [side]");
@@ -1232,7 +1232,7 @@ namespace Wormhole.Sync.SqlServer.Builders
         {
             var sqlCommand = new SqlCommand();
             var pTimestamp = new SqlParameter("@sync_min_timestamp", SqlDbType.BigInt) { Value = 0 };
-            var pScopeId = new SqlParameter("@sync_scope_id", SqlDbType.UniqueIdentifier) { Value = "NULL", IsNullable = true }; // <--- Ok THAT's Bad, but it's working :D
+            var pScopeId = new SqlParameter("@sync_scope_id", SqlDbType.UniqueIdentifier) { Value = null, IsNullable = true }; // <--- Ok THAT's Bad, but it's working :D
 
             sqlCommand.Parameters.Add(pTimestamp);
             sqlCommand.Parameters.Add(pScopeId);
@@ -1259,7 +1259,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             }
 
             stringBuilder.AppendLine($"\t[side].[sync_row_is_tombstone] as [sync_row_is_tombstone], ");
-            stringBuilder.AppendLine($"\t[side].[update_scope_id] as [sync_update_scope_id]");
+            stringBuilder.AppendLine($"\tNULLIF([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
 
             // ----------------------------------
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
@@ -1306,7 +1306,8 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             // ----------------------------------
             stringBuilder.AppendLine("\t[side].[timestamp] > @sync_min_timestamp");
-            stringBuilder.AppendLine("\tAND ([side].[update_scope_id] <> @sync_scope_id OR [side].[update_scope_id] IS NULL)");
+            stringBuilder.AppendLine("\t-- if @sync_scope_id is null, we are using sql server as client db. If it is not null, we are using it as server");
+            stringBuilder.AppendLine("\tAND ((@sync_scope_id is not null AND [side].[update_scope_id] <> @sync_scope_id) OR (@sync_scope_id is null AND [side].[update_scope_id] = '00000000-0000-0000-0000-000000000000'))");
             stringBuilder.AppendLine(")");
 
             sqlCommand.CommandText = stringBuilder.ToString();

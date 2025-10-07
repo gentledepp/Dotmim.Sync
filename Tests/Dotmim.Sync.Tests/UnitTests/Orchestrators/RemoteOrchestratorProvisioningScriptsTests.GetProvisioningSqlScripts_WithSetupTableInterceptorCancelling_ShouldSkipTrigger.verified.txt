@@ -1,6 +1,6 @@
 ﻿CREATE TABLE [ProductCategory_tracking] (
 [ProductCategoryID] uniqueidentifier NOT NULL, 
-[update_scope_id] [uniqueidentifier] NULL, 
+[update_scope_id] [uniqueidentifier] NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000', 
 [timestamp] [timestamp] NULL, 
 [timestamp_bigint] AS (CONVERT([bigint],[timestamp])) PERSISTED, 
 [sync_row_is_tombstone] [bit] NOT NULL default(0), 
@@ -24,7 +24,7 @@ SET NOCOUNT ON;
 -- If row was deleted before, it already exists, so just make an update
 UPDATE [side] 
 SET  [sync_row_is_tombstone] = 0
-	,[update_scope_id] = NULL -- scope id is always NULL when update is made locally
+	,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally
 	,[last_change_datetime] = GetUtcDate()
 FROM [ProductCategory_tracking] [side]
 JOIN INSERTED AS [i] ON [side].[ProductCategoryID] = [i].[ProductCategoryID]
@@ -37,7 +37,7 @@ INSERT INTO [ProductCategory_tracking] (
 ) 
 SELECT
 	 [i].[ProductCategoryID]
-	,NULL
+	,'00000000-0000-0000-0000-000000000000'
 	,0
 	,GetUtcDate()
 FROM INSERTED [i]
@@ -69,7 +69,7 @@ IF NOT EXISTS (
 
 -- Stage 3: Perform the actual tracking update
 UPDATE [side] 
-SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
+SET 	[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- since the update is from local, use empty GUID
 	,[last_change_datetime] = GetUtcDate()
 
 FROM [ProductCategory_tracking] [side]
@@ -82,7 +82,7 @@ INSERT INTO [ProductCategory_tracking] (
 ) 
 SELECT
 	 [i].[ProductCategoryID]
-	,NULL
+	,'00000000-0000-0000-0000-000000000000'
 	,0
 	,GetUtcDate()
 FROM INSERTED [i]
@@ -129,7 +129,7 @@ WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_times
 -- Since the delete trigger is passed, we update the tracking table to reflect the real scope deleter
 UPDATE [side] SET
 	sync_row_is_tombstone = 1, 
-	update_scope_id = @sync_scope_id,
+	update_scope_id = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
 	last_change_datetime = GETUTCDATE()
 FROM [ProductCategory_tracking] [side]
 JOIN @dms_changed [t] on [t].[ProductCategoryID] = [side].[ProductCategoryID]
@@ -179,7 +179,7 @@ WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestam
 
 -- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
 UPDATE [side] SET
-	[update_scope_id] = @sync_scope_id,
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
 	[sync_row_is_tombstone] = 0,
 	[last_change_datetime] = GETUTCDATE()
 FROM [ProductCategory_tracking] [side]
@@ -218,7 +218,7 @@ AND ([base].[ProductCategoryID] = @ProductCategoryID);
 SET @sync_row_count = 0;
 -- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
 UPDATE [side] SET
-	[update_scope_id] = @sync_scope_id,
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
 	[sync_row_is_tombstone] = 1,
 	[last_change_datetime] = GETUTCDATE()
 FROM [ProductCategory_tracking] [side]
@@ -271,7 +271,7 @@ SET @sync_row_count = 0;
 
 -- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
 UPDATE [side] SET
-	[update_scope_id] = @sync_scope_id,
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
 	[sync_row_is_tombstone] = 0,
 	[last_change_datetime] = GETUTCDATE()
 FROM [ProductCategory_tracking] [side]
@@ -310,12 +310,13 @@ SELECT DISTINCT	[side].[ProductCategoryID],
 	[base].[Name], 
 	[base].[ModifiedDate], 
 	[side].[sync_row_is_tombstone] as [sync_row_is_tombstone], 
-	[side].[update_scope_id] as [sync_update_scope_id]
+	NULLIF([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]
 FROM [ProductCategory] [base]
 RIGHT JOIN [ProductCategory_tracking] [side] ON [base].[ProductCategoryID] = [side].[ProductCategoryID]
 WHERE (
 	[side].[timestamp] > @sync_min_timestamp
-	AND ([side].[update_scope_id] <> @sync_scope_id OR [side].[update_scope_id] IS NULL)
+	-- if @sync_scope_id is null, we are using sql server as client db. If it is not null, we are using it as server
+	AND ((@sync_scope_id is not null AND [side].[update_scope_id] <> @sync_scope_id) OR (@sync_scope_id is null AND [side].[update_scope_id] = '00000000-0000-0000-0000-000000000000'))
 )
 
 END

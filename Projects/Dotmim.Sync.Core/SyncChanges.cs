@@ -1,4 +1,5 @@
-﻿using Wormhole.Sync.Batch;
+﻿using System;
+using Wormhole.Sync.Batch;
 
 namespace Wormhole.Sync
 {
@@ -54,15 +55,21 @@ namespace Wormhole.Sync
         /// Initializes a new instance of the <see cref="ServerSyncChanges"/> class.
         /// Server changes selected and client changes applied on server + stats.
         /// </summary>
-        public ServerSyncChanges(long remoteClientTimestamp, BatchInfo serverBatchInfo, DatabaseChangesSelected serverChangesSelected, DatabaseChangesApplied serverChangesApplied)
+        public ServerSyncChanges(long remoteClientTimestamp, BatchInfo serverBatchInfo, DatabaseChangesSelected serverChangesSelected, DatabaseChangesApplied serverChangesApplied, Guid serverScopeId)
         {
             this.RemoteClientTimestamp = remoteClientTimestamp;
             this.ServerBatchInfo = serverBatchInfo;
             this.ServerChangesSelected = serverChangesSelected;
             this.ServerChangesApplied = serverChangesApplied;
+            this.ServerScopeId = serverScopeId;
 
             // this.ErrorsBatchInfo = errorsBatchInfo;
         }
+
+        /// <summary>
+        /// Gets or sets the server's unique scope identifier.
+        /// </summary>
+        public Guid ServerScopeId { get; set; }
 
         /// <summary>
         /// Gets or sets the timestamp limit used to get the changes.

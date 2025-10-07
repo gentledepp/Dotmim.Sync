@@ -97,7 +97,7 @@ namespace Wormhole.Sync
                     serverBatchInfo, serverChangesSelected, runner.Connection, runner.Transaction);
                     await this.InterceptAsync(databaseChangesSelectedArgs, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
-                    return new ServerSyncChanges(remoteClientTimestamp, serverBatchInfo, serverChangesSelected, null);
+                    return new ServerSyncChanges(remoteClientTimestamp, serverBatchInfo, serverChangesSelected, null, sScopeInfo.Id);
                 }
             }
             catch (Exception ex)
@@ -170,7 +170,7 @@ namespace Wormhole.Sync
                         await this.InternalGetEstimatedChangesCountAsync(sScopeInfo, context, cScopeInfoClient.IsNewScope, cScopeInfoClient.LastServerSyncTimestamp,
                         cScopeInfoClient.Id, this.Provider.SupportsMultipleActiveResultSets, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
-                    var serverSyncChanges = new ServerSyncChanges(remoteClientTimestamp, null, serverChangesSelected, null);
+                    var serverSyncChanges = new ServerSyncChanges(remoteClientTimestamp, null, serverChangesSelected, null, sScopeInfo.Id);
 
                     return serverSyncChanges;
                 }

@@ -104,6 +104,12 @@ namespace Wormhole.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "serverTimestamp", IsRequired = false, Order = 12)]
         public long? ServerTimestamp { get; set; }
+
+        /// <summary>
+        /// Gets or Sets the server's unique scope identifier.
+        /// </summary>
+        [DataMember(Name = "ssid", IsRequired = false, EmitDefaultValue = false, Order = 13)]
+        public Guid ServerScopeId { get; set; }
     }
 
     /// <summary>
@@ -464,6 +470,12 @@ namespace Wormhole.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "crp", IsRequired = false, EmitDefaultValue = false, Order = 8)]
         public ConflictResolutionPolicy ConflictResolutionPolicy { get; set; }
+
+        /// <summary>
+        /// Gets or Sets the server's unique scope identifier.
+        /// </summary>
+        [DataMember(Name = "ssid", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        public Guid ServerScopeId { get; set; }
     }
 
     /// <summary>

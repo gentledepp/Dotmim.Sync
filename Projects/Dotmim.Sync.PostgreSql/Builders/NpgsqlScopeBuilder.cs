@@ -72,7 +72,8 @@ namespace Wormhole.Sync.PostgreSql.Scope
         public override DbCommand GetAllScopeInfosCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                $@"SELECT sync_scope_name,
+                $@"SELECT sync_scope_id,
+                          sync_scope_name,
                           sync_scope_schema,
                           sync_scope_setup,
                           sync_scope_version,
@@ -120,6 +121,7 @@ namespace Wormhole.Sync.PostgreSql.Scope
         {
             var commandText =
                 $@"CREATE TABLE {this.ScopeInfoTableNames.QuotedFullName} (
+                    sync_scope_id uuid NOT NULL DEFAULT gen_random_uuid(),
                     sync_scope_name varchar(100) NOT NULL,
                     sync_scope_schema varchar NULL,
                     sync_scope_setup varchar NULL,
@@ -127,7 +129,7 @@ namespace Wormhole.Sync.PostgreSql.Scope
                     sync_scope_last_clean_timestamp bigint NULL,
                     sync_scope_properties varchar NULL,
                     sync_scope_server_capabilities varchar NULL,
-                    sync_scope_schema_hash varchar(64) NULL
+                    sync_scope_schema_hash varchar(64) NULL,
                     CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedFullName}
                     PRIMARY KEY (sync_scope_name)
                     )";
@@ -381,7 +383,8 @@ namespace Wormhole.Sync.PostgreSql.Scope
         public override DbCommand GetScopeInfoCommand(DbConnection connection, DbTransaction transaction)
         {
             var commandText =
-                    $@"SELECT sync_scope_name,
+                    $@"SELECT sync_scope_id,
+                          sync_scope_name,
                           sync_scope_schema,
                           sync_scope_setup,
                           sync_scope_version,

@@ -90,7 +90,7 @@ namespace Wormhole.Sync
                     }
 
                     // Create the message containing everything needed to apply changes
-                    var applyChanges = new MessageApplyChanges(cScopeInfoClient.Id, Guid.Empty, cScopeInfoClient.IsNewScope, cScopeInfoClient.LastSyncTimestamp,
+                    var applyChanges = new MessageApplyChanges(cScopeInfoClient.Id, cScopeInfo.Id, cScopeInfoClient.IsNewScope, cScopeInfoClient.LastSyncTimestamp,
                         cScopeInfo.Schema, policy, snapshotApplied, this.Options.BatchDirectory, serverBatchInfo, failedRows, clientChangesApplied);
 
                     // call interceptor

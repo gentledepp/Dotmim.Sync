@@ -18,7 +18,7 @@ IF NOT EXISTS (
 
 -- Stage 3: Perform the actual tracking update
 UPDATE [side] 
-SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
+SET 	[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- since the update is from local, use empty GUID
 	,[last_change_datetime] = GetUtcDate()
 
 FROM [SalesLT].[Product_tracking] [side]
@@ -31,7 +31,7 @@ INSERT INTO [SalesLT].[Product_tracking] (
 ) 
 SELECT
 	 [i].[ProductID]
-	,NULL
+	,'00000000-0000-0000-0000-000000000000'
 	,0
 	,GetUtcDate()
 FROM INSERTED [i]
