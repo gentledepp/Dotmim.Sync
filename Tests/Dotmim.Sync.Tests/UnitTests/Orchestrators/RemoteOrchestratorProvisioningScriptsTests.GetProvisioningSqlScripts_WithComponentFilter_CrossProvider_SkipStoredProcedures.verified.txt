@@ -1,0 +1,103 @@
+﻿CREATE TABLE IF NOT EXISTS [ProductCategory_tracking] (
+[ProductCategoryID] text NOT NULL COLLATE NOCASE, 
+[update_scope_id] [text] NULL COLLATE NOCASE, 
+[timestamp] [integer] NULL, 
+[sync_row_is_tombstone] [integer] NOT NULL default(0), 
+[last_change_datetime] [datetime] NULL, 
+[is_dirty] [integer] NOT NULL default(0), 
+[sync_session_id] [text] NULL COLLATE NOCASE, 
+ PRIMARY KEY ([ProductCategoryID]));CREATE INDEX IF NOT EXISTS [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
+	 [timestamp] ASC
+	,[update_scope_id] ASC
+	,[sync_row_is_tombstone] ASC
+	,[ProductCategoryID] ASC
+);CREATE INDEX IF NOT EXISTS ProductCategory_tracking_sync_session_id ON [ProductCategory_tracking] ([sync_session_id]);
+
+-- ---------------------------------
+;
+
+CREATE TRIGGER IF NOT EXISTS [ProductCategory__insert_trigger] AFTER INSERT ON [ProductCategory] 
+
+BEGIN
+-- If row was deleted before, it already exists, so just make an update
+	INSERT OR REPLACE INTO [ProductCategory_tracking] (
+		[ProductCategoryID]
+		,[update_scope_id]
+		,[timestamp]
+		,[sync_row_is_tombstone]
+		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
+	) 
+	VALUES (
+		new.[ProductCategoryID]
+		,NULL
+		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
+		,0
+		,datetime('now')
+		,1
+		,NULL
+	);
+END;
+
+
+-- ---------------------------------
+;
+
+CREATE TRIGGER IF NOT EXISTS [ProductCategory__update_trigger] AFTER UPDATE ON [ProductCategory] 
+
+Begin 
+	UPDATE [ProductCategory_tracking] 
+	SET [update_scope_id] = NULL -- scope id is always NULL when update is made locally
+		,[timestamp] = replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
+		,[last_change_datetime] = datetime('now')
+		,[is_dirty] = 1
+		,[sync_session_id] = NULL
+	Where [ProductCategory_tracking].[ProductCategoryID] = new.[ProductCategoryID]; 
+	INSERT OR IGNORE INTO [ProductCategory_tracking] (
+		[ProductCategoryID]
+		,[update_scope_id]
+		,[timestamp]
+		,[sync_row_is_tombstone]
+		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
+	) 
+	SELECT 
+		new.[ProductCategoryID]
+		,NULL
+		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
+		,0
+		,datetime('now')
+		,1
+		,NULL
+	WHERE (SELECT COUNT(*) FROM [ProductCategory_tracking] WHERE [ProductCategoryID]=new.[ProductCategoryID])=0
+; 
+End; 
+
+
+-- ---------------------------------
+;
+
+CREATE TRIGGER IF NOT EXISTS [ProductCategory__delete_trigger] AFTER DELETE ON [ProductCategory] 
+
+BEGIN
+	INSERT OR REPLACE INTO [ProductCategory_tracking] (
+		[ProductCategoryID]
+		,[update_scope_id]
+		,[timestamp]
+		,[sync_row_is_tombstone]
+		,[last_change_datetime]
+		,[is_dirty]
+		,[sync_session_id]
+	) 
+	VALUES (
+		old.[ProductCategoryID]
+		,NULL
+		,replace(strftime('%Y%m%d%H%M%f', 'now'), '.', '')
+		,1
+		,datetime('now')
+		,1
+		,NULL
+	);
+END;

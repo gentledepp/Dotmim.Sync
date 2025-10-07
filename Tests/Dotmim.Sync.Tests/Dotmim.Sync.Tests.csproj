@@ -49,8 +49,27 @@
 	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_Sqlite.verified.txt" />
 	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_SqlServer.verified.txt" />
 	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SingleTable_WithCustomTriggerAndTrackingTableNames_SqlServer.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SqlServerToSqlite_SingleTable.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SqlServerToSqlite_TwoRelatedTables.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_SqlServerToSqlServer_CrossOrchestrator.verified.txt" />
 	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_TwoRelatedTables_Sqlite.verified.txt" />
 	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_TwoRelatedTables_SqlServer.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_CrossProvider_SkipStoredProcedures.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_MultiTableSelectiveFilter.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_OnlyTrackingTablesAndTriggers.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_SkipCustomSql.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_SkipEntireTable.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_SkipSpecificStoredProcedures.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_SkipSpecificTriggers.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithComponentFilter_SkipTrackingTable.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithCustomProvisioningSql_ShouldIncludeCustomSql.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithMultipleCustomProvisioningSql_ShouldIncludeAllStatements.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithSetupTableInterceptorCancelling_ShouldSkipTrigger.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithSetupTableStoredProcedureInterceptor_ShouldModifyStoredProcedureScript.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithSetupTableTrackingTableInterceptor_ShouldModifyTrackingTableScript.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithSetupTableTriggerInterceptor_ShouldModifyTriggerScript.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\RemoteOrchestratorProvisioningScriptsTests.GetProvisioningSqlScripts_WithTrackedColumns_SqlServer.verified.txt" />
+	  <Content Include="UnitTests\Orchestrators\SqlServerUnitRemoteOrchestratorTests.RemoteOrchestrator_UpdateTrigger_ShouldContainOptimizationStages.verified.txt" />
 	</ItemGroup>
 
 	<ItemGroup>

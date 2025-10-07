@@ -499,12 +499,18 @@ namespace Wormhole.Sync
         }
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for all tables in the setup.
-        /// Requires connection to discover schema but generates scripts without executing them.
+        /// Internal method to get all provisioning SQL scripts for all tables in the setup.
+        /// Supports optional target provider for cross-provider script generation and component filtering.
         /// </summary>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
+        internal virtual async Task<string> InternalGetProvisioningSqlScriptsAsync(
+            SyncSetup setup,
+            CoreProvider targetProvider,
+            Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            string scopeName = null,
+            DbConnection connection = null,
+            DbTransaction transaction = null)
         {
-            var context = new SyncContext(Guid.NewGuid(), scopeName??SyncOptions.DefaultScopeName);
+            var context = new SyncContext(Guid.NewGuid(), scopeName ?? SyncOptions.DefaultScopeName);
 
             try
             {
@@ -517,7 +523,7 @@ namespace Wormhole.Sync
                 using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.Provisioning, connection, transaction).ConfigureAwait(false);
                 await using (runner.ConfigureAwait(false))
                 {
-                    // Get schema from database
+                    // Get schema from database using current provider's connection
                     SyncSet schema;
                     (context, schema) = await this.InternalGetSchemaAsync(context, setup, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
@@ -536,86 +542,169 @@ namespace Wormhole.Sync
                         .SortByDependencies(tab => tab.GetRelations()
                             .Select(r => r.GetParentTable()));
 
-                    foreach (var schemaTable in schemaTables)
+                    // Determine which provider and connection to use for script generation
+                    var scriptProvider = targetProvider ?? this.Provider;
+                    DbConnection scriptConnection = null;
+                    DbTransaction scriptTransaction = null;
+
+                    try
                     {
-                        var syncAdapter = this.GetSyncAdapter(schemaTable, scopeInfo);
-                        var tableBuilder = syncAdapter.GetTableBuilder();
-                        var setupTable = setup.Tables[schemaTable.TableName, schemaTable.SchemaName];
-                        var filter = schemaTable.GetFilter();
-
-                        // Tracking Table
-                        var trackingTableScript = await this.InternalGetTrackingTableProvisioningSqlAsync(
-                            context, scopeInfo, schemaTable, setupTable, tableBuilder,
-                            runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                        if (!string.IsNullOrEmpty(trackingTableScript))
+                        // If using a different target provider, create its connection
+                        if (targetProvider != null)
+                            scriptConnection = targetProvider.CreateConnection();
+                        else
                         {
-                            if (allScripts.Length > 0)
-                                allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                            allScripts.Append(trackingTableScript);
+                            scriptConnection = runner.Connection;
+                            scriptTransaction = runner.Transaction;
                         }
 
-                        // Triggers (Insert, Update, Delete)
-                        foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
+                        foreach (var schemaTable in schemaTables)
                         {
-                            var triggerScript = await this.InternalGetTriggerProvisioningSqlAsync(
-                                context, scopeInfo, schemaTable, setupTable, tableBuilder, triggerType,
-                                runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                            if (!string.IsNullOrEmpty(triggerScript))
+                            // Check if entire table should be included
+                            if (shouldIncludeComponent != null)
                             {
-                                if (allScripts.Length > 0)
-                                    allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                                allScripts.Append(triggerScript);
+                                var tableArgs = new ProvisioningComponentArgs
+                                {
+                                    Table = schemaTable,
+                                    ComponentType = ProvisioningComponentType.Table,
+                                };
+
+                                if (!shouldIncludeComponent(tableArgs))
+                                    continue;
                             }
-                        }
 
-                        // Stored Procedures
-                        var storedProcedureTypes = Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
+                            // Use the appropriate provider to get the sync adapter
+                            var syncAdapter = scriptProvider.GetSyncAdapter(schemaTable, scopeInfo);
+                            var tableBuilder = syncAdapter.GetTableBuilder();
+                            var setupTable = setup.Tables[schemaTable.TableName, schemaTable.SchemaName];
+                            var filter = schemaTable.GetFilter();
 
-                        foreach (var spType in storedProcedureTypes)
-                        {
-                            // Check if filter-specific SP should be skipped
-                            if ((spType == DbStoredProcedureType.SelectChangesWithFilters ||
-                                 spType == DbStoredProcedureType.SelectInitializedChangesWithFilters) && filter == null)
-                                continue;
-
-                            var spScript = await this.InternalGetStoredProcedureProvisioningSqlAsync(
-                                context, scopeInfo, schemaTable, setupTable, tableBuilder, spType, filter,
-                                runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                            if (!string.IsNullOrEmpty(spScript))
+                            // Tracking Table
+                            if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
                             {
-                                if (allScripts.Length > 0)
-                                    allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                                allScripts.Append(spScript);
-                            }
-                        }
-
-                        // Custom provisioning SQL
-                        if (setupTable?.CustomProvisioningSql != null && setupTable.CustomProvisioningSql.Count > 0)
-                        {
-                            foreach (var customSql in setupTable.CustomProvisioningSql)
+                                Table = schemaTable,
+                                ComponentType = ProvisioningComponentType.TrackingTable,
+                            }))
                             {
-                                if (!string.IsNullOrWhiteSpace(customSql))
+                                var trackingTableScript = await this.InternalGetTrackingTableProvisioningSqlAsync(
+                                    context, scopeInfo, schemaTable, setupTable, tableBuilder,
+                                    scriptConnection, scriptTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                                if (!string.IsNullOrEmpty(trackingTableScript))
                                 {
                                     if (allScripts.Length > 0)
                                         allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                    allScripts.Append(trackingTableScript);
+                                }
+                            }
 
-                                    allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
-                                    allScripts.Append(customSql);
+                            // Triggers (Insert, Update, Delete)
+                            foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
+                            {
+                                if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
+                                {
+                                    Table = schemaTable,
+                                    ComponentType = ProvisioningComponentType.Trigger,
+                                    TriggerType = triggerType,
+                                }))
+                                {
+                                    var triggerScript = await this.InternalGetTriggerProvisioningSqlAsync(
+                                        context, scopeInfo, schemaTable, setupTable, tableBuilder, triggerType,
+                                        scriptConnection, scriptTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                                    if (!string.IsNullOrEmpty(triggerScript))
+                                    {
+                                        if (allScripts.Length > 0)
+                                            allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                        allScripts.Append(triggerScript);
+                                    }
+                                }
+                            }
+
+                            // Stored Procedures
+                            var storedProcedureTypes = Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
+
+                            foreach (var spType in storedProcedureTypes)
+                            {
+                                // Check if filter-specific SP should be skipped
+                                if ((spType == DbStoredProcedureType.SelectChangesWithFilters ||
+                                     spType == DbStoredProcedureType.SelectInitializedChangesWithFilters) && filter == null)
+                                    continue;
+
+                                if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
+                                {
+                                    Table = schemaTable,
+                                    ComponentType = ProvisioningComponentType.StoredProcedure,
+                                    StoredProcedureType = spType,
+                                }))
+                                {
+                                    var spScript = await this.InternalGetStoredProcedureProvisioningSqlAsync(
+                                        context, scopeInfo, schemaTable, setupTable, tableBuilder, spType, filter,
+                                        scriptConnection, scriptTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                                    if (!string.IsNullOrEmpty(spScript))
+                                    {
+                                        if (allScripts.Length > 0)
+                                            allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                        allScripts.Append(spScript);
+                                    }
+                                }
+                            }
+
+                            // Custom provisioning SQL
+                            if (setupTable?.CustomProvisioningSql != null && setupTable.CustomProvisioningSql.Count > 0)
+                            {
+                                if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
+                                {
+                                    Table = schemaTable,
+                                    ComponentType = ProvisioningComponentType.CustomSql,
+                                }))
+                                {
+                                    foreach (var customSql in setupTable.CustomProvisioningSql)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(customSql))
+                                        {
+                                            if (allScripts.Length > 0)
+                                                allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+
+                                            allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
+                                            allScripts.Append(customSql);
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    return allScripts.ToString();
+                        return allScripts.ToString();
+                    }
+                    finally
+                    {
+                        // Only dispose the connection if we created it (i.e., when using a different target provider)
+                        if (targetProvider != null && scriptConnection != null)
+                        {
+                            scriptConnection.Close();
+#if NETSTANDARD2_0
+                            scriptConnection.Dispose();
+#else
+                            await scriptConnection.DisposeAsync().ConfigureAwait(false);
+#endif
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
                 throw this.GetSyncError(context, ex);
             }
+        }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup.
+        /// Requires connection to discover schema but generates scripts without executing them.
+        /// </summary>
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, scopeName, connection, transaction).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -632,143 +721,51 @@ namespace Wormhole.Sync
         /// <returns>A string containing all the provisioning SQL scripts for the target provider.</returns>
         public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
         {
-            var context = new SyncContext(Guid.NewGuid(), scopeName??SyncOptions.DefaultScopeName);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, scopeName, connection, transaction).ConfigureAwait(false);
+        }
 
-            try
-            {
-                if (this.Provider == null)
-                    throw new MissingProviderException(nameof(this.GetProvisioningSqlScriptsAsync));
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup supporting custom filtering.
+        /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
+        /// Allows filtering of specific provisioning components through a callback function.
+        /// </summary>
+        /// <param name="setup">The sync setup containing table configurations.</param>
+        /// <param name="shouldIncludeComponent">Optional callback to filter which components should be included in the generated scripts. Return true to include, false to exclude.</param>
+        /// <param name="scopeName">Optional scope name.</param>
+        /// <param name="connection">Optional existing connection to use for schema discovery.</param>
+        /// <param name="transaction">Optional existing transaction.</param>
+        /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(
+            SyncSetup setup,
+            Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            string scopeName = null,
+            DbConnection connection = null,
+            DbTransaction transaction = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, scopeName, connection, transaction).ConfigureAwait(false);
+        }
 
-                if (targetProvider == null)
-                    throw new ArgumentNullException(nameof(targetProvider));
-
-                if (setup == null || setup.Tables.Count <= 0)
-                    throw new MissingTablesException();
-                
-                using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.Provisioning, connection, transaction).ConfigureAwait(false);
-                await using (runner.ConfigureAwait(false))
-                {
-                    // Get schema from database using the current provider's connection
-                    SyncSet schema;
-                    (context, schema) = await this.InternalGetSchemaAsync(context, setup, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                    // Create scope info with schema and setup
-                    var scopeInfo = new ScopeInfo
-                    {
-                        Name = context.ScopeName,
-                        Schema = schema,
-                        Setup = setup,
-                    };
-
-                    var allScripts = new System.Text.StringBuilder();
-
-                    // Sort tables based on dependencies
-                    var schemaTables = schema.Tables
-                        .SortByDependencies(tab => tab.GetRelations()
-                            .Select(r => r.GetParentTable()));
-
-                    // Use target provider's connection for script generation
-                    DbConnection targetConnection = null;
-                    DbTransaction targetTransaction = null;
-                    try
-                    {
-                        targetConnection = targetProvider.CreateConnection();
-
-                        foreach (var schemaTable in schemaTables)
-                        {
-                            // Use target provider to get the sync adapter
-                            var syncAdapter = targetProvider.GetSyncAdapter(schemaTable, scopeInfo);
-                            var tableBuilder = syncAdapter.GetTableBuilder();
-                            var setupTable = setup.Tables[schemaTable.TableName, schemaTable.SchemaName];
-                            var filter = schemaTable.GetFilter();
-
-                            // Tracking Table
-                            var trackingTableScript = await this.InternalGetTrackingTableProvisioningSqlAsync(
-                                context, scopeInfo, schemaTable, setupTable, tableBuilder,
-                                targetConnection, targetTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                            if (!string.IsNullOrEmpty(trackingTableScript))
-                            {
-                                if (allScripts.Length > 0)
-                                    allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                                allScripts.Append(trackingTableScript);
-                            }
-
-                            // Triggers (Insert, Update, Delete)
-                            foreach (DbTriggerType triggerType in new[] { DbTriggerType.Insert, DbTriggerType.Update, DbTriggerType.Delete })
-                            {
-                                var triggerScript = await this.InternalGetTriggerProvisioningSqlAsync(
-                                    context, scopeInfo, schemaTable, setupTable, tableBuilder, triggerType,
-                                    targetConnection, targetTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                                if (!string.IsNullOrEmpty(triggerScript))
-                                {
-                                    if (allScripts.Length > 0)
-                                        allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                                    allScripts.Append(triggerScript);
-                                }
-                            }
-
-                            // Stored Procedures
-                            var storedProcedureTypes = Enum.GetValues(typeof(DbStoredProcedureType)).Cast<DbStoredProcedureType>().OrderByDescending(sp => sp);
-
-                            foreach (var spType in storedProcedureTypes)
-                            {
-                                // Check if filter-specific SP should be skipped
-                                if ((spType == DbStoredProcedureType.SelectChangesWithFilters ||
-                                     spType == DbStoredProcedureType.SelectInitializedChangesWithFilters) && filter == null)
-                                    continue;
-
-                                var spScript = await this.InternalGetStoredProcedureProvisioningSqlAsync(
-                                    context, scopeInfo, schemaTable, setupTable, tableBuilder, spType, filter,
-                                    targetConnection, targetTransaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-
-                                if (!string.IsNullOrEmpty(spScript))
-                                {
-                                    if (allScripts.Length > 0)
-                                        allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-                                    allScripts.Append(spScript);
-                                }
-                            }
-
-                            // Custom provisioning SQL
-                            if (setupTable?.CustomProvisioningSql != null && setupTable.CustomProvisioningSql.Count > 0)
-                            {
-                                foreach (var customSql in setupTable.CustomProvisioningSql)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(customSql))
-                                    {
-                                        if (allScripts.Length > 0)
-                                            allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
-
-                                        allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
-                                        allScripts.Append(customSql);
-                                    }
-                                }
-                            }
-                        }
-
-                        return allScripts.ToString();
-                    }
-                    finally
-                    {
-                        if (targetConnection != null)
-                        {
-                            targetConnection.Close();
-#if NETSTANDARD2_0
-                            targetConnection.Dispose();
-#else
-                            await targetConnection.DisposeAsync().ConfigureAwait(false);
-#endif
-
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw this.GetSyncError(context, ex);
-            }
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup, using a different target provider for script generation and custom filtering.
+        /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
+        /// Allows filtering of specific provisioning components through a callback function.
+        /// </summary>
+        /// <param name="setup">The sync setup containing table configurations.</param>
+        /// <param name="targetProvider">The target provider to generate scripts for (e.g., SqliteSyncProvider to generate SQLite scripts). If null, uses the current provider.</param>
+        /// <param name="shouldIncludeComponent">Optional callback to filter which components should be included in the generated scripts. Return true to include, false to exclude.</param>
+        /// <param name="scopeName">Optional scope name.</param>
+        /// <param name="connection">Optional existing connection to use for schema discovery.</param>
+        /// <param name="transaction">Optional existing transaction.</param>
+        /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(
+            SyncSetup setup,
+            CoreProvider targetProvider,
+            Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            string scopeName = null,
+            DbConnection connection = null,
+            DbTransaction transaction = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, scopeName, connection, transaction).ConfigureAwait(false);
         }
     }
 }

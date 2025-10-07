@@ -1,0 +1,123 @@
+﻿CREATE TABLE [ProductCategory_tracking] (
+[ProductCategoryID] uniqueidentifier NOT NULL, 
+[update_scope_id] [uniqueidentifier] NULL, 
+[timestamp] [timestamp] NULL, 
+[timestamp_bigint] AS (CONVERT([bigint],[timestamp])) PERSISTED, 
+[sync_row_is_tombstone] [bit] NOT NULL default(0), 
+[last_change_datetime] [datetime] NULL, 
+);
+ALTER TABLE [ProductCategory_tracking] ADD CONSTRAINT [PK_ProductCategory_tracking] PRIMARY KEY ([ProductCategoryID]);
+CREATE NONCLUSTERED INDEX [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
+	  [timestamp_bigint] ASC
+	, [update_scope_id] ASC
+	, [sync_row_is_tombstone] ASC
+	,[ProductCategoryID] ASC
+);
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_insert_trigger] ON [ProductCategory] FOR INSERT AS
+
+SET NOCOUNT ON;
+
+-- If row was deleted before, it already exists, so just make an update
+UPDATE [side] 
+SET  [sync_row_is_tombstone] = 0
+	,[update_scope_id] = NULL -- scope id is always NULL when update is made locally
+	,[last_change_datetime] = GetUtcDate()
+FROM [ProductCategory_tracking] [side]
+JOIN INSERTED AS [i] ON [side].[ProductCategoryID] = [i].[ProductCategoryID]
+
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [i].[ProductCategoryID]
+	,NULL
+	,0
+	,GetUtcDate()
+FROM INSERTED [i]
+LEFT JOIN [ProductCategory_tracking] [side] ON [i].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_update_trigger] ON [ProductCategory] FOR UPDATE AS
+
+SET NOCOUNT ON;
+
+-- Stage 1: Fast column-level check - exit early if no tracked columns were updated
+IF NOT (UPDATE([ProductCategoryID]) OR UPDATE([Name]) OR UPDATE([ModifiedDate]))
+	RETURN;
+
+-- Stage 2: Precise value-level comparison using EXCEPT
+IF NOT EXISTS (
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM INSERTED
+	EXCEPT
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM DELETED
+)
+	RETURN;
+
+-- Stage 3: Perform the actual tracking update
+UPDATE [side] 
+SET 	[update_scope_id] = NULL -- since the update if from local, it's a NULL
+	,[last_change_datetime] = GetUtcDate()
+
+FROM [ProductCategory_tracking] [side]
+JOIN INSERTED AS [i] ON [side].[ProductCategoryID] = [i].[ProductCategoryID]
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [i].[ProductCategoryID]
+	,NULL
+	,0
+	,GetUtcDate()
+FROM INSERTED [i]
+JOIN DELETED AS [d] ON [d].[ProductCategoryID] = [i].[ProductCategoryID]
+LEFT JOIN [ProductCategory_tracking] [side] ON [i].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_delete_trigger] ON [ProductCategory] FOR DELETE AS
+
+SET NOCOUNT ON;
+
+UPDATE [side] 
+SET  [sync_row_is_tombstone] = 1
+	,[update_scope_id] = NULL -- scope id is always NULL when update is made locally
+	,[last_change_datetime] = GetUtcDate()
+FROM [ProductCategory_tracking] [side]
+JOIN DELETED AS [d] ON [side].[ProductCategoryID] = [d].[ProductCategoryID]
+
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [d].[ProductCategoryID]
+	,NULL
+	,1
+	,GetUtcDate()
+FROM DELETED [d]
+LEFT JOIN [ProductCategory_tracking] [side] ON [d].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
