@@ -214,7 +214,7 @@ namespace Wormhole.Sync.Sqlite
 
             stringBuilder.Append(");");
 
-            stringBuilder.AppendLine($"CREATE INDEX IF NOT EXISTS [{this.trackingTableNames.NormalizedName}_timestamp_index] ON {this.trackingTableNames.QuotedName} (");
+            stringBuilder.AppendLine($"\n\nCREATE INDEX IF NOT EXISTS [{this.trackingTableNames.NormalizedName}_timestamp_index] ON {this.trackingTableNames.QuotedName} (");
             stringBuilder.AppendLine($"\t [timestamp] ASC");
             stringBuilder.AppendLine($"\t,[update_scope_id] ASC");
             stringBuilder.AppendLine($"\t,[sync_row_is_tombstone] ASC");
@@ -227,7 +227,7 @@ namespace Wormhole.Sync.Sqlite
             stringBuilder.Append(");");
 
             // Add index for sync_session_id
-            stringBuilder.Append($"CREATE INDEX IF NOT EXISTS {this.trackingTableNames.NormalizedName}_sync_session_id ON {this.trackingTableNames.QuotedName} ([sync_session_id]);");
+            stringBuilder.Append($"\n\nCREATE INDEX IF NOT EXISTS {this.trackingTableNames.NormalizedName}_sync_session_id ON {this.trackingTableNames.QuotedName} ([sync_session_id]);");
 
 
             return stringBuilder.ToString();
