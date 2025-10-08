@@ -508,7 +508,8 @@ namespace Wormhole.Sync
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
             string scopeName = null,
             DbConnection connection = null,
-            DbTransaction transaction = null)
+            DbTransaction transaction = null,
+            string scriptSeparator = null)
         {
             var context = new SyncContext(Guid.NewGuid(), scopeName ?? SyncOptions.DefaultScopeName);
 
@@ -593,7 +594,7 @@ namespace Wormhole.Sync
                                 if (!string.IsNullOrEmpty(trackingTableScript))
                                 {
                                     if (allScripts.Length > 0)
-                                        allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                        allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
                                     allScripts.Append(trackingTableScript);
                                 }
                             }
@@ -615,7 +616,7 @@ namespace Wormhole.Sync
                                     if (!string.IsNullOrEmpty(triggerScript))
                                     {
                                         if (allScripts.Length > 0)
-                                            allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                            allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
                                         allScripts.Append(triggerScript);
                                     }
                                 }
@@ -645,7 +646,7 @@ namespace Wormhole.Sync
                                     if (!string.IsNullOrEmpty(spScript))
                                     {
                                         if (allScripts.Length > 0)
-                                            allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                            allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
                                         allScripts.Append(spScript);
                                     }
                                 }
@@ -665,7 +666,7 @@ namespace Wormhole.Sync
                                         if (!string.IsNullOrWhiteSpace(customSql))
                                         {
                                             if (allScripts.Length > 0)
-                                                allScripts.Append(syncAdapter.ProvisioningScriptSeparator);
+                                                allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
 
                                             allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
                                             allScripts.Append(customSql);
@@ -702,9 +703,10 @@ namespace Wormhole.Sync
         /// Gets all provisioning SQL scripts for all tables in the setup.
         /// Requires connection to discover schema but generates scripts without executing them.
         /// </summary>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+            string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, scopeName, connection, transaction).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -718,10 +720,12 @@ namespace Wormhole.Sync
         /// <param name="scopeName">Optional scope name.</param>
         /// <param name="connection">Optional existing connection to use for schema discovery.</param>
         /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider.</returns>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null)
+        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+            string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, scopeName, connection, transaction).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -734,15 +738,17 @@ namespace Wormhole.Sync
         /// <param name="scopeName">Optional scope name.</param>
         /// <param name="connection">Optional existing connection to use for schema discovery.</param>
         /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
         public virtual async Task<string> GetProvisioningSqlScriptsAsync(
             SyncSetup setup,
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
             string scopeName = null,
             DbConnection connection = null,
-            DbTransaction transaction = null)
+            DbTransaction transaction = null,
+            string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, scopeName, connection, transaction).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -756,6 +762,7 @@ namespace Wormhole.Sync
         /// <param name="scopeName">Optional scope name.</param>
         /// <param name="connection">Optional existing connection to use for schema discovery.</param>
         /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
         public virtual async Task<string> GetProvisioningSqlScriptsAsync(
             SyncSetup setup,
@@ -763,9 +770,10 @@ namespace Wormhole.Sync
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
             string scopeName = null,
             DbConnection connection = null,
-            DbTransaction transaction = null)
+            DbTransaction transaction = null,
+            string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, scopeName, connection, transaction).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
     }
 }
