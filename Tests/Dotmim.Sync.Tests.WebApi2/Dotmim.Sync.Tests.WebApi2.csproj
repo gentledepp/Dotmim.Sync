@@ -23,6 +23,7 @@
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\DatabaseTest.cs" Link="Misc\DatabaseTest.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\Extensibility.cs" Link="Misc\Extensibility.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\HelperDatabase.cs" Link="Misc\HelperDatabase.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\Misc\SequentialCollection.cs" Link="Misc\SequentialCollection.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\SyncOptionsData.cs" Link="Misc\SyncOptionsData.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\XunitExtensibility.cs" Link="Misc\XunitExtensibility.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Models\Address.cs" Link="Models\Address.cs" />

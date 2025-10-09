@@ -4,6 +4,7 @@ using Wormhole.Sync.Tests.IntegrationTests;
 using Wormhole.Sync.Tests.Misc;
 using System;
 using System.Collections.Generic;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace Wormhole.Sync.Tests
@@ -27,7 +28,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
-
+    [Collection("Sequential")]
     public class SqlServerHttpTests : HttpTests
     {
         public SqlServerHttpTests(ITestOutputHelper output, DatabaseServerFixture fixture)

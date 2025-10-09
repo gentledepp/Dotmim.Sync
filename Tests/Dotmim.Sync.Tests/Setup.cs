@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
+using Xunit;
 
 namespace Wormhole.Sync.Tests
 {
@@ -37,6 +38,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerUnitTests : InterceptorsTests
     {
         public SqlServerUnitTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -54,6 +56,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerUnitLocalOrchestratorTests : LocalOrchestratorTests
     {
         public SqlServerUnitLocalOrchestratorTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -71,6 +74,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingUnitLocalOrchestratorTests : LocalOrchestratorTests
     {
         public SqlServerChangeTrackingUnitLocalOrchestratorTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -100,6 +104,8 @@ namespace Wormhole.Sync.Tests
             return provider;
         }
     }
+
+    [Collection("Sequential")]
     public class SqlServerUnitRemoteOrchestratorTests : RemoteOrchestratorTests
     {
         public SqlServerUnitRemoteOrchestratorTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -117,6 +123,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingUnitRemoteOrchestratorTests : RemoteOrchestratorTests
     {
         public SqlServerChangeTrackingUnitRemoteOrchestratorTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -146,6 +153,8 @@ namespace Wormhole.Sync.Tests
             return provider;
         }
     }
+
+    [Collection("Sequential")]
     public class SqlServerTcpTests : TcpTests
     {
         public SqlServerTcpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -165,6 +174,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingTcpTests : TcpTests
     {
         public SqlServerChangeTrackingTcpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -197,6 +207,8 @@ namespace Wormhole.Sync.Tests
             return provider;
         }
     }
+
+    [Collection("Sequential")]
     public class SqlServerTcpFilterTests : TcpFilterTests
     {
         public SqlServerTcpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -216,6 +228,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingTcpFilterTests : TcpFilterTests
     {
         public SqlServerChangeTrackingTcpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -248,6 +261,8 @@ namespace Wormhole.Sync.Tests
             return provider;
         }
     }
+
+    [Collection("Sequential")]
     public class SqlServerHttpTests : HttpTests
     {
         public SqlServerHttpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -267,6 +282,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingHttpFilterTests : HttpTests
     {
         public SqlServerChangeTrackingHttpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -297,6 +313,7 @@ namespace Wormhole.Sync.Tests
             return provider;
         }
     }
+    [Collection("Sequential")]
     public class SqlServerConflictTests : TcpConflictsTests
     {
         public SqlServerConflictTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -316,6 +333,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class SqlServerChangeTrackingConflictTests : TcpConflictsTests
     {
         public SqlServerChangeTrackingConflictTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -351,6 +369,7 @@ namespace Wormhole.Sync.Tests
 
         public override Task Conflict_UC_OUTDATED_ServerShouldWins_EvenIf_ResolutionIsClientWins() => Task.CompletedTask;
     }
+    [Collection("Sequential")]
     public class PostgresConflictTests : TcpConflictsTests
     {
         public PostgresConflictTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -369,6 +388,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.Postgres, this.postgreClientRandomDatabaseName, true);
         }
     }
+    [Collection("Sequential")]
     public class PostgresTcpTests : TcpTests
     {
         public PostgresTcpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -387,6 +407,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.Postgres, this.postgreClientRandomDatabaseName, true);
         }
     }
+    [Collection("Sequential")]
     public class PostgresTcpFilterTests : TcpFilterTests
     {
         public PostgresTcpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -405,6 +426,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.Postgres, this.postgreClientRandomDatabaseName, true);
         }
     }
+    [Collection("Sequential")]
     public class PostgresHttpTests : HttpTests
     {
         public PostgresHttpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -424,6 +446,7 @@ namespace Wormhole.Sync.Tests
         }
     }
 
+    [Collection("Sequential")]
     public class MySqlTcpTests : TcpTests
     {
         public MySqlTcpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -442,6 +465,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MySql, this.mysqlClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MySqlTcpFilterTests : TcpFilterTests
     {
         public MySqlTcpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -460,6 +484,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MySql, this.mysqlClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MySqlHttpTests : HttpTests
     {
         public MySqlHttpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -478,6 +503,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MySql, this.mysqlClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MySqlConflictTests : TcpConflictsTests
     {
         public MySqlConflictTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -496,6 +522,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MySql, this.mysqlClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MariaDBTcpTests : TcpTests
     {
         public MariaDBTcpTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -514,6 +541,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MariaDB, mariaClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MariaDBTcpFilterTests : TcpFilterTests
     {
         public MariaDBTcpFilterTests(ITestOutputHelper output, DatabaseServerFixture fixture)
@@ -532,6 +560,7 @@ namespace Wormhole.Sync.Tests
             yield return HelperDatabase.GetSyncProvider(ProviderType.MariaDB, mariaClientRandomDatabaseName, false);
         }
     }
+    [Collection("Sequential")]
     public class MariaDBHttpTests : TcpTests
     {
         public MariaDBHttpTests(ITestOutputHelper output, DatabaseServerFixture fixture)

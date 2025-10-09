@@ -20,13 +20,15 @@ using Wormhole.Sync.Tests.Models;
 using Wormhole.Sync.Tests.Core;
 using System.Data;
 
+
+
+
 namespace Wormhole.Sync.Tests.Misc
 {
     public abstract class DatabaseTest : IDisposable, IAsyncLifetime
     {
         private Stopwatch preWorkStopwatch;
         private Stopwatch postWorkStopwatch;
-        private static readonly System.Threading.SemaphoreSlim databaseCreationLock = new System.Threading.SemaphoreSlim(1, 1);
 
         /// <summary>
         /// Gets the tables used for sync
@@ -218,23 +220,14 @@ namespace Wormhole.Sync.Tests.Misc
             var (serverProviderType, serverDatabaseName) = HelperDatabase.GetDatabaseType(GetServerProvider());
             var serverProvider = GetServerProvider();
 
+            await this.CreateOrReuseDatabase(serverDatabaseName, serverProviderType, serverProvider, true);
 
-            // Use semaphore to ensure only one test creates the databases per test class
-            await databaseCreationLock.WaitAsync();
-            try
+            foreach (var clientProvider in GetClientProviders())
             {
-                await this.CreateOrReuseDatabase(serverDatabaseName, serverProviderType, serverProvider, true);
+                var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
+                await this.CreateOrReuseDatabase(clientDatabaseName, clientProviderType, clientProvider, false);
+            }
 
-                foreach (var clientProvider in GetClientProviders())
-                {
-                    var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-                    await this.CreateOrReuseDatabase(clientDatabaseName, clientProviderType, clientProvider, false);
-                }
-            }
-            finally
-            {
-                databaseCreationLock.Release();
-            }
         }
 
         private async Task CreateOrReuseDatabase(string databaseName, ProviderType providerType,
