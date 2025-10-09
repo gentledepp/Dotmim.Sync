@@ -1927,11 +1927,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productId);
 
+                // ServerWins: Both client and server should have the server's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -1981,7 +1986,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
                     // The conflict resolution is always the opposite from the one configured by options
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalExists, conflict.Type);
                 });
 
@@ -2010,11 +2015,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productId);
 
+                // ServerWins: Both client and server should have the server's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -2055,11 +2065,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2128,11 +2143,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2206,11 +2226,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2273,11 +2298,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ServerWins: Both client and server should have the server's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -2319,7 +2349,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
                     // The conflict resolution is always the opposite from the one configured by options
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalExists, conflict.Type);
                 });
 
@@ -2348,11 +2378,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ServerWins: Both client and server should have the server's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -2383,11 +2418,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2450,11 +2490,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2499,11 +2544,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ClientWins: Both client and server should have the client's data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("CLI", pcClient.Name);
+                Assert.StartsWith("CLI", pcServer.Name);
             }
         }
 
@@ -2545,7 +2595,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
                     // The conflict resolution is always the opposite from the one configured by options
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalExists, conflict.Type);
                 });
 
@@ -2581,11 +2631,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // MergeRow: Both client and server should have the merged data
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("BOTH", pcClient.Name);
+                Assert.StartsWith("BOTH", pcServer.Name);
             }
         }
 
@@ -2600,10 +2655,8 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         /// </summary>
         private async Task<string> Generate_DC_US_Conflict(SyncAgent agent)
         {
-
             // Conflict product category
             var conflictProductCategoryId = HelperDatabase.GetRandomName().ToUpperInvariant().Substring(0, 6);
-            var productCategoryNameClient = "CLI BIKES " + HelperDatabase.GetRandomName();
             var productCategoryNameServer = "SRV BIKES " + HelperDatabase.GetRandomName();
 
             await agent.RemoteOrchestrator.Provider.AddProductCategoryAsync(conflictProductCategoryId);
@@ -2645,9 +2698,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ClientWins (Delete): Both client and server should have the row deleted
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -2703,9 +2759,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ClientWins (Delete): Both client and server should have the row deleted
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -2730,11 +2789,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ServerWins (Update): Both client and server should have the server's updated row
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -2766,7 +2830,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.RemoteRow.RowState);
                     Assert.Equal(SyncRowState.Deleted, conflict.LocalRow.RowState);
 
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalIsDeleted, conflict.Type);
                 });
 
@@ -2791,11 +2855,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
 
+                // ServerWins (Update): Both client and server should have the server's updated row
+                Assert.NotNull(pcClient);
+                Assert.NotNull(pcServer);
                 Assert.Equal(pcServer.Name, pcClient.Name);
                 Assert.StartsWith("SRV", pcClient.Name);
+                Assert.StartsWith("SRV", pcServer.Name);
             }
         }
 
@@ -2967,9 +3036,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ServerWins (Delete): Both client and server should have the row deleted
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3007,7 +3079,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
                     // The conflict resolution is always the opposite from the one configured by options
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteIsDeletedLocalExists, conflict.Type);
                 });
 
@@ -3035,9 +3107,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ServerWins (Delete): Both client and server should have the row deleted
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3065,10 +3140,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ClientWins (Update): Both client and server should have the client's updated row
                 Assert.NotNull(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.NotNull(pcServer);
+                Assert.Equal(pcServer.Name, pcClient.Name);
+                Assert.StartsWith("CLI_UPDATED", pcClient.Name);
+                Assert.StartsWith("CLI_UPDATED", pcServer.Name);
             }
         }
 
@@ -3121,10 +3202,16 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // ClientWins (Update): Both client and server should have the client's updated row
                 Assert.NotNull(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.NotNull(pcServer);
+                Assert.Equal(pcServer.Name, pcClient.Name);
+                Assert.StartsWith("CLI_UPDATED", pcClient.Name);
+                Assert.StartsWith("CLI_UPDATED", pcServer.Name);
             }
         }
 
@@ -3175,9 +3262,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3212,7 +3302,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Deleted, conflict.LocalRow.RowState);
 
                     // The conflict resolution is always the opposite from the one configured by options
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteIsDeletedLocalIsDeleted, conflict.Type);
                 });
 
@@ -3237,9 +3327,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3268,9 +3361,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3324,9 +3420,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3372,9 +3471,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3422,9 +3524,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3455,9 +3560,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3506,9 +3614,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
             }
         }
@@ -3547,11 +3658,14 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(0, s.TotalChangesUploadedToServer);
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
-                Assert.Equal(download, s.TotalResolvedConflicts);
+                Assert.Equal(0, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
                 download++;
             }
@@ -3583,7 +3697,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     var localRow = conflict.LocalRow;
                     var remoteRow = conflict.RemoteRow;
 
-                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteIsDeletedLocalNotExists, conflict.Type);
                     Assert.Equal(SyncRowState.Deleted, conflict.RemoteRow.RowState);
                     Assert.Null(localRow);
@@ -3602,9 +3716,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(download, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
                 download++;
             }
@@ -3635,9 +3752,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(download, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
                 download++;
             }
@@ -3672,7 +3792,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     var localRow = conflict.LocalRow;
                     var remoteRow = conflict.RemoteRow;
 
-                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteIsDeletedLocalNotExists, conflict.Type);
                     Assert.Equal(SyncRowState.Deleted, conflict.RemoteRow.RowState);
                     Assert.Null(localRow);
@@ -3691,9 +3811,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(download, s.TotalResolvedConflicts);
 
+                // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
+                var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+
+                // Both deleted: Row should be null on both client and server
                 Assert.Null(pcClient);
-                var pcServer = await clientProvider.GetProductCategoryAsync(productCategoryId);
                 Assert.Null(pcServer);
                 download++;
             }
@@ -3702,10 +3825,11 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         // Generate a conflict when inserting one row on server and the same row on each client
         // Server should wins the conflict because default behavior
         // </summary>
-        [Fact]
+        [Fact(Skip="conflicts will always be handled on the server")]
         public virtual async Task Conflict_UC_US_ClientChoosedTheWinner()
         {
             var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            options.ConflictResolutionPolicy = ConflictResolutionPolicy.ClientWins;
 
             // make a first sync to init the two databases
             foreach (var clientProvider in this.clientsProvider)
@@ -3737,7 +3861,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.RemoteRow.RowState);
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
-                    // The conflict resolution is always the opposite from the one configured by options
                     Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalExists, conflict.Type);
 
@@ -3773,14 +3896,14 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     Assert.Equal(SyncRowState.Modified, conflict.RemoteRow.RowState);
                     Assert.Equal(SyncRowState.Modified, conflict.LocalRow.RowState);
 
-                    Assert.Equal(ConflictResolution.ServerWins, acf.Resolution);
+                    Assert.Equal(ConflictResolution.ClientWins, acf.Resolution);
                     Assert.Equal(ConflictType.RemoteExistsLocalExists, conflict.Type);
                 });
 
                 // First sync, we allow server to resolve the conflict and send back the result to client
                 var s = await agent.SynchronizeAsync(this.setup);
 
-                Assert.Equal(1, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(1, s.TotalChangesUploadedToServer);
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
@@ -3790,12 +3913,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 s = await agent.SynchronizeAsync(this.setup);
 
                 Assert.Equal(0, s.TotalChangesDownloadedFromServer);
-                Assert.Equal(1, s.TotalChangesUploadedToServer);
+                Assert.Equal(0, s.TotalChangesUploadedToServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
-                Assert.Equal(clientNameDecidedOnClientMachine, pcClient.Name);
                 var pcServer = await this.serverProvider.GetProductCategoryAsync(productCategoryId);
+                Assert.Equal(clientNameDecidedOnClientMachine, pcClient.Name);
                 Assert.Equal(clientNameDecidedOnClientMachine, pcServer.Name);
             }
         }

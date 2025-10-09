@@ -232,70 +232,118 @@ namespace Wormhole.Sync
             switch (conflictResolution)
             {
                 case ConflictResolution.ServerWins:
-                    applied = false;
-                    conflictResolved = true;
-                    break;
-                case ConflictResolution.ClientWins:
+                    var weAreTheClient = context.SyncRole == SyncRole.Client;
 
-                    switch (conflictType)
+                    if (weAreTheClient)
                     {
-                        // Remote source has row, Local don't have the row, so insert it
-                        case ConflictType.RemoteExistsLocalExists:
-                        case ConflictType.RemoteExistsLocalNotExists:
-                        case ConflictType.RemoteExistsLocalIsDeleted:
-                        case ConflictType.UniqueKeyConstraint:
-                            (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
-                                conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                        // ON CLIENT: Apply what the server has (server wins)
+                        switch (conflictType)
+                        {
+                            // Server has the row (Modified) → Update/insert on client
+                            case ConflictType.RemoteExistsLocalExists:
+                            case ConflictType.RemoteExistsLocalNotExists:
+                            case ConflictType.RemoteExistsLocalIsDeleted:
+                            case ConflictType.UniqueKeyConstraint:
+                                (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
+                                    conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
-                            applied = operationComplete;
-                            conflictResolved = operationComplete && exception == null;
-                            break;
+                                applied = operationComplete;
+                                conflictResolved = operationComplete && exception == null;
+                                break;
 
-                        // Conflict, but both have delete the row, so just update the metadata to the right winner
-                        case ConflictType.RemoteIsDeletedLocalIsDeleted:
-                            // (_, operationComplete, exception) = await this.InternalUpdateMetadatasAsync(scopeInfo, context,
-                            //    conflictRow, schemaChangesTable, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
-                            // applied = false;
-                            // conflictResolved = operationComplete && exception == null;
-                            applied = false;
-                            conflictResolved = true;
-
-                            break;
-
-                        // The row does not exists locally, and since it's coming from a deleted state, we can forget it
-                        case ConflictType.RemoteIsDeletedLocalNotExists:
-                            applied = false;
-                            conflictResolved = true;
-                            break;
-
-                        // The remote has delete the row, and local has insert or update it
-                        // So delete the local row
-                        case ConflictType.RemoteIsDeletedLocalExists:
-                            (_, operationComplete, exception) = await this.InternalApplyDeleteAsync(scopeInfo, context, batchInfo,
-                                conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
-
-                            // Conflict, but both have delete the row, so just update the metadata to the right winner
-                            if (!operationComplete && exception == null)
-                            {
-                                // IS IT MANDATORY to update to the correct winner ?
-                                // if we don't have any rows on one side, we will add a metadata for nothing...
-                                // (_, operationComplete, exception) = await this.InternalUpdateMetadatasAsync(scopeInfo, context,
-                                //    conflictRow, schemaChangesTable, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
-                                // applied = false;
-                                // conflictResolved = operationComplete && exception == null;
+                            // Server deleted, client deleted → Both deleted, nothing to do
+                            case ConflictType.RemoteIsDeletedLocalIsDeleted:
                                 applied = false;
                                 conflictResolved = true;
-                            }
-                            else
-                            {
-                                applied = operationComplete && exception == null;
+                                break;
+
+                            // Server deleted, client doesn't have it → Nothing to do
+                            case ConflictType.RemoteIsDeletedLocalNotExists:
+                                applied = false;
+                                conflictResolved = true;
+                                break;
+
+                            // Server deleted, client has it → Delete on client
+                            case ConflictType.RemoteIsDeletedLocalExists:
+                                (_, operationComplete, exception) = await this.InternalApplyDeleteAsync(scopeInfo, context, batchInfo,
+                                    conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                                applied = operationComplete;
                                 conflictResolved = operationComplete && exception == null;
-                            }
+                                break;
 
-                            break;
+                            case ConflictType.ErrorsOccurred:
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        // ON SERVER: Server wins, so server already has the winning data
+                        // No matter what the conflict type is, we do nothing on the server
+                        applied = false;
+                        conflictResolved = true;
+                    }
+                    break;
+                case ConflictResolution.ClientWins:
+                    weAreTheClient = context.SyncRole == SyncRole.Client;
 
-                        case ConflictType.ErrorsOccurred:
-                            break;
+                    if (weAreTheClient)
+                    {
+                        // ON CLIENT: Client wins, so client already has the winning data
+                        // No matter what the conflict type is, we do nothing on the client
+                        applied = false;
+                        conflictResolved = true;
+                    }
+                    else
+                    {
+                        // ON SERVER: Apply what the client has (client wins)
+                        switch (conflictType)
+                        {
+                            // Client has the row (Modified) → Update/insert on server
+                            case ConflictType.RemoteExistsLocalExists:
+                            case ConflictType.RemoteExistsLocalNotExists:
+                            case ConflictType.RemoteExistsLocalIsDeleted:
+                            case ConflictType.UniqueKeyConstraint:
+                                (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
+                                    conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                                applied = operationComplete;
+                                conflictResolved = operationComplete && exception == null;
+                                break;
+
+                            // Client deleted, server deleted → Both deleted, nothing to do
+                            case ConflictType.RemoteIsDeletedLocalIsDeleted:
+                                applied = false;
+                                conflictResolved = true;
+                                break;
+
+                            // Client deleted, server doesn't have it → Nothing to do
+                            case ConflictType.RemoteIsDeletedLocalNotExists:
+                                applied = false;
+                                conflictResolved = true;
+                                break;
+
+                            // Client deleted, server has it → Delete on server
+                            case ConflictType.RemoteIsDeletedLocalExists:
+                                (_, operationComplete, exception) = await this.InternalApplyDeleteAsync(scopeInfo, context, batchInfo,
+                                    conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                                // If delete failed because row already gone, that's OK
+                                if (!operationComplete && exception == null)
+                                {
+                                    applied = false;
+                                    conflictResolved = true;
+                                }
+                                else
+                                {
+                                    applied = operationComplete && exception == null;
+                                    conflictResolved = operationComplete && exception == null;
+                                }
+                                break;
+
+                            case ConflictType.ErrorsOccurred:
+                                break;
+                        }
                     }
 
                     break;

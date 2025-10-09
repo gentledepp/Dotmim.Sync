@@ -126,10 +126,41 @@ namespace Wormhole.Sync
                     // This must be called even if no changes were applied from the server
                     if (this.Provider is IAfterApplyChangesProvider afterApplyChangesProvider)
                     {
-                        foreach (var syncTable in cScopeInfo.Schema.Tables)
+                        DbConnectionRunner r2 = null;
+                        try
                         {
-                            await afterApplyChangesProvider.OnAfterApplyChangesAsync(
-                                cScopeInfo, context, syncTable, connection, transaction, cancellationToken).ConfigureAwait(false);
+                            DbConnection conn = connection;
+                            DbTransaction trans = transaction;
+                            if (conn is null)
+                            {
+                                r2 = await this.GetConnectionAsync(context,
+                                    this.Options.TransactionMode == TransactionMode.PerBatch
+                                        ? SyncMode.WithTransaction
+                                        : SyncMode.NoTransaction, SyncStage.ChangesApplying, connection, transaction,
+                                    progress, cancellationToken).ConfigureAwait(false);
+
+                                conn = r2.Connection;
+                                trans = r2.Transaction;
+                            }
+
+                            foreach (var syncTable in cScopeInfo.Schema.Tables)
+                            {
+                                await afterApplyChangesProvider.OnAfterApplyChangesAsync(
+                                        cScopeInfo, context, syncTable, conn, trans, cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            if (r2 != null)
+                                await r2.RollbackAsync($"InternalApplyChangesAsync Rollback. Error:{ex.Message}").ConfigureAwait(false);
+
+                            throw this.GetSyncError(context, ex);
+                        }
+                        finally
+                        {
+                            if (r2 != null)
+                                await r2.DisposeAsync().ConfigureAwait(false);
                         }
                     }
 

@@ -457,14 +457,11 @@ namespace Wormhole.Sync
                 if (cancellationToken.IsCancellationRequested)
                     cancellationToken.ThrowIfCancellationRequested();
 
-                // Policy is always Server policy, so reverse this policy to get the client policy
-                var reverseConflictResolutionPolicy = serverResolutionPolicy == ConflictResolutionPolicy.ServerWins ? ConflictResolutionPolicy.ClientWins : ConflictResolutionPolicy.ServerWins;
-
                 // apply is 25%
                 context.ProgressPercentage = 0.75;
 
                 (context, clientSyncChanges, cScopeInfoClient) = await this.LocalOrchestrator.InternalApplyChangesAsync(
-                        cScopeInfo, cScopeInfoClient, context, serverSyncChanges, clientSyncChanges, reverseConflictResolutionPolicy, snapshotApplied, default, default,
+                        cScopeInfo, cScopeInfoClient, context, serverSyncChanges, clientSyncChanges, serverResolutionPolicy, snapshotApplied, default, default,
                         progress, cancellationToken).ConfigureAwait(false);
 
                 completeTime = DateTime.UtcNow;

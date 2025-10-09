@@ -6,12 +6,16 @@
 [last_change_datetime] [datetime] NULL, 
 [is_dirty] [integer] NOT NULL default(0), 
 [sync_session_id] [text] NULL COLLATE NOCASE, 
- PRIMARY KEY ([ProductCategoryID]));CREATE INDEX IF NOT EXISTS [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
+ PRIMARY KEY ([ProductCategoryID]));
+
+CREATE INDEX IF NOT EXISTS [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
 	 [timestamp] ASC
 	,[update_scope_id] ASC
 	,[sync_row_is_tombstone] ASC
 	,[ProductCategoryID] ASC
-);CREATE INDEX IF NOT EXISTS ProductCategory_tracking_sync_session_id ON [ProductCategory_tracking] ([sync_session_id]);
+);
+
+CREATE INDEX IF NOT EXISTS ProductCategory_tracking_sync_session_id ON [ProductCategory_tracking] ([sync_session_id]);
 
 -- ---------------------------------
 ;
