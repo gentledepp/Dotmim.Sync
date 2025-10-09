@@ -26,6 +26,8 @@ namespace Wormhole.Sync.Tests.Misc
     {
         private Stopwatch preWorkStopwatch;
         private Stopwatch postWorkStopwatch;
+        private static readonly System.Threading.SemaphoreSlim databaseCreationLock = new System.Threading.SemaphoreSlim(1, 1);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> databasesCreated = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>();
 
         /// <summary>
         /// Gets the tables used for sync
@@ -113,7 +115,7 @@ namespace Wormhole.Sync.Tests.Misc
 
 
         private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("sqlite_");
-        private string sqlServerRandomDatabaseName = HelperDatabase.GetRandomName("server_");
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "server_");//HelperDatabase.GetRandomName("server_");
         /// <summary>
         /// Get the server provider
         /// </summary>
@@ -189,7 +191,8 @@ namespace Wormhole.Sync.Tests.Misc
             NpgsqlConnection.ClearAllPools();
 #endif
 
-            await CreateDatabasesAsync();
+            // Create databases once per test class, or use Respawn to reset if already created
+            await CreateOrResetDatabasesAsync();
 
             preWorkStopwatch.Stop();
 
@@ -211,26 +214,90 @@ namespace Wormhole.Sync.Tests.Misc
         //    }
         //}
 
-        private async Task CreateDatabasesAsync()
+        private async Task CreateOrResetDatabasesAsync()
         {
             var (serverProviderType, serverDatabaseName) = HelperDatabase.GetDatabaseType(GetServerProvider());
             var serverProvider = GetServerProvider();
-            using (var ctx = new AdventureWorksContext(serverProvider, true))
-            {
-                await ctx.Database.EnsureCreatedAsync();
 
-                if (serverProviderType == ProviderType.Sql)
-                    await HelperDatabase.ActivateChangeTracking(serverDatabaseName);
+            // Create a unique key for this test class instance's databases
+            var testClassKey = $"{GetType().Name}_{serverDatabaseName}";
+
+            // Use semaphore to ensure only one test creates the databases per test class
+            await databaseCreationLock.WaitAsync();
+            try
+            {
+                if (databasesCreated.TryGetValue(testClassKey, out var created) && created)
+                {
+                    // Database already exists for this test class, reset it
+                    // SQLite: Drop and recreate (Respawn 4.0.0 doesn't support SQLite)
+                    // Others: Use Respawn
+                    if (serverProviderType == ProviderType.Sqlite)
+                    {
+                        // Drop and recreate SQLite database
+                        HelperDatabase.DropDatabase(serverProviderType, serverDatabaseName);
+                        using (var ctx = new AdventureWorksContext(serverProvider, true))
+                        {
+                            await ctx.Database.EnsureCreatedAsync();
+                        }
+                    }
+                    else
+                    {
+                        // Use Respawn for supported databases
+                        await Fixture.ResetDatabaseAsync(serverProviderType, serverDatabaseName);
+                    }
+
+                    foreach (var clientProvider in GetClientProviders())
+                    {
+                        var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
+
+                        if (clientProviderType == ProviderType.Sqlite)
+                        {
+                            // Drop and recreate SQLite database
+                            HelperDatabase.DropDatabase(clientProviderType, clientDatabaseName);
+                            using var cliCtx = new AdventureWorksContext(clientProvider);
+                            await cliCtx.Database.EnsureCreatedAsync();
+                        }
+                        else
+                        {
+                            // Use Respawn for supported databases
+                            await Fixture.ResetDatabaseAsync(clientProviderType, clientDatabaseName);
+                        }
+                    }
+                }
+                else
+                {
+                    // First test in this class - create the databases
+                    using (var ctx = new AdventureWorksContext(serverProvider, true))
+                    {
+                        await ctx.Database.EnsureCreatedAsync();
+
+                        if (serverProviderType == ProviderType.Sql)
+                            await HelperDatabase.ActivateChangeTracking(serverDatabaseName);
+                    }
+
+                    // Register the server database with the fixture
+                    Fixture.RegisterDatabase(serverProviderType, serverDatabaseName);
+
+                    foreach (var clientProvider in GetClientProviders())
+                    {
+                        var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
+                        using var cliCtx = new AdventureWorksContext(clientProvider);
+                        await cliCtx.Database.EnsureCreatedAsync();
+
+                        if (clientProviderType == ProviderType.Sql)
+                            await HelperDatabase.ActivateChangeTracking(clientDatabaseName);
+
+                        // Register the client database with the fixture
+                        Fixture.RegisterDatabase(clientProviderType, clientDatabaseName);
+                    }
+
+                    // Mark databases as created for this test class
+                    databasesCreated.TryAdd(testClassKey, true);
+                }
             }
-
-            foreach (var clientProvider in GetClientProviders())
+            finally
             {
-                var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-                using var cliCtx = new AdventureWorksContext(clientProvider);
-                await cliCtx.Database.EnsureCreatedAsync();
-
-                if (clientProviderType == ProviderType.Sql)
-                    await HelperDatabase.ActivateChangeTracking(clientDatabaseName);
+                databaseCreationLock.Release();
             }
         }
 
@@ -276,23 +343,8 @@ namespace Wormhole.Sync.Tests.Misc
 
             this.postWorkStopwatch = Stopwatch.StartNew();
 
-            var serverProvider = GetServerProvider();
-            if (serverProvider.UseShouldDropDatabase())
-            {
-                var (serverProviderType, serverDatabaseName) = HelperDatabase.GetDatabaseType(serverProvider);
-                HelperDatabase.DropDatabase(serverProviderType, serverDatabaseName);
-            }
-
-            foreach (var clientProvider in GetClientProviders())
-            {
-                if (clientProvider.UseShouldDropDatabase())
-                {
-                    // HelperDatabase.GetDatabaseType(clientProvider);
-                    var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-
-                    HelperDatabase.DropDatabase(clientProviderType, clientDatabaseName);
-                }
-            }
+            // No longer drop databases here - the fixture will handle cleanup after all tests
+            // This dramatically speeds up test execution
 
             this.postWorkStopwatch.Stop();
 

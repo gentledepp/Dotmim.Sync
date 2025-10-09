@@ -46,7 +46,7 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqlRandomDatabaseName = HelperDatabase.GetRandomName("ut1_sql_");
+        private string sqlRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut1_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -63,7 +63,7 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqlRandomDatabaseName = HelperDatabase.GetRandomName("ut2_sql_");
+        private string sqlRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut2_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -78,8 +78,8 @@ namespace Wormhole.Sync.Tests
         {
         }
 
-        private string sqlRandomClientDatabaseName = HelperDatabase.GetRandomName("ut2_sql_server_ct_");
-        private string sqlRandomServerDatabaseName = HelperDatabase.GetRandomName("ut2_sql_client_ct_");
+        private string sqlRandomClientDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut2_sql_server_ct_");
+        private string sqlRandomServerDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut2_sql_client_ct_");
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
@@ -109,7 +109,7 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqlRandomDatabaseName = HelperDatabase.GetRandomName("ut3_sql_");
+        private string sqlRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut3_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -124,8 +124,8 @@ namespace Wormhole.Sync.Tests
         {
         }
 
-        private string sqlRandomClientDatabaseName = HelperDatabase.GetRandomName("ut3_sql_server_ct_");
-        private string sqlRandomServerDatabaseName = HelperDatabase.GetRandomName("ut3_sql_client_ct_");
+        private string sqlRandomClientDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut3_sql_server_ct_");
+        private string sqlRandomServerDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "ut3_sql_client_ct_");
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
@@ -155,8 +155,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcp_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcp_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -174,9 +174,9 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpct_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpct_sql_");
-        private string sqlServerRandomDatabaseName = HelperDatabase.GetRandomName("tcpct_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpct_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpct_sql_");
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpct_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -206,8 +206,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -225,9 +225,9 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpctf_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpctf_sql_");
-        private string sqlServerRandomDatabaseName = HelperDatabase.GetRandomName("tcpctf_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpctf_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpctf_sql_");
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpctf_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -257,8 +257,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("http_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("http_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -276,9 +276,9 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("httpctf_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("httpctf_sql_");
-        private string sqlServerRandomDatabaseName = HelperDatabase.GetRandomName("httpctf_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "httpctf_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "httpctf_sql_");
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "httpctf_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -306,8 +306,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -325,9 +325,9 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpctc_sqlite_");
-        private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpctc_sql_");
-        private string sqlServerRandomDatabaseName = HelperDatabase.GetRandomName("httpctf_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpctc_sqlite_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpctc_sql_");
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "httpctf_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -360,8 +360,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Postgres;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_npg_sqlite_");
-        private string postgreClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_npg_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_npg_sqlite_");
+        private string postgreClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_npg_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -378,8 +378,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Postgres;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcp_npg_sqlite_");
-        private string postgreClientRandomDatabaseName = HelperDatabase.GetRandomName("tcp_npg_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_npg_sqlite_");
+        private string postgreClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_npg_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -396,8 +396,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Postgres;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcfp_npg_sqlite_");
-        private string postgreClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_npg_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcfp_npg_sqlite_");
+        private string postgreClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_npg_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -414,8 +414,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Postgres;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("http_npg_sqlite_");
-        private string postgreClientRandomDatabaseName = HelperDatabase.GetRandomName("http_npg_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_npg_sqlite_");
+        private string postgreClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_npg_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -433,8 +433,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MySql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcp_mysql_sqlite_");
-        private string mysqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcp_mysql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_mysql_sqlite_");
+        private string mysqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_mysql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -451,8 +451,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MySql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_mysql_sqlite_");
-        private string mysqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_mysql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_mysql_sqlite_");
+        private string mysqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_mysql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -469,8 +469,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MySql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("http_mysql_sqlite_");
-        private string mysqlClientRandomDatabaseName = HelperDatabase.GetRandomName("http_mysql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_mysql_sqlite_");
+        private string mysqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_mysql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -487,8 +487,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MySql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_mysql_sqlite_");
-        private string mysqlClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpc_mysql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_mysql_sqlite_");
+        private string mysqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpc_mysql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -505,8 +505,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MariaDB;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcp_maria_sqlite_");
-        private string mariaClientRandomDatabaseName = HelperDatabase.GetRandomName("tcp_maria_maria_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_maria_sqlite_");
+        private string mariaClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcp_maria_maria_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -523,8 +523,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MariaDB;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_maria_sqlite_");
-        private string mariaClientRandomDatabaseName = HelperDatabase.GetRandomName("tcpf_maria_maria_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_maria_sqlite_");
+        private string mariaClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "tcpf_maria_maria_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
@@ -541,8 +541,8 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.MariaDB;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("http_maria_sqlite_");
-        private string mariaClientRandomDatabaseName = HelperDatabase.GetRandomName("http_maria_maria_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_maria_sqlite_");
+        private string mariaClientRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "http_maria_maria_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {

@@ -37,13 +37,13 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("http_sqlite_webapi2_");
-        //private string sqlClientRandomDatabaseName = HelperDatabase.GetRandomName("http_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(),"http_sqlite_webapi2_");
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(), "http_sql_");
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
             yield return HelperDatabase.GetSyncProvider(ProviderType.Sqlite, this.sqliteRandomDatabaseName, false);
-            //yield return HelperDatabase.GetSyncProvider(ProviderType.Sql, this.sqlClientRandomDatabaseName, true);
+            yield return HelperDatabase.GetSyncProvider(ProviderType.Sql, this.sqlClientRandomDatabaseName, true);
         }
     }
 }

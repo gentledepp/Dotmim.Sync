@@ -163,6 +163,11 @@ namespace Wormhole.Sync.Tests.Misc
             return newGeneratedRandomName;
         }
 
+        public static string GetPerTestName(Type testClassType, string pref = default)
+        {
+            return $"{pref}{testClassType.Name}";
+        }
+
         /// <summary>
         /// Get the Sqlite file path (ie: /Dir/mydatabase.db)
         /// </summary>
