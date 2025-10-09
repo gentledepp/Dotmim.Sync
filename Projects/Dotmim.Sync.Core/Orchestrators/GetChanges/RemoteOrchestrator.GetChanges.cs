@@ -67,7 +67,7 @@ namespace Wormhole.Sync
                         throw new MissingRemoteOrchestratorSchemaException();
 
                     // Direction set to Download
-                    context.SyncWay = SyncWay.Download;
+                    context.SyncRole = SyncRole.Client;
 
                     // Output
                     // JUST Before get changes, get the timestamp, to be sure to
@@ -154,7 +154,7 @@ namespace Wormhole.Sync
                         throw new MissingRemoteOrchestratorSchemaException();
 
                     // Direction set to Download
-                    context.SyncWay = SyncWay.Download;
+                    context.SyncRole = SyncRole.Client;
 
                     // Output
                     // JUST Before get changes, get the timestamp, to be sure to

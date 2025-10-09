@@ -37,7 +37,7 @@ namespace Wormhole.Sync.Enumerations
     /// <summary>
     /// Sync way.
     /// </summary>
-    public enum SyncWay
+    public enum SyncRole
     {
         /// <summary>
         /// No sync engaged.
@@ -45,13 +45,13 @@ namespace Wormhole.Sync.Enumerations
         None = 0,
 
         /// <summary>
-        /// Sync is selecting then downloading changes from server.
+        /// Sync is sending local changes, then retrieving remote ones
         /// </summary>
-        Download = 1,
+        Client = 1,
 
         /// <summary>
-        /// Sync is selecting then uploading changes from client.
+        /// Sync is receiving remote changes, then sending local (server) ones
         /// </summary>
-        Upload = 2,
+        Server = 2,
     }
 }

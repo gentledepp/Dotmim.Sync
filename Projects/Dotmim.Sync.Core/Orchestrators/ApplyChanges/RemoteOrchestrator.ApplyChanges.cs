@@ -35,7 +35,7 @@ namespace Wormhole.Sync
                 var serverChangesApplied = new DatabaseChangesApplied();
 
                 // Direction set to Upload
-                context.SyncWay = SyncWay.Upload;
+                context.SyncRole = SyncRole.Server;
 
                 // Connection & Transaction runner
                 DbConnectionRunner runner = null;
@@ -212,7 +212,7 @@ namespace Wormhole.Sync
                     context.ProgressPercentage = 0.55;
 
                     // Direction set to Download
-                    context.SyncWay = SyncWay.Download;
+                    context.SyncRole = SyncRole.Client;
 
                     // JUST Before get changes, get the timestamp, to be sure to
                     // get rows inserted / updated elsewhere since the sync is not over

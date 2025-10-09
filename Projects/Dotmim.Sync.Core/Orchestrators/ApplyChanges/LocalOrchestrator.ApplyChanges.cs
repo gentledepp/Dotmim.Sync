@@ -75,7 +75,7 @@ namespace Wormhole.Sync
                         }
                     }
 
-                    context.SyncWay = SyncWay.Download;
+                    context.SyncRole = SyncRole.Client;
 
                     // Transaction mode
                     if (this.Options.TransactionMode == TransactionMode.AllOrNothing)

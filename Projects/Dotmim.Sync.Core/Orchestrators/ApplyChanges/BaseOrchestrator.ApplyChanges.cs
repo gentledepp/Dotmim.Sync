@@ -214,7 +214,7 @@ namespace Wormhole.Sync
                     // -----------------------------------------------------
                     // 0) Check if we are in a reinit mode (Check also SyncWay to be sure we don't reset tables on server, then check if we don't have already isApplied a snapshot)
                     // -----------------------------------------------------
-                    if (context.SyncWay == SyncWay.Download && context.SyncType != SyncType.Normal && !message.SnapshoteApplied)
+                    if (context.SyncRole == SyncRole.Client && context.SyncType != SyncType.Normal && !message.SnapshoteApplied)
                     {
                         foreach (var table in reverseSchemaTables)
                         {
@@ -317,11 +317,11 @@ namespace Wormhole.Sync
                 return default;
 
             // if we are in upload stage, so check if table is not download only
-            if (context.SyncWay == SyncWay.Upload && setupTable.SyncDirection == SyncDirection.DownloadOnly)
+            if (context.SyncRole == SyncRole.Server && setupTable.SyncDirection == SyncDirection.DownloadOnly)
                 return default;
 
             // if we are in download stage, so check if table is not download only
-            if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
+            if (context.SyncRole == SyncRole.Client && setupTable.SyncDirection == SyncDirection.UploadOnly)
                 return default;
 
             var hasChanges = message.Changes.HasData(schemaTable.TableName, schemaTable.SchemaName);

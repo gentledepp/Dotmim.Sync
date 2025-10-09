@@ -80,7 +80,7 @@ namespace Wormhole.Sync
         /// this Property is used to check SyncDirection on each table.
         /// </summary>
         [DataMember(Name = "way", IsRequired = false, EmitDefaultValue = false, Order = 5)]
-        public SyncWay SyncWay { get; set; }
+        public SyncRole SyncRole { get; set; }
 
         /// <summary>
         /// Gets or sets actual sync stage.
@@ -148,7 +148,7 @@ namespace Wormhole.Sync
             otherSyncContext.SessionId = this.SessionId;
             otherSyncContext.SyncStage = this.SyncStage;
             otherSyncContext.SyncType = this.SyncType;
-            otherSyncContext.SyncWay = this.SyncWay;
+            otherSyncContext.SyncRole = this.SyncRole;
             otherSyncContext.ProgressPercentage = this.ProgressPercentage;
             otherSyncContext.UseUnifiedBatching = this.UseUnifiedBatching;
 

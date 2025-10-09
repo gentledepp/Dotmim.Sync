@@ -39,7 +39,7 @@ namespace Wormhole.Sync
                 context.SyncStage = SyncStage.ChangesSelecting;
 
                 // Create a new empty in-memory batch info
-                if (context.SyncWay == SyncWay.Upload && context.SyncType == SyncType.Reinitialize)
+                if (context.SyncRole == SyncRole.Server && context.SyncType == SyncType.Reinitialize)
                     return new DatabaseChangesSelected();
 
                 // create local directory
@@ -201,7 +201,7 @@ namespace Wormhole.Sync
                 context.SyncStage = SyncStage.ChangesSelecting;
 
                 // Create a new empty in-memory batch info
-                if (context.SyncWay == SyncWay.Upload && context.SyncType == SyncType.Reinitialize)
+                if (context.SyncRole == SyncRole.Server && context.SyncType == SyncType.Reinitialize)
                     return new DatabaseChangesSelected();
 
                 // create local directory
@@ -341,11 +341,11 @@ namespace Wormhole.Sync
                     return (context, default, 0);
 
                 // if we are in upload stage, so check if table is not download only
-                if (context.SyncWay == SyncWay.Upload && setupTable.SyncDirection == SyncDirection.DownloadOnly)
+                if (context.SyncRole == SyncRole.Server && setupTable.SyncDirection == SyncDirection.DownloadOnly)
                     return (context, default, 0);
 
                 // if we are in download stage, so check if table is not download only
-                if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
+                if (context.SyncRole == SyncRole.Client && setupTable.SyncDirection == SyncDirection.UploadOnly)
                     return (context, default, 0);
 
                 // Call OnBeforeSelectingChanges if provider supports it
@@ -587,11 +587,11 @@ namespace Wormhole.Sync
                     return (context, default, default);
 
                 // if we are in upload stage, so check if table is not download only
-                if (context.SyncWay == SyncWay.Upload && setupTable.SyncDirection == SyncDirection.DownloadOnly)
+                if (context.SyncRole == SyncRole.Server && setupTable.SyncDirection == SyncDirection.DownloadOnly)
                     return (context, default, default);
 
                 // if we are in download stage, so check if table is not download only
-                if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
+                if (context.SyncRole == SyncRole.Client && setupTable.SyncDirection == SyncDirection.UploadOnly)
                     return (context, default, default);
 
                 // Call OnBeforeSelectingChanges if provider supports it
@@ -816,7 +816,7 @@ namespace Wormhole.Sync
 
                 await this.InterceptAsync(databaseChangesSelectingArgs, progress, cancellationToken).ConfigureAwait(false);
 
-                if (context.SyncWay == SyncWay.Upload && context.SyncType == SyncType.Reinitialize)
+                if (context.SyncRole == SyncRole.Server && context.SyncType == SyncType.Reinitialize)
                     return (context, changes);
 
                 var threadNumberLimits = supportsMultiActiveResultSets ? 8 : 1;
@@ -837,11 +837,11 @@ namespace Wormhole.Sync
                         return;
 
                     // if we are in upload stage, so check if table is not download only
-                    if (context.SyncWay == SyncWay.Upload && setupTable.SyncDirection == SyncDirection.DownloadOnly)
+                    if (context.SyncRole == SyncRole.Server && setupTable.SyncDirection == SyncDirection.DownloadOnly)
                         return;
 
                     // if we are in download stage, so check if table is not download only
-                    if (context.SyncWay == SyncWay.Download && setupTable.SyncDirection == SyncDirection.UploadOnly)
+                    if (context.SyncRole == SyncRole.Client && setupTable.SyncDirection == SyncDirection.UploadOnly)
                         return;
 
                     // Get correct adapter

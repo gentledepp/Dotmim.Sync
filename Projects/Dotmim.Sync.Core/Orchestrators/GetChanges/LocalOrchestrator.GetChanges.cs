@@ -129,7 +129,7 @@ namespace Wormhole.Sync
                     var isNew = cScopeInfoClient.IsNewScope;
 
                     // Direction set to Upload
-                    context.SyncWay = SyncWay.Upload;
+                    context.SyncRole = SyncRole.Server;
 
                     // Output
                     // JUST before the whole process, get the timestamp, to be sure to
@@ -190,7 +190,7 @@ namespace Wormhole.Sync
                     Guid? remoteScopeId = null;
 
                     // Direction set to Upload
-                    context.SyncWay = SyncWay.Upload;
+                    context.SyncRole = SyncRole.Server;
 
                     // JUST before the whole process, get the timestamp, to be sure to
                     // get rows inserted / updated elsewhere since the sync is not over

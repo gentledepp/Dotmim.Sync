@@ -241,7 +241,7 @@ namespace Wormhole.Sync.Tests.StandAlone
             Assert.Equal("ScopeName", outSchema.SyncContext.ScopeName);
             Assert.Equal(SyncStage.ScopeLoading, outSchema.SyncContext.SyncStage);
             Assert.Equal(SyncType.Normal, outSchema.SyncContext.SyncType);
-            Assert.Equal(SyncWay.Upload, outSchema.SyncContext.SyncWay);
+            Assert.Equal(SyncRole.Server, outSchema.SyncContext.SyncRole);
         }
 
         private void Assertions(SyncSet outSchema)
@@ -385,7 +385,7 @@ namespace Wormhole.Sync.Tests.StandAlone
                 SessionId = Guid.NewGuid(),
                 SyncStage = SyncStage.ScopeLoading,
                 SyncType = SyncType.Normal,
-                SyncWay = SyncWay.Upload,
+                SyncRole = SyncRole.Server,
                 Parameters = parameters,
             };
         }

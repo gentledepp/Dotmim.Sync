@@ -135,7 +135,7 @@ namespace Wormhole.Sync
                         return (context, new ServerSyncChanges(0, null, changesSelected, null, sScopeInfo.Id));
 
                     // Direction set to Download
-                    context.SyncWay = SyncWay.Download;
+                    context.SyncRole = SyncRole.Client;
 
                     if (cancellationToken.IsCancellationRequested)
                         cancellationToken.ThrowIfCancellationRequested();

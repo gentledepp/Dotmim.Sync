@@ -32,7 +32,7 @@ namespace Wormhole.Sync.Web.Client
                 (context, sScopeInfo, _) = await this.InternalEnsureScopeInfoAsync(context, null, false, connection, transaction, default, default).ConfigureAwait(false);
 
                 // Direction set to Download
-                context.SyncWay = SyncWay.Download;
+                context.SyncRole = SyncRole.Client;
 
                 var changesToSend = new HttpMessageSendChangesRequest(context, cScopeInfoClient);
 
