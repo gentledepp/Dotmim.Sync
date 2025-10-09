@@ -27,7 +27,6 @@ namespace Wormhole.Sync.Tests.Misc
         private Stopwatch preWorkStopwatch;
         private Stopwatch postWorkStopwatch;
         private static readonly System.Threading.SemaphoreSlim databaseCreationLock = new System.Threading.SemaphoreSlim(1, 1);
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> databasesCreated = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>();
 
         /// <summary>
         /// Gets the tables used for sync
@@ -114,7 +113,7 @@ namespace Wormhole.Sync.Tests.Misc
         }
 
 
-        private string sqliteRandomDatabaseName = HelperDatabase.GetRandomName("sqlite_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "sqlite_");
         private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "server_");//HelperDatabase.GetRandomName("server_");
         /// <summary>
         /// Get the server provider
@@ -219,85 +218,59 @@ namespace Wormhole.Sync.Tests.Misc
             var (serverProviderType, serverDatabaseName) = HelperDatabase.GetDatabaseType(GetServerProvider());
             var serverProvider = GetServerProvider();
 
-            // Create a unique key for this test class instance's databases
-            var testClassKey = $"{GetType().Name}_{serverDatabaseName}";
 
             // Use semaphore to ensure only one test creates the databases per test class
             await databaseCreationLock.WaitAsync();
             try
             {
-                if (databasesCreated.TryGetValue(testClassKey, out var created) && created)
+                await this.CreateOrReuseDatabase(serverDatabaseName, serverProviderType, serverProvider, true);
+
+                foreach (var clientProvider in GetClientProviders())
                 {
-                    // Database already exists for this test class, reset it
-                    // SQLite: Drop and recreate (Respawn 4.0.0 doesn't support SQLite)
-                    // Others: Use Respawn
-                    if (serverProviderType == ProviderType.Sqlite)
-                    {
-                        // Drop and recreate SQLite database
-                        HelperDatabase.DropDatabase(serverProviderType, serverDatabaseName);
-                        using (var ctx = new AdventureWorksContext(serverProvider, true))
-                        {
-                            await ctx.Database.EnsureCreatedAsync();
-                        }
-                    }
-                    else
-                    {
-                        // Use Respawn for supported databases
-                        await Fixture.ResetDatabaseAsync(serverProviderType, serverDatabaseName);
-                    }
-
-                    foreach (var clientProvider in GetClientProviders())
-                    {
-                        var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-
-                        if (clientProviderType == ProviderType.Sqlite)
-                        {
-                            // Drop and recreate SQLite database
-                            HelperDatabase.DropDatabase(clientProviderType, clientDatabaseName);
-                            using var cliCtx = new AdventureWorksContext(clientProvider);
-                            await cliCtx.Database.EnsureCreatedAsync();
-                        }
-                        else
-                        {
-                            // Use Respawn for supported databases
-                            await Fixture.ResetDatabaseAsync(clientProviderType, clientDatabaseName);
-                        }
-                    }
-                }
-                else
-                {
-                    // First test in this class - create the databases
-                    using (var ctx = new AdventureWorksContext(serverProvider, true))
-                    {
-                        await ctx.Database.EnsureCreatedAsync();
-
-                        if (serverProviderType == ProviderType.Sql)
-                            await HelperDatabase.ActivateChangeTracking(serverDatabaseName);
-                    }
-
-                    // Register the server database with the fixture
-                    Fixture.RegisterDatabase(serverProviderType, serverDatabaseName);
-
-                    foreach (var clientProvider in GetClientProviders())
-                    {
-                        var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-                        using var cliCtx = new AdventureWorksContext(clientProvider);
-                        await cliCtx.Database.EnsureCreatedAsync();
-
-                        if (clientProviderType == ProviderType.Sql)
-                            await HelperDatabase.ActivateChangeTracking(clientDatabaseName);
-
-                        // Register the client database with the fixture
-                        Fixture.RegisterDatabase(clientProviderType, clientDatabaseName);
-                    }
-
-                    // Mark databases as created for this test class
-                    databasesCreated.TryAdd(testClassKey, true);
+                    var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
+                    await this.CreateOrReuseDatabase(clientDatabaseName, clientProviderType, clientProvider, false);
                 }
             }
             finally
             {
                 databaseCreationLock.Release();
+            }
+        }
+
+        private async Task CreateOrReuseDatabase(string databaseName, ProviderType providerType,
+            CoreProvider provider, bool useSeeding)
+        {
+            if (HelperDatabase.ExistsDatabase(providerType, databaseName))
+            {
+                // Database already exists for this test class, reset it
+                // SQLite: Drop and recreate (Respawn 4.0.0 doesn't support SQLite)
+                // Others: Use Respawn
+                if (providerType == ProviderType.Sqlite)
+                {
+                    // Drop and recreate SQLite database
+                    HelperDatabase.DropDatabase(providerType, databaseName);
+                    using var ctx = new AdventureWorksContext(provider, useSeeding);
+                    await ctx.Database.EnsureCreatedAsync();
+                }
+                else
+                {
+                    // Use Respawn for supported databases
+                    await this.Fixture.ResetDatabaseAsync(providerType, databaseName);
+                }
+            }
+            else
+            {
+                // First test in this class - create the databases
+                using (var ctx = new AdventureWorksContext(provider, useSeeding))
+                {
+                    await ctx.Database.EnsureCreatedAsync();
+
+                    if (providerType == ProviderType.Sql)
+                        await HelperDatabase.ActivateChangeTracking(databaseName);
+                }
+
+                // Register the server database with the fixture
+                this.Fixture.RegisterDatabase(providerType, databaseName);
             }
         }
 

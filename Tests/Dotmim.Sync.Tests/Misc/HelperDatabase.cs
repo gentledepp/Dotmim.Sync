@@ -848,7 +848,7 @@ namespace Wormhole.Sync.Tests.Misc
             var exists = cmdDb.ExecuteScalar();
 
             masterConnection.Close();
-            return exists != null && exists != DBNull.Value && (long)exists == 1;
+            return exists != null && exists != DBNull.Value && string.Equals((string)exists, dbName);
         }
 
         public static Task ExecuteScriptAsync(ProviderType providerType, string dbName, string script)
