@@ -236,6 +236,9 @@ namespace Wormhole.Sync.Tests.Misc
 
         public void OutputCurrentState(string subCategory = null)
         {
+            if (preWorkStopwatch == null || postWorkStopwatch == null || Stopwatch == null)
+                return;
+
             var t = string.IsNullOrEmpty(subCategory) ? "" : $" - {subCategory}";
 
             //var methodParameters = this.Test.TestCase.Method.GetParameters().ToList();
@@ -269,7 +272,7 @@ namespace Wormhole.Sync.Tests.Misc
 
         public void Dispose()
         {
-            this.Stopwatch.Stop();
+            this.Stopwatch?.Stop();
 
             this.postWorkStopwatch = Stopwatch.StartNew();
 

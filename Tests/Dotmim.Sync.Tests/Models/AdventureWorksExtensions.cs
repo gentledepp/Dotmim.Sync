@@ -202,6 +202,17 @@
         public static Guid ToProductId(this Guid productId) => productId;
 #endif
 
+        
+
+#if NET48
+        public static string ToPriceListId(this Guid productId) => productId.ToString();
+
+#else
+        public static Guid ToPriceListId(this Guid productId) => productId;
+#endif
+
+        
+
 #if NET48
         public static async Task<Product> GetProductAsync(this CoreProvider provider, string productId, DbTransaction transaction = null)
         {
@@ -272,7 +283,7 @@
 
             var pl = new PriceList
             {
-                PriceListId = priceListId.Value,
+                PriceListId = priceListId.Value.ToPriceListId(),
                 Description = description,
                 From = from != null ? from.Value : (DateTime?)null,
                 To = to != null ? to.Value : (DateTime?)null,
@@ -283,8 +294,13 @@
 
             return pl;
         }
+#if NET48
+        
+        public static async Task<PriceList> GetPriceListAsync(this CoreProvider provider, string priceListId, DbTransaction transaction = null)
+#else
 
         public static async Task<PriceList> GetPriceListAsync(this CoreProvider provider, Guid priceListId, DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 

@@ -432,6 +432,17 @@ namespace Wormhole.Sync
                                                 default, default, progress, cancellationToken).ConfigureAwait(false);
 
                             result.SnapshotChangesAppliedOnClient = clientSyncChanges.ClientChangesApplied;
+
+                            // CRITICAL FIX: Set the LastServerSyncTimestamp to the snapshot's creation timestamp
+                            // This enables incremental sync for changes that occurred after the snapshot was created
+                            // Without this, the client would miss deletions and updates that happened between
+                            // snapshot creation and the current sync (especially important for ReinitializeWithUpload)
+                            // The RemoteOrchestrator will use this timestamp to fetch only delta changes via _changes
+                            // stored procedures instead of re-downloading all data via _initialize procedures
+                            if (snapshotServerSyncChanges.RemoteClientTimestamp > 0)
+                            {
+                                cScopeInfoClient.LastServerSyncTimestamp = snapshotServerSyncChanges.RemoteClientTimestamp;
+                            }
                         }
                     }
                 }

@@ -11,6 +11,10 @@ namespace Wormhole.Sync.Tests.Models
         }
 
 #if NET48
+        // Since EF 6 uses System.Data.SQLite (not Microsoft.Data.Sqlite), Guids are stored as blobs
+        // But dotmim.sync uses Microsoft.Data.Sqlite and therefore, when it searches for Guids, it passes them as STRING
+        // So EF 6 can _never_ find them, because it compares a BLOB to a STRING
+        // So for the sake of tests, we just fake them as strings
         public string ProductId { get; set; }
 #else
         public Guid ProductId { get; set; }

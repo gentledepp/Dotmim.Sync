@@ -221,6 +221,25 @@ namespace Wormhole.Sync
                     // Get if we need to get all rows from the datasource
                     var fromScratch = cScopeInfoClient.IsNewScope || context.SyncType == SyncType.Reinitialize || context.SyncType == SyncType.ReinitializeWithUpload;
 
+                    // Special case: If client applied a snapshot (has LastServerSyncTimestamp) during reinitialize,
+                    // we should use incremental sync (_changes) to get only changes since snapshot timestamp
+                    // This is more efficient and ensures deletions after snapshot are properly handled
+                    if ((context.SyncType == SyncType.Reinitialize || context.SyncType == SyncType.ReinitializeWithUpload) &&
+                        cScopeInfoClient.LastServerSyncTimestamp != null && cScopeInfoClient.LastServerSyncTimestamp > 0)
+                    {
+                        fromScratch = false;
+                    }
+
+                    // Determine which scope_id to use for filtering in _changes stored procedures
+                    // Normal sync: Use client's actual scope_id to filter out its own changes (avoid loops)
+                    // Post-snapshot reinitialize: Use random GUID so client gets ALL changes, including its own uploaded data
+                    // This is critical for ReinitializeWithUpload to work correctly with snapshots
+                    var excludeScopeId = (!fromScratch &&
+                                          (context.SyncType == SyncType.Reinitialize || context.SyncType == SyncType.ReinitializeWithUpload) &&
+                                          cScopeInfoClient.LastServerSyncTimestamp != null)
+                                         ? Guid.NewGuid()  // Random GUID won't match any actual scope - gets ALL changes
+                                         : cScopeInfoClient.Id;  // Normal sync - filter out client's own changes
+
                     // Create a batch info
                     var info = runner.Connection != null && !string.IsNullOrEmpty(runner.Connection.Database) ? $"{runner.Connection.Database}_REMOTE_GETCHANGES" : "REMOTE_GETCHANGES";
                     var serverBatchInfo = new BatchInfo(this.Options.BatchDirectory, info: info);
@@ -235,9 +254,10 @@ namespace Wormhole.Sync
                     if (runner.CancellationToken.IsCancellationRequested)
                         runner.CancellationToken.ThrowIfCancellationRequested();
 
-                    // When we get the chnages from server, we create the batches if it's requested by the client
+                    // When we get the changes from server, we create the batches if it's requested by the client
                     // the batch decision comes from batchsize from client
-                    serverChangesSelected = await this.InternalGetChangesAsync(cScopeInfo, context, fromScratch, cScopeInfoClient.LastServerSyncTimestamp, cScopeInfoClient.Id,
+                    // Note: excludeScopeId is used to filter changes - random GUID means no filtering (get all changes)
+                    serverChangesSelected = await this.InternalGetChangesAsync(cScopeInfo, context, fromScratch, cScopeInfoClient.LastServerSyncTimestamp, excludeScopeId,
                         this.Provider.SupportsMultipleActiveResultSets, serverBatchInfo,
                         runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
