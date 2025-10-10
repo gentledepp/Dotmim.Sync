@@ -1101,8 +1101,10 @@ namespace Wormhole.Sync.Tests.Models
                     .HasMaxLength(50);
             });
 
-            if (this.useSeeding)
-                this.OnSeeding(modelBuilder);
+            // OnSeeding with HasData() is no longer used - we use manual Seed() extension method for consistency
+            // This ensures the same seeding behavior on first creation and after Respawn resets
+            // if (this.useSeeding)
+            //     this.OnSeeding(modelBuilder);
         }
 #endif
 
@@ -1487,66 +1489,64 @@ namespace Wormhole.Sync.Tests.Models
             context.Seed();
         }
     }
-
+#endif
     public static class AdventureWorksInitializeExtensions
     {
         public static void Seed(this AdventureWorksContext context)
         {
-            // Add Address data
-            context.Address.AddRange(new[] {
-                new Address { AddressId = 1, AddressLine1 = "8713 Yosemite Ct.", AddressLine2 = "Appt 1", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
-                new Address { AddressId = 2, AddressLine1 = "1318 Lasalle Street", AddressLine2 = "Appt 2", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
-                new Address { AddressId = 3, AddressLine1 = "9178 Jumping St.", AddressLine2 = "Appt 3", City = "Dallas", StateProvince = "Texas", CountryRegion = "United States", PostalCode = "75201" },
-                new Address { AddressId = 4, AddressLine1 = "9228 Via Del Sol", AddressLine2 = "Appt 4", City = "Phoenix", StateProvince = "Arizona", CountryRegion = "United States", PostalCode = "85004" },
-                new Address { AddressId = 5, AddressLine1 = "9239 Spring Way", AddressLine2 = "Appt 5", City = "Redmond", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98052" },
-                new Address { AddressId = 6, AddressLine1 = "9241 SW. 110th Street", AddressLine2 = "Appt 6", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
-                new Address { AddressId = 7, AddressLine1 = "9250 W. 42nd Place", AddressLine2 = "Appt 7", City = "Kenmore", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98028" },
-                new Address { AddressId = 8, AddressLine1 = "9251 Prospect St.", AddressLine2 = "Appt 8", City = "Duvall", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98019" },
-                new Address { AddressId = 9, AddressLine1 = "52560 Free Street", AddressLine2 = "Appt 9", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
-                new Address { AddressId = 10, AddressLine1 = "22580 Free Street", AddressLine2 = "Appt 10", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
-                new Address { AddressId = 11, AddressLine1 = "2575 Bloor Street East", AddressLine2 = "Appt 11", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V6" },
-                new Address { AddressId = 12, AddressLine1 = "Station E", AddressLine2 = "Appt 12", City = "Chalk Riber", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "K0J 1J0" },
-                new Address { AddressId = 13, AddressLine1 = "575 Rue St Amable", AddressLine2 = "Appt 13", City = "Quebec", StateProvince = "Quebec", CountryRegion = "Canada", PostalCode = "G1R" },
-                new Address { AddressId = 14, AddressLine1 = "2512-4th Ave Sw", AddressLine2 = "Appt 14", City = "Calgary", StateProvince = "Alberta", CountryRegion = "Canada", PostalCode = "T2P 2G8" },
-                new Address { AddressId = 15, AddressLine1 = "55 Lakeshore Blvd East", AddressLine2 = "Appt 15", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V6" },
-                new Address { AddressId = 16, AddressLine1 = "6333 Cote Vertu", AddressLine2 = "Appt 16", City = "Montreal", StateProvince = "Quebec", CountryRegion = "Canada", PostalCode = "H1Y 2H5" },
-                new Address { AddressId = 17, AddressLine1 = "3255 Front Street West", AddressLine2 = "Appt 17", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H5" },
-                new Address { AddressId = 18, AddressLine1 = "2550 Signet Drive", AddressLine2 = "Appt 18", City = "Weston", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H7" },
-                new Address { AddressId = 19, AddressLine1 = "6777 Kingsway", AddressLine2 = "Appt 19", City = "Burnaby", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H8" },
-                new Address { AddressId = 20, AddressLine1 = "5250-505 Burning St", AddressLine2 = "Appt 20", City = "Vancouver", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H9" },
-                new Address { AddressId = 21, AddressLine1 = "600 Slater Street", AddressLine2 = "Appt 21", City = "Ottawa", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M9V 4W3" }
-          });
+            // Insert addresses without explicit IDs and capture generated entities
+            var addresses = new[] {
+                new Address { AddressLine1 = "8713 Yosemite Ct.", AddressLine2 = "Appt 1", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressLine1 = "1318 Lasalle Street", AddressLine2 = "Appt 2", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressLine1 = "9178 Jumping St.", AddressLine2 = "Appt 3", City = "Dallas", StateProvince = "Texas", CountryRegion = "United States", PostalCode = "75201" },
+                new Address { AddressLine1 = "9228 Via Del Sol", AddressLine2 = "Appt 4", City = "Phoenix", StateProvince = "Arizona", CountryRegion = "United States", PostalCode = "85004" },
+                new Address { AddressLine1 = "9239 Spring Way", AddressLine2 = "Appt 5", City = "Redmond", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98052" },
+                new Address { AddressLine1 = "9241 SW. 110th Street", AddressLine2 = "Appt 6", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
+                new Address { AddressLine1 = "9250 W. 42nd Place", AddressLine2 = "Appt 7", City = "Kenmore", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98028" },
+                new Address { AddressLine1 = "9251 Prospect St.", AddressLine2 = "Appt 8", City = "Duvall", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98019" },
+                new Address { AddressLine1 = "52560 Free Street", AddressLine2 = "Appt 9", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
+                new Address { AddressLine1 = "22580 Free Street", AddressLine2 = "Appt 10", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
+                new Address { AddressLine1 = "2575 Bloor Street East", AddressLine2 = "Appt 11", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V6" },
+                new Address { AddressLine1 = "Station E", AddressLine2 = "Appt 12", City = "Chalk Riber", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "K0J 1J0" },
+                new Address { AddressLine1 = "575 Rue St Amable", AddressLine2 = "Appt 13", City = "Quebec", StateProvince = "Quebec", CountryRegion = "Canada", PostalCode = "G1R" }
+            };
+            context.Address.AddRange(addresses);
+            context.SaveChanges();
 
-            context.Employee.AddRange(new[] {
-                new Employee { EmployeeId = 1, FirstName = "Pamela", LastName = "Orson" },
-                new Employee { EmployeeId = 2, FirstName = "David", LastName = "Kandle" },
-                new Employee { EmployeeId = 3, FirstName = "Jillian", LastName = "Jon" }
-            });
+            // Insert employees and capture generated IDs
+            var employees = new[] {
+                new Employee { FirstName = "Pamela", LastName = "Orson" },
+                new Employee { FirstName = "David", LastName = "Kandle" },
+                new Employee { FirstName = "Jillian", LastName = "Jon" }
+            };
+            context.Employee.AddRange(employees);
+            context.SaveChanges();
 
+            // Use specific Customer IDs for filter tests
             Guid customerId1 = AdventureWorksContext.CustomerId1ForFilter;
             Guid customerId2 = AdventureWorksContext.CustomerId2ForFilter;
             Guid customerId3 = Guid.NewGuid();
             Guid customerId4 = Guid.NewGuid();
 
             context.Customer.AddRange(new[] {
-                new Customer { CustomerId = customerId1, EmployeeId = 1, NameStyle = false, Title = "Mr.", FirstName = "Orlando", MiddleName = "N.", LastName = "Gee", CompanyName = "A Bike Store", SalesPerson = @"adventure-works\pamela0", EmailAddress = "orlando0@adventure-works.com", Phone = "245-555-0173", PasswordHash = "L/Rlwxzp4w7RWmEgXX+/A7cXaePEPcp+KwQhl2fJL7w=", PasswordSalt = "1KjXYs4=" },
-                new Customer { CustomerId = customerId2, EmployeeId = 1, NameStyle = false, Title = "Mr.", FirstName = "Keith", MiddleName = "N.", LastName = "Harris", CompanyName = "Progressive Sports", SalesPerson = @"adventure-works\david8", EmailAddress = "keith0@adventure-works.com", Phone = "170-555-0127", PasswordHash = "YPdtRdvqeAhj6wyxEsFdshBDNXxkCXn+CRgbvJItknw=", PasswordSalt = "fs1ZGhY=" },
-                new Customer { CustomerId = customerId3, EmployeeId = 2, NameStyle = false, Title = "Ms.", FirstName = "Donna", MiddleName = "F.", LastName = "Carreras", CompanyName = "Advanced Bike Components", SalesPerson = @"adventure-works\jillian0", EmailAddress = "donna0@adventure-works.com", Phone = "279-555-0130", PasswordHash = "LNoK27abGQo48gGue3EBV/UrlYSToV0/s87dCRV7uJk=", PasswordSalt = "YTNH5Rw=" },
-                new Customer { CustomerId = customerId4, EmployeeId = 3, NameStyle = false, Title = "Ms.", FirstName = "Janet", MiddleName = "M.", LastName = "Gates", CompanyName = "Modular Cycle Systems", SalesPerson = @"adventure-works\jillian0", EmailAddress = "janet1@adventure-works.com", Phone = "710-555-0173", PasswordHash = "ElzTpSNbUW1Ut+L5cWlfR7MF6nBZia8WpmGaQPjLOJA=", PasswordSalt = "nm7D5e4=" }
+                new Customer { CustomerId = customerId1, EmployeeId = employees[0].EmployeeId, NameStyle = false, Title = "Mr.", FirstName = "Orlando", MiddleName = "N.", LastName = "Gee", CompanyName = "A Bike Store", SalesPerson = @"adventure-works\pamela0", EmailAddress = "orlando0@adventure-works.com", Phone = "245-555-0173", PasswordHash = "L/Rlwxzp4w7RWmEgXX+/A7cXaePEPcp+KwQhl2fJL7w=", PasswordSalt = "1KjXYs4=" },
+                new Customer { CustomerId = customerId2, EmployeeId = employees[0].EmployeeId, NameStyle = false, Title = "Mr.", FirstName = "Keith", MiddleName = "N.", LastName = "Harris", CompanyName = "Progressive Sports", SalesPerson = @"adventure-works\david8", EmailAddress = "keith0@adventure-works.com", Phone = "170-555-0127", PasswordHash = "YPdtRdvqeAhj6wyxEsFdshBDNXxkCXn+CRgbvJItknw=", PasswordSalt = "fs1ZGhY=" },
+                new Customer { CustomerId = customerId3, EmployeeId = employees[1].EmployeeId, NameStyle = false, Title = "Ms.", FirstName = "Donna", MiddleName = "F.", LastName = "Carreras", CompanyName = "Advanced Bike Components", SalesPerson = @"adventure-works\jillian0", EmailAddress = "donna0@adventure-works.com", Phone = "279-555-0130", PasswordHash = "LNoK27abGQo48gGue3EBV/UrlYSToV0/s87dCRV7uJk=", PasswordSalt = "YTNH5Rw=" },
+                new Customer { CustomerId = customerId4, EmployeeId = employees[2].EmployeeId, NameStyle = false, Title = "Ms.", FirstName = "Janet", MiddleName = "M.", LastName = "Gates", CompanyName = "Modular Cycle Systems", SalesPerson = @"adventure-works\jillian0", EmailAddress = "janet1@adventure-works.com", Phone = "710-555-0173", PasswordHash = "ElzTpSNbUW1Ut+L5cWlfR7MF6nBZia8WpmGaQPjLOJA=", PasswordSalt = "nm7D5e4=" }
             });
 
             context.EmployeeAddress.AddRange(new[] {
-                new EmployeeAddress { EmployeeId = 1, AddressId = 6, AddressType = "Home" },
-                new EmployeeAddress { EmployeeId = 2, AddressId = 7, AddressType = "Home" },
-                new EmployeeAddress { EmployeeId = 3, AddressId = 8, AddressType = "Home" }
+                new EmployeeAddress { EmployeeId = employees[0].EmployeeId, AddressId = addresses[5].AddressId, AddressType = "Home" },
+                new EmployeeAddress { EmployeeId = employees[1].EmployeeId, AddressId = addresses[6].AddressId, AddressType = "Home" },
+                new EmployeeAddress { EmployeeId = employees[2].EmployeeId, AddressId = addresses[7].AddressId, AddressType = "Home" }
             });
 
             context.CustomerAddress.AddRange(new[] {
-                new CustomerAddress { CustomerId = customerId1, AddressId = 4, AddressType = "Main Office" },
-                new CustomerAddress { CustomerId = customerId1, AddressId = 5, AddressType = "Office Depot" },
-                new CustomerAddress { CustomerId = customerId2, AddressId = 3, AddressType = "Main Office" },
-                new CustomerAddress { CustomerId = customerId3, AddressId = 2, AddressType = "Main Office" },
-                new CustomerAddress { CustomerId = customerId4, AddressId = 1, AddressType = "Main Office" }
+                new CustomerAddress { CustomerId = customerId1, AddressId = addresses[3].AddressId, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId1, AddressId = addresses[4].AddressId, AddressType = "Office Depot" },
+                new CustomerAddress { CustomerId = customerId2, AddressId = addresses[2].AddressId, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId3, AddressId = addresses[1].AddressId, AddressType = "Main Office" },
+                new CustomerAddress { CustomerId = customerId4, AddressId = addresses[0].AddressId, AddressType = "Main Office" }
             });
 
             context.ProductCategory.AddRange(new[] {
@@ -1563,42 +1563,44 @@ namespace Wormhole.Sync.Tests.Models
                 new ProductCategory { ProductCategoryId = "BRAKES", ParentProductCategoryId = "A_COMPT", Name = "Brakes" }
             });
 
-            context.ProductModel.AddRange(new[] {
-                new ProductModel { ProductModelId = 6, Name = "HL Road Frame" },
-                new ProductModel { ProductModelId = 19, Name = "Mountain-100" },
-                new ProductModel { ProductModelId = 20, Name = "Mountain-200" },
-                new ProductModel { ProductModelId = 21, Name = "Mountain-300" },
-                new ProductModel { ProductModelId = 25, Name = "Road-150" },
-                new ProductModel { ProductModelId = 30, Name = "Road-650" },
-                new ProductModel { ProductModelId = 52, Name = "LL Mountain Handlebars" },
-                new ProductModel { ProductModelId = 54, Name = "ML Mountain Handlebars" },
-                new ProductModel { ProductModelId = 55, Name = "HL Mountain Handlebars" }
-            });
+            var productModels = new[] {
+                new ProductModel { Name = "HL Road Frame" },
+                new ProductModel { Name = "Mountain-100" },
+                new ProductModel { Name = "Mountain-200" },
+                new ProductModel { Name = "Mountain-300" },
+                new ProductModel { Name = "Road-150" },
+                new ProductModel { Name = "Road-650" },
+                new ProductModel { Name = "LL Mountain Handlebars" },
+                new ProductModel { Name = "ML Mountain Handlebars" },
+                new ProductModel { Name = "HL Mountain Handlebars" }
+            };
+            context.ProductModel.AddRange(productModels);
+            context.SaveChanges();
 
             var p1 = Guid.NewGuid().ToProductId();
             var p2 = Guid.NewGuid().ToProductId();
             var p3 = Guid.NewGuid().ToProductId();
 
-            List<Product> products = [new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Road Frame - Black, 58", ProductNumber = "FR-R92B-58", Color = "Black", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = 6 },
-                new Product { ProductId = p1, Name = "HL Road Frame - Red, 58", ProductNumber = "FR-R92R-58", Color = "Red", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = 6 },
-                new Product { ProductId = p2, Name = "Road-150 Red, 62", ProductNumber = "BK-R93R-62", Color = "Red", StandardCost = 2171.2942M, ListPrice = 3578.2700M, Size = "62", Weight = 6803.85M, ProductCategoryId = "ROADB", ProductModelId = 25 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Road-650 Black, 58", ProductNumber = "BK-R50B-58", Color = "Black", StandardCost = 486.7066M, ListPrice = 782.9900M, Size = "58", Weight = 8976.55M, ProductCategoryId = "ROADB", ProductModelId = 30 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Silver, 38", ProductNumber = "BK-M82S-38", Color = "Silver", StandardCost = 1912.1544M, ListPrice = 3399.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = 19 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Black, 38", ProductNumber = "BK-M82B-38", Color = "Black", StandardCost = 1898.0944M, ListPrice = 3374.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = 19 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Silver, 38", ProductNumber = "BK-M68S-38", Color = "Silver", StandardCost = 1265.6195M, ListPrice = 2319.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 38", ProductNumber = "BK-M68B-38", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 42", ProductNumber = "BK-M68B-42", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "42", Weight = 10781.83M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 46", ProductNumber = "BK-M68B-46", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "46", Weight = 10945.13M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-300 Black, 38", ProductNumber = "BK-M47B-38", Color = "Black", StandardCost = 598.4354M, ListPrice = 1079.9900M, Size = "38", Weight = 11498.51M, ProductCategoryId = "MOUNTB", ProductModelId = 21 },
-                new Product { ProductId = p3, Name = "LL Mountain Handlebars", ProductNumber = "HB-M243", StandardCost = 19.7758M, ListPrice = 44.5400M, ProductCategoryId = "HANDLB", ProductModelId = 52 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "ML Mountain Handlebars", ProductNumber = "HB-M763", StandardCost = 27.4925M, ListPrice = 61.9200M, ProductCategoryId = "HANDLB", ProductModelId = 54 },
-                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Mountain Handlebars", ProductNumber = "HB-M918", StandardCost = 53.3999M, ListPrice = 120.2700M, ProductCategoryId = "HANDLB", ProductModelId = 55 }
+            List<Product> products = [new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Road Frame - Black, 58", ProductNumber = "FR-R92B-58", Color = "Black", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = productModels[0].ProductModelId },
+                new Product { ProductId = p1, Name = "HL Road Frame - Red, 58", ProductNumber = "FR-R92R-58", Color = "Red", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = productModels[0].ProductModelId },
+                new Product { ProductId = p2, Name = "Road-150 Red, 62", ProductNumber = "BK-R93R-62", Color = "Red", StandardCost = 2171.2942M, ListPrice = 3578.2700M, Size = "62", Weight = 6803.85M, ProductCategoryId = "ROADB", ProductModelId = productModels[4].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Road-650 Black, 58", ProductNumber = "BK-R50B-58", Color = "Black", StandardCost = 486.7066M, ListPrice = 782.9900M, Size = "58", Weight = 8976.55M, ProductCategoryId = "ROADB", ProductModelId = productModels[5].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Silver, 38", ProductNumber = "BK-M82S-38", Color = "Silver", StandardCost = 1912.1544M, ListPrice = 3399.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[1].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Black, 38", ProductNumber = "BK-M82B-38", Color = "Black", StandardCost = 1898.0944M, ListPrice = 3374.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[1].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Silver, 38", ProductNumber = "BK-M68S-38", Color = "Silver", StandardCost = 1265.6195M, ListPrice = 2319.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[2].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 38", ProductNumber = "BK-M68B-38", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[2].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 42", ProductNumber = "BK-M68B-42", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "42", Weight = 10781.83M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[2].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 46", ProductNumber = "BK-M68B-46", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "46", Weight = 10945.13M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[2].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-300 Black, 38", ProductNumber = "BK-M47B-38", Color = "Black", StandardCost = 598.4354M, ListPrice = 1079.9900M, Size = "38", Weight = 11498.51M, ProductCategoryId = "MOUNTB", ProductModelId = productModels[3].ProductModelId },
+                new Product { ProductId = p3, Name = "LL Mountain Handlebars", ProductNumber = "HB-M243", StandardCost = 19.7758M, ListPrice = 44.5400M, ProductCategoryId = "HANDLB", ProductModelId = productModels[6].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "ML Mountain Handlebars", ProductNumber = "HB-M763", StandardCost = 27.4925M, ListPrice = 61.9200M, ProductCategoryId = "HANDLB", ProductModelId = productModels[7].ProductModelId },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Mountain Handlebars", ProductNumber = "HB-M918", StandardCost = 53.3999M, ListPrice = 120.2700M, ProductCategoryId = "HANDLB", ProductModelId = productModels[8].ProductModelId }
             ];
             context.Product.AddRange(products);
+            context.SaveChanges();
 
-            context.SalesOrderHeader.Add(new SalesOrderHeader
+            var salesOrderHeader = new SalesOrderHeader
             {
-                SalesOrderId = 1000,
                 SalesOrderNumber = "SO-1000",
                 RevisionNumber = 1,
                 Status = 5,
@@ -1606,8 +1608,8 @@ namespace Wormhole.Sync.Tests.Models
                 PurchaseOrderNumber = "PO348186287",
                 AccountNumber = "10-4020-000609",
                 CustomerId = customerId1,
-                ShipToAddressId = 4,
-                BillToAddressId = 5,
+                ShipToAddressId = addresses[3].AddressId,
+                BillToAddressId = addresses[4].AddressId,
                 ShipMethod = "CAR TRANSPORTATION",
                 SubTotal = 6530.35M,
                 TaxAmt = 70.4279M,
@@ -1615,36 +1617,43 @@ namespace Wormhole.Sync.Tests.Models
                 TotalDue = (6530.35M + 70.4279M + 22.0087M),
                 DueDate = new DateTime(2008, 02, 20, 13, 20, 10, DateTimeKind.Utc),
                 OrderDate = new DateTime(2008, 02, 20, 13, 20, 10, DateTimeKind.Utc),
-                ShipDate = new DateTime(2008, 03, 05, 10, 40, 30), //, TimeSpan.FromHours(2.5)),
+                ShipDate = new DateTime(2008, 03, 05, 10, 40, 30),
                 ModifiedDate = new DateTime(2008, 10, 10, 0, 0, 0, DateTimeKind.Utc)
-            });
+            };
+            context.SalesOrderHeader.Add(salesOrderHeader);
+            context.SaveChanges();
 
             context.SalesOrderDetail.AddRange([
-                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110562, OrderQty = 1, ProductId = p2, UnitPrice = 3578.2700M },
-                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110563, OrderQty = 2, ProductId = p3, UnitPrice = 44.5400M },
-                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110564, OrderQty = 2, ProductId = p1, UnitPrice = 1431.5000M }
+                new SalesOrderDetail { SalesOrderId = salesOrderHeader.SalesOrderId, OrderQty = 1, ProductId = p2, UnitPrice = 3578.2700M },
+                new SalesOrderDetail { SalesOrderId = salesOrderHeader.SalesOrderId, OrderQty = 2, ProductId = p3, UnitPrice = 44.5400M },
+                new SalesOrderDetail { SalesOrderId = salesOrderHeader.SalesOrderId, OrderQty = 2, ProductId = p1, UnitPrice = 1431.5000M }
             ]);
 
-            context.Posts.AddRange([
-                new Posts { PostId = 1, Title = "Best Boutiques on the Eastside" },
-                new Posts { PostId = 2, Title = "Avoiding over-priced helmets" },
-                new Posts { PostId = 3, Title = "Where to buy Mars Bars" }
-            ]);
-            
-            context.Tags.AddRange([
-                new Tags { TagId = 1, Text = "Golden" },
-                new Tags { TagId = 2, Text = "Pineapple" },
-                new Tags { TagId = 3, Text = "Girlscout" },
-                new Tags { TagId = 4, Text = "Cookies" }
-            ]);
+            var posts = new[] {
+                new Posts { Title = "Best Boutiques on the Eastside" },
+                new Posts { Title = "Avoiding over-priced helmets" },
+                new Posts { Title = "Where to buy Mars Bars" }
+            };
+            context.Posts.AddRange(posts);
+            context.SaveChanges();
+
+            var tags = new[] {
+                new Tags { Text = "Golden" },
+                new Tags { Text = "Pineapple" },
+                new Tags { Text = "Girlscout" },
+                new Tags { Text = "Cookies" }
+            };
+            context.Tags.AddRange(tags);
+            context.SaveChanges();
+
             context.PostTag.AddRange([
-                new PostTag { PostId = 1, TagId = 1 },
-                new PostTag { PostId = 1, TagId = 2 },
-                new PostTag { PostId = 1, TagId = 3 },
-                new PostTag { PostId = 2, TagId = 1 },
-                new PostTag { PostId = 2, TagId = 4 },
-                new PostTag { PostId = 3, TagId = 3 },
-                new PostTag { PostId = 3, TagId = 4 }
+                new PostTag { PostId = posts[0].PostId, TagId = tags[0].TagId },
+                new PostTag { PostId = posts[0].PostId, TagId = tags[1].TagId },
+                new PostTag { PostId = posts[0].PostId, TagId = tags[2].TagId },
+                new PostTag { PostId = posts[1].PostId, TagId = tags[0].TagId },
+                new PostTag { PostId = posts[1].PostId, TagId = tags[3].TagId },
+                new PostTag { PostId = posts[2].PostId, TagId = tags[2].TagId },
+                new PostTag { PostId = posts[2].PostId, TagId = tags[3].TagId }
             ]);
             
 
@@ -1727,5 +1736,4 @@ namespace Wormhole.Sync.Tests.Models
             context.SaveChanges();
         }
     }
-#endif
 }
