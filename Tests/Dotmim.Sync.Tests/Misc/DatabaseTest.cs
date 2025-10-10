@@ -116,7 +116,14 @@ namespace Wormhole.Sync.Tests.Misc
 
 
         private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "sqlite_");
-        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "server_");//HelperDatabase.GetRandomName("server_");
+#if NET48 
+        // net48 needs separate db, since EF 6 uses strings as GUID for prodict, productlist, productlistdetails, etc
+        // This is because it uses the deprecated System.Data.Sqlite which handles Guids as blobs
+        // Wormhole.Sync.Sqlite hoewever, uses Microsoft.Data.Sqlite, which handles Guids as strings
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "server_") +"_net48";
+#else
+        private string sqlServerRandomDatabaseName => HelperDatabase.GetPerTestName(this.GetType(), "server_");
+#endif
         /// <summary>
         /// Get the server provider
         /// </summary>
@@ -249,18 +256,26 @@ namespace Wormhole.Sync.Tests.Misc
                 {
                     // Use Respawn for supported databases
                     await this.Fixture.ResetDatabaseAsync(providerType, databaseName);
+
+                    // and re-seed if necessary
+#if !NET48
+                    await
+#endif
+                        using var ctx = new AdventureWorksContext(provider, useSeeding);
+                    await ctx.Database.EnsureCreatedAsync();
                 }
             }
             else
             {
                 // First test in this class - create the databases
-                using (var ctx = new AdventureWorksContext(provider, useSeeding))
-                {
-                    await ctx.Database.EnsureCreatedAsync();
+#if !NET48
+                await
+#endif
+                    using var ctx = new AdventureWorksContext(provider, useSeeding);
+                await ctx.Database.EnsureCreatedAsync();
 
-                    if (providerType == ProviderType.Sql)
-                        await HelperDatabase.ActivateChangeTracking(databaseName);
-                }
+                if (providerType == ProviderType.Sql)
+                    await HelperDatabase.ActivateChangeTracking(databaseName);
 
                 // Register the server database with the fixture
                 this.Fixture.RegisterDatabase(providerType, databaseName);

@@ -38,8 +38,12 @@ namespace Wormhole.Sync.Tests
 
         public override ProviderType ServerProviderType => ProviderType.Sql;
 
-        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(),"http_sqlite_webapi2_");
-        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(), "http_sql_");
+        private string sqliteRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(),"http_sqlite_webapi2_")+"_net48";
+        
+        // net48 needs separate db, since EF 6 uses strings as GUID for prodict, productlist, productlistdetails, etc
+        // This is because it uses the deprecated System.Data.Sqlite which handles Guids as blobs
+        // Wormhole.Sync.Sqlite hoewever, uses Microsoft.Data.Sqlite, which handles Guids as strings
+        private string sqlClientRandomDatabaseName => HelperDatabase.GetPerTestName(GetType(), "http_sql_")+"_net48";
 
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
