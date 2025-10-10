@@ -263,6 +263,12 @@ namespace Wormhole.Sync.Tests.Misc
 #endif
                         using var ctx = new AdventureWorksContext(provider, useSeeding);
                     await ctx.Database.EnsureCreatedAsync();
+
+#if NET48
+                    // EF 6 only seeds the database, if it is created (the initializer used inherits from CreateDatabaseIfNotExists)
+                    // so we need to manually seed it.
+                    ctx.Seed();
+#endif
                 }
             }
             else

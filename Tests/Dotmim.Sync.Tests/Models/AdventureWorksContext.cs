@@ -1484,6 +1484,14 @@ namespace Wormhole.Sync.Tests.Models
 
         private void SeedData(AdventureWorksContext context)
         {
+            context.Seed();
+        }
+    }
+
+    public static class AdventureWorksInitializeExtensions
+    {
+        public static void Seed(this AdventureWorksContext context)
+        {
             // Add Address data
             context.Address.AddRange(new[] {
                 new Address { AddressId = 1, AddressLine1 = "8713 Yosemite Ct.", AddressLine2 = "Appt 1", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
@@ -1494,12 +1502,20 @@ namespace Wormhole.Sync.Tests.Models
                 new Address { AddressId = 6, AddressLine1 = "9241 SW. 110th Street", AddressLine2 = "Appt 6", City = "Bothell", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98011" },
                 new Address { AddressId = 7, AddressLine1 = "9250 W. 42nd Place", AddressLine2 = "Appt 7", City = "Kenmore", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98028" },
                 new Address { AddressId = 8, AddressLine1 = "9251 Prospect St.", AddressLine2 = "Appt 8", City = "Duvall", StateProvince = "Washington", CountryRegion = "United States", PostalCode = "98019" },
+                new Address { AddressId = 9, AddressLine1 = "52560 Free Street", AddressLine2 = "Appt 9", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
+                new Address { AddressId = 10, AddressLine1 = "22580 Free Street", AddressLine2 = "Appt 10", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V7" },
+                new Address { AddressId = 11, AddressLine1 = "2575 Bloor Street East", AddressLine2 = "Appt 11", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V6" },
+                new Address { AddressId = 12, AddressLine1 = "Station E", AddressLine2 = "Appt 12", City = "Chalk Riber", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "K0J 1J0" },
+                new Address { AddressId = 13, AddressLine1 = "575 Rue St Amable", AddressLine2 = "Appt 13", City = "Quebec", StateProvince = "Quebec", CountryRegion = "Canada", PostalCode = "G1R" },
+                new Address { AddressId = 14, AddressLine1 = "2512-4th Ave Sw", AddressLine2 = "Appt 14", City = "Calgary", StateProvince = "Alberta", CountryRegion = "Canada", PostalCode = "T2P 2G8" },
+                new Address { AddressId = 15, AddressLine1 = "55 Lakeshore Blvd East", AddressLine2 = "Appt 15", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M4B 1V6" },
+                new Address { AddressId = 16, AddressLine1 = "6333 Cote Vertu", AddressLine2 = "Appt 16", City = "Montreal", StateProvince = "Quebec", CountryRegion = "Canada", PostalCode = "H1Y 2H5" },
                 new Address { AddressId = 17, AddressLine1 = "3255 Front Street West", AddressLine2 = "Appt 17", City = "Toronto", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H5" },
                 new Address { AddressId = 18, AddressLine1 = "2550 Signet Drive", AddressLine2 = "Appt 18", City = "Weston", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "H1Y 2H7" },
                 new Address { AddressId = 19, AddressLine1 = "6777 Kingsway", AddressLine2 = "Appt 19", City = "Burnaby", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H8" },
                 new Address { AddressId = 20, AddressLine1 = "5250-505 Burning St", AddressLine2 = "Appt 20", City = "Vancouver", StateProvince = "British Columbia", CountryRegion = "Canada", PostalCode = "H1Y 2H9" },
                 new Address { AddressId = 21, AddressLine1 = "600 Slater Street", AddressLine2 = "Appt 21", City = "Ottawa", StateProvince = "Ontario", CountryRegion = "Canada", PostalCode = "M9V 4W3" }
-            });
+          });
 
             context.Employee.AddRange(new[] {
                 new Employee { EmployeeId = 1, FirstName = "Pamela", LastName = "Orson" },
@@ -1558,6 +1574,155 @@ namespace Wormhole.Sync.Tests.Models
                 new ProductModel { ProductModelId = 54, Name = "ML Mountain Handlebars" },
                 new ProductModel { ProductModelId = 55, Name = "HL Mountain Handlebars" }
             });
+
+            var p1 = Guid.NewGuid().ToProductId();
+            var p2 = Guid.NewGuid().ToProductId();
+            var p3 = Guid.NewGuid().ToProductId();
+
+            List<Product> products = [new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Road Frame - Black, 58", ProductNumber = "FR-R92B-58", Color = "Black", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = 6 },
+                new Product { ProductId = p1, Name = "HL Road Frame - Red, 58", ProductNumber = "FR-R92R-58", Color = "Red", StandardCost = 1059.3100M, ListPrice = 1431.5000M, Size = "58", Weight = 1016.04M, ProductCategoryId = "ROADFR", ProductModelId = 6 },
+                new Product { ProductId = p2, Name = "Road-150 Red, 62", ProductNumber = "BK-R93R-62", Color = "Red", StandardCost = 2171.2942M, ListPrice = 3578.2700M, Size = "62", Weight = 6803.85M, ProductCategoryId = "ROADB", ProductModelId = 25 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Road-650 Black, 58", ProductNumber = "BK-R50B-58", Color = "Black", StandardCost = 486.7066M, ListPrice = 782.9900M, Size = "58", Weight = 8976.55M, ProductCategoryId = "ROADB", ProductModelId = 30 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Silver, 38", ProductNumber = "BK-M82S-38", Color = "Silver", StandardCost = 1912.1544M, ListPrice = 3399.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = 19 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-100 Black, 38", ProductNumber = "BK-M82B-38", Color = "Black", StandardCost = 1898.0944M, ListPrice = 3374.9900M, Size = "38", Weight = 9230.56M, ProductCategoryId = "MOUNTB", ProductModelId = 19 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Silver, 38", ProductNumber = "BK-M68S-38", Color = "Silver", StandardCost = 1265.6195M, ListPrice = 2319.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 38", ProductNumber = "BK-M68B-38", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "38", Weight = 10591.33M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 42", ProductNumber = "BK-M68B-42", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "42", Weight = 10781.83M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-200 Black, 46", ProductNumber = "BK-M68B-46", Color = "Black", StandardCost = 1251.9813M, ListPrice = 2294.9900M, Size = "46", Weight = 10945.13M, ProductCategoryId = "MOUNTB", ProductModelId = 20 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "Mountain-300 Black, 38", ProductNumber = "BK-M47B-38", Color = "Black", StandardCost = 598.4354M, ListPrice = 1079.9900M, Size = "38", Weight = 11498.51M, ProductCategoryId = "MOUNTB", ProductModelId = 21 },
+                new Product { ProductId = p3, Name = "LL Mountain Handlebars", ProductNumber = "HB-M243", StandardCost = 19.7758M, ListPrice = 44.5400M, ProductCategoryId = "HANDLB", ProductModelId = 52 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "ML Mountain Handlebars", ProductNumber = "HB-M763", StandardCost = 27.4925M, ListPrice = 61.9200M, ProductCategoryId = "HANDLB", ProductModelId = 54 },
+                new Product { ProductId = Guid.NewGuid().ToProductId(), Name = "HL Mountain Handlebars", ProductNumber = "HB-M918", StandardCost = 53.3999M, ListPrice = 120.2700M, ProductCategoryId = "HANDLB", ProductModelId = 55 }
+            ];
+            context.Product.AddRange(products);
+
+            context.SalesOrderHeader.Add(new SalesOrderHeader
+            {
+                SalesOrderId = 1000,
+                SalesOrderNumber = "SO-1000",
+                RevisionNumber = 1,
+                Status = 5,
+                OnlineOrderFlag = true,
+                PurchaseOrderNumber = "PO348186287",
+                AccountNumber = "10-4020-000609",
+                CustomerId = customerId1,
+                ShipToAddressId = 4,
+                BillToAddressId = 5,
+                ShipMethod = "CAR TRANSPORTATION",
+                SubTotal = 6530.35M,
+                TaxAmt = 70.4279M,
+                Freight = 22.0087M,
+                TotalDue = (6530.35M + 70.4279M + 22.0087M),
+                DueDate = new DateTime(2008, 02, 20, 13, 20, 10, DateTimeKind.Utc),
+                OrderDate = new DateTime(2008, 02, 20, 13, 20, 10, DateTimeKind.Utc),
+                ShipDate = new DateTime(2008, 03, 05, 10, 40, 30), //, TimeSpan.FromHours(2.5)),
+                ModifiedDate = new DateTime(2008, 10, 10, 0, 0, 0, DateTimeKind.Utc)
+            });
+
+            context.SalesOrderDetail.AddRange([
+                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110562, OrderQty = 1, ProductId = p2, UnitPrice = 3578.2700M },
+                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110563, OrderQty = 2, ProductId = p3, UnitPrice = 44.5400M },
+                new SalesOrderDetail { SalesOrderId = 1000, SalesOrderDetailId = 110564, OrderQty = 2, ProductId = p1, UnitPrice = 1431.5000M }
+            ]);
+
+            context.Posts.AddRange([
+                new Posts { PostId = 1, Title = "Best Boutiques on the Eastside" },
+                new Posts { PostId = 2, Title = "Avoiding over-priced helmets" },
+                new Posts { PostId = 3, Title = "Where to buy Mars Bars" }
+            ]);
+            
+            context.Tags.AddRange([
+                new Tags { TagId = 1, Text = "Golden" },
+                new Tags { TagId = 2, Text = "Pineapple" },
+                new Tags { TagId = 3, Text = "Girlscout" },
+                new Tags { TagId = 4, Text = "Cookies" }
+            ]);
+            context.PostTag.AddRange([
+                new PostTag { PostId = 1, TagId = 1 },
+                new PostTag { PostId = 1, TagId = 2 },
+                new PostTag { PostId = 1, TagId = 3 },
+                new PostTag { PostId = 2, TagId = 1 },
+                new PostTag { PostId = 2, TagId = 4 },
+                new PostTag { PostId = 3, TagId = 3 },
+                new PostTag { PostId = 3, TagId = 4 }
+            ]);
+            
+
+            var hollydayPriceListId = new Guid("944563b4-1f40-4218-b896-7fcb71674f43").ToPriceListId();
+            var dalyPriceListId = new Guid("de60f9fb-7d4f-489a-9aae-2a7f7e4a5f0a").ToPriceListId();
+            decimal[] discountlist = { 5, 10, 30, 50 };
+
+
+            context.PricesList.AddRange([
+                new PriceList() { PriceListId = dalyPriceListId, Description = "Daly price list" },
+                new PriceList() { PriceListId = hollydayPriceListId, Description = "Hollyday price list" }
+            ]);
+            context.PricesListCategory.AddRange([
+                new PriceListCategory() { PriceListId = hollydayPriceListId, PriceCategoryId = "A_BIKES" }
+                , new PriceListCategory() { PriceListId = hollydayPriceListId, PriceCategoryId = "A_CLOTHE", }
+                , new PriceListCategory() { PriceListId = dalyPriceListId, PriceCategoryId = "A_BIKES", }
+                , new PriceListCategory() { PriceListId = dalyPriceListId, PriceCategoryId = "A_CLOTHE", }
+                , new PriceListCategory() { PriceListId = dalyPriceListId, PriceCategoryId = "A_COMPT", }
+            ]);
+
+            var dettails = new List<PriceListDetail>();
+            var generator = new Random((int)(DateTime.Now.Ticks % int.MaxValue));
+            //Add hollyday price list
+            dettails.AddRange(products
+                .Where(p => p.ProductCategoryId == "MOUNTB")
+                .Select(item => new PriceListDetail()
+                {
+                    PriceListId = hollydayPriceListId,
+                    PriceCategoryId = "A_BIKES",
+                    PriceListDettailId = Guid.NewGuid().ToPriceListId(),
+                    ProductId = item.ProductId,
+                    ProductDescription = $"{item.Name}(Easter {DateTime.Now.Year})",
+                    MinQuantity = generator.Next(0, 5),
+                    Amount = item.ListPrice.HasValue ? item.ListPrice.Value : 0,
+                    Discount = discountlist[generator.Next(0, discountlist.Length - 1)],
+                }));
+
+            dettails.AddRange(products
+                .Where(p => p.ProductCategoryId == "A_CLOTHE")
+                .Select(item => new PriceListDetail()
+                {
+                    PriceListId = hollydayPriceListId,
+                    PriceCategoryId = "A_CLOTHE",
+                    PriceListDettailId = Guid.NewGuid().ToPriceListId(),
+                    ProductId = item.ProductId,
+                    ProductDescription = $"{item.Name}(Easter {DateTime.Now.Year})",
+                    MinQuantity = generator.Next(0, 5),
+                    Amount = item.ListPrice.HasValue ? item.ListPrice.Value : 0,
+                    Discount = discountlist[generator.Next(0, discountlist.Length - 1)],
+                }));
+
+            //Add standard price list
+            dettails.AddRange(products
+                .Where(p => p.ProductCategoryId == "MOUNTB")
+                .Select(item => new PriceListDetail()
+                {
+                    PriceListId = dalyPriceListId,
+                    PriceCategoryId = "A_BIKES",
+                    PriceListDettailId = Guid.NewGuid().ToPriceListId(),
+                    ProductId = item.ProductId,
+                    ProductDescription = item.Name,
+                    MinQuantity = generator.Next(0, 5),
+                    Amount = item.ListPrice.HasValue ? item.ListPrice.Value : 0,
+                }));
+
+            dettails.AddRange(products
+                .Where(p => p.ProductCategoryId == "A_CLOTHE")
+                .Select(item => new PriceListDetail()
+                {
+                    PriceListId = dalyPriceListId,
+                    PriceCategoryId = "A_CLOTHE",
+                    PriceListDettailId = Guid.NewGuid().ToPriceListId(),
+                    ProductId = item.ProductId,
+                    ProductDescription = item.Name,
+                    MinQuantity = generator.Next(0, 5),
+                    Amount = item.ListPrice.HasValue ? item.ListPrice.Value : 0,
+                }));
+            context.PricesListDetail.AddRange(dettails);
 
             context.SaveChanges();
         }
