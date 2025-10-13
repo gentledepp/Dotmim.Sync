@@ -229,27 +229,19 @@ namespace Wormhole.Sync
                 bool isClientSchemaValid = true;
 
                 // Try to get local scope info to check for optimization
-                try
-                {
-                    (context, cScopeInfo) = await this.LocalOrchestrator.InternalEnsureScopeInfoAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
-                    (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalEnsureScopeInfoClientAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
+                (context, cScopeInfo) = await this.LocalOrchestrator.InternalEnsureScopeInfoAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
+                (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalEnsureScopeInfoClientAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
 
-                    // check if the server supports unified batching
-                    if (this.Options.UseUnifiedBatching)
-                        context.UseUnifiedBatching = true;
+                // check if the server supports unified batching
+                if (this.Options.UseUnifiedBatching)
+                    context.UseUnifiedBatching = true;
                     
-                    // Check if remote orchestrator supports optimization
-                    if (this.Options.UseOptimizedFlow && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
-                    {
-                        canUseOptimizedFlow = optimized.CanUseOptimizedSync(cScopeInfo, cScopeInfoClient);
-                    }
-                }
-                catch
+                // Check if remote orchestrator supports optimization
+                if (this.Options.UseOptimizedFlow && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
                 {
-                    // If optimization check fails, fall back to traditional flow
-                    canUseOptimizedFlow = false;
+                    canUseOptimizedFlow = optimized.CanUseOptimizedSync(cScopeInfo, cScopeInfoClient);
                 }
-
+        
                 var clientIsNew = cScopeInfoClient.IsNewScope || cScopeInfo.Schema == null;
                 useOptimizedFlow = !clientIsNew && canUseOptimizedFlow && syncType == SyncType.Normal;
 
