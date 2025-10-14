@@ -15,12 +15,14 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.6.1.0</Version>
+        <Version>1.6.2.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
-            # Version 1.6.1.0
+            # Version 1.6.2.0
+            - GetProvisioningSqlScriptsAsync now includes the scope_info and scope_info_client tables
+	        # Version 1.6.1.0
             - can define custom script separator
             - added cancellation support for all SyncAgent.SynchronizeAsync overloads
             - Renamed SyncWay to SyncRole for clarity
