@@ -109,7 +109,9 @@ namespace Wormhole.Sync
         /// Get a provider scope builder by scope table name.
         /// </summary>
         public DbScopeBuilder GetScopeBuilder(string scopeInfoTableName)
-            => this.Provider == null ? null : this.Provider.GetScopeBuilder(scopeInfoTableName);
+            => this.Provider == null ? null : this.Provider.GetScopeBuilder(scopeInfoTableName,
+                this.Options.ScopeInfoTablePrefix ?? string.Empty,
+                this.Options.ScopeInfoTableSuffix ?? string.Empty);
 
         /// <summary>
         /// Check if a database exists, regarding the provider you are using. Returns database name and database version.

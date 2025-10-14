@@ -23,15 +23,18 @@ namespace Wormhole.Sync.Sqlite
         protected DbTableNames ScopeInfoClientTableNames { get; }
 
         /// <inheritdoc cref="SqliteScopeBuilder" />
-        public SqliteScopeBuilder(string scopeInfoTableName)
+        public SqliteScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
         {
             var tableParser = new TableParser(scopeInfoTableName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
 
-            this.ScopeInfoTableNames = new DbTableNames(SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote,
-                tableParser.TableName, tableParser.NormalizedFullName, tableParser.NormalizedShortName,
-                tableParser.QuotedFullName, tableParser.QuotedShortName, tableParser.SchemaName);
+            // Apply prefix and suffix to the table names
+            var scopeInfoName = $"{prefix}{tableParser.TableName}{suffix}";
 
-            var scopeInfoClientFullTableName = $"[{tableParser.TableName}_client]";
+            this.ScopeInfoTableNames = new DbTableNames(SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote,
+                scopeInfoName, scopeInfoName, scopeInfoName,
+                $"[{scopeInfoName}]", $"[{scopeInfoName}]", tableParser.SchemaName);
+
+            var scopeInfoClientFullTableName = $"[{scopeInfoName}_client]";
 
             tableParser = new TableParser(scopeInfoClientFullTableName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
 

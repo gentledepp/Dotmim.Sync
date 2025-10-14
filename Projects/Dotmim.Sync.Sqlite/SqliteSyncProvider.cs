@@ -208,7 +208,8 @@ namespace Wormhole.Sync.Sqlite
         }
 
         /// <inheritdoc/>
-        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName) => new SqliteScopeBuilder(scopeInfoTableName);
+        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            => new SqliteScopeBuilder(scopeInfoTableName, prefix, suffix);
 
         /// <inheritdoc/>
         public override DbSyncAdapter GetSyncAdapter(SyncTable tableDescription, ScopeInfo scopeInfo)

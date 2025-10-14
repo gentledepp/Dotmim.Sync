@@ -23,14 +23,16 @@ namespace Wormhole.Sync.PostgreSql.Scope
         protected DbTableNames ScopeInfoClientTableNames { get; }
 
         /// <inheritdoc cref="NpgsqlScopeBuilder"/>
-        public NpgsqlScopeBuilder(string scopeInfoTableName)
+        public NpgsqlScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
         {
             var tableParser = new TableParser(scopeInfoTableName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
 
             var schema = NpgsqlManagementUtils.GetUnquotedSqlSchemaName(tableParser);
 
-            var scopeInfoFullTableName = $"\"{schema}\".\"{tableParser.TableName}\"";
-            var scopeInfoClientFullTableName = $"\"{schema}\".\"{tableParser.TableName}_client\"";
+            // Apply prefix and suffix to the table names
+            var scopeInfoName = $"{prefix}{tableParser.TableName}{suffix}";
+            var scopeInfoFullTableName = $"\"{schema}\".\"{scopeInfoName}\"";
+            var scopeInfoClientFullTableName = $"\"{schema}\".\"{scopeInfoName}_client\"";
 
             tableParser = new TableParser(scopeInfoFullTableName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
 

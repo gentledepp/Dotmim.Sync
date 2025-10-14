@@ -1,0 +1,387 @@
+﻿CREATE TABLE [dbo].[test_scope_info] (
+                    [sync_scope_id] [uniqueidentifier] NOT NULL DEFAULT NEWID(),
+                    [sync_scope_name] [nvarchar](100) NOT NULL,
+                    [sync_scope_schema] [nvarchar](max) NULL,
+                    [sync_scope_setup] [nvarchar](max) NULL,
+                    [sync_scope_version] [nvarchar](10) NULL,
+                    [sync_scope_last_clean_timestamp] [bigint] NULL,
+                    [sync_scope_properties] [nvarchar](MAX) NULL,
+                    [sync_scope_server_capabilities] [nvarchar](MAX) NULL,
+                    [sync_scope_schema_hash] [nvarchar](64) NULL,
+                    CONSTRAINT [PKey_dbo_test_scope_info]
+                    PRIMARY KEY CLUSTERED ([sync_scope_name] ASC)
+                    )
+
+-- ---------------------------------
+GO
+
+CREATE TABLE [dbo].[test_scope_info_client](
+                    [sync_scope_id] [uniqueidentifier] NOT NULL,
+                    [sync_scope_name] [nvarchar](100) NOT NULL,
+                    [sync_scope_hash] [nvarchar](100) NOT NULL,
+                    [sync_scope_parameters] [nvarchar](MAX) NULL,
+                    [scope_last_sync_timestamp] [bigint] NULL,
+                    [scope_last_server_sync_timestamp] [bigint] NULL,
+                    [scope_last_sync_duration] [bigint] NULL,
+                    [scope_last_sync] [datetime] NULL, 
+                    [sync_scope_errors] [nvarchar](MAX) NULL, 
+                    [sync_scope_properties] [nvarchar](MAX) NULL
+                    CONSTRAINT [PKey_test_scope_info_client] PRIMARY KEY CLUSTERED ([sync_scope_id] ASC, [sync_scope_name] ASC, [sync_scope_hash] ASC)
+                    )
+
+-- ---------------------------------
+GO
+
+CREATE TABLE [ProductCategory_tracking] (
+[ProductCategoryID] uniqueidentifier NOT NULL, 
+[update_scope_id] [uniqueidentifier] NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000', 
+[timestamp] [timestamp] NULL, 
+[timestamp_bigint] AS (CONVERT([bigint],[timestamp])) PERSISTED, 
+[sync_row_is_tombstone] [bit] NOT NULL default(0), 
+[last_change_datetime] [datetime] NULL, 
+);
+ALTER TABLE [ProductCategory_tracking] ADD CONSTRAINT [PK_ProductCategory_tracking] PRIMARY KEY ([ProductCategoryID]);
+CREATE NONCLUSTERED INDEX [ProductCategory_tracking_timestamp_index] ON [ProductCategory_tracking] (
+	  [timestamp_bigint] ASC
+	, [update_scope_id] ASC
+	, [sync_row_is_tombstone] ASC
+	,[ProductCategoryID] ASC
+);
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_insert_trigger] ON [ProductCategory] FOR INSERT AS
+
+SET NOCOUNT ON;
+
+-- If row was deleted before, it already exists, so just make an update
+UPDATE [side] 
+SET  [sync_row_is_tombstone] = 0
+	,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally
+	,[last_change_datetime] = GetUtcDate()
+FROM [ProductCategory_tracking] [side]
+JOIN INSERTED AS [i] ON [side].[ProductCategoryID] = [i].[ProductCategoryID]
+
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [i].[ProductCategoryID]
+	,'00000000-0000-0000-0000-000000000000'
+	,0
+	,GetUtcDate()
+FROM INSERTED [i]
+LEFT JOIN [ProductCategory_tracking] [side] ON [i].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_update_trigger] ON [ProductCategory] FOR UPDATE AS
+
+SET NOCOUNT ON;
+
+-- Stage 1: Fast column-level check - exit early if no tracked columns were updated
+IF NOT (UPDATE([ProductCategoryID]) OR UPDATE([Name]) OR UPDATE([ModifiedDate]))
+	RETURN;
+
+-- Stage 2: Precise value-level comparison using EXCEPT
+IF NOT EXISTS (
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM INSERTED
+	EXCEPT
+	SELECT [ProductCategoryID], [Name], [ModifiedDate]
+	FROM DELETED
+)
+	RETURN;
+
+-- Stage 3: Perform the actual tracking update
+UPDATE [side] 
+SET 	[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- since the update is from local, use empty GUID
+	,[last_change_datetime] = GetUtcDate()
+
+FROM [ProductCategory_tracking] [side]
+JOIN INSERTED AS [i] ON [side].[ProductCategoryID] = [i].[ProductCategoryID]
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [i].[ProductCategoryID]
+	,'00000000-0000-0000-0000-000000000000'
+	,0
+	,GetUtcDate()
+FROM INSERTED [i]
+JOIN DELETED AS [d] ON [d].[ProductCategoryID] = [i].[ProductCategoryID]
+LEFT JOIN [ProductCategory_tracking] [side] ON [i].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_delete_trigger] ON [ProductCategory] FOR DELETE AS
+
+SET NOCOUNT ON;
+
+UPDATE [side] 
+SET  [sync_row_is_tombstone] = 1
+	,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally
+	,[last_change_datetime] = GetUtcDate()
+FROM [ProductCategory_tracking] [side]
+JOIN DELETED AS [d] ON [side].[ProductCategoryID] = [d].[ProductCategoryID]
+
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [d].[ProductCategoryID]
+	,'00000000-0000-0000-0000-000000000000'
+	,1
+	,GetUtcDate()
+FROM DELETED [d]
+LEFT JOIN [ProductCategory_tracking] [side] ON [d].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TYPE [dbo].[ProductCategory_BulkType] AS TABLE (
+[ProductCategoryID] uniqueidentifier NOT NULL
+, [Name] nvarchar (50) NULL
+, [ModifiedDate] datetime NULL
+, PRIMARY KEY ([ProductCategoryID] ASC))
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_bulkdelete]
+	@sync_min_timestamp bigint,
+	@sync_scope_id uniqueidentifier,
+	@changeTable [dbo].[ProductCategory_BulkType] READONLY
+AS
+BEGIN
+-- use a temp table to store the list of PKs that successfully got deleted
+declare @dms_changed TABLE ([ProductCategoryID] uniqueidentifier,  PRIMARY KEY ([ProductCategoryID]));
+
+;WITH [changes] AS (
+	SELECT [p].[ProductCategoryID], [p].[Name], [p].[ModifiedDate], 
+	[side].[update_scope_id] as [sync_update_scope_id], [side].[timestamp] as [sync_timestamp], [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]
+	FROM @changeTable [p]
+	LEFT JOIN [ProductCategory_tracking] [side] ON 	[p].[ProductCategoryID] = [side].[ProductCategoryID]
+	)
+DELETE [ProductCategory]
+OUTPUT DELETED.[ProductCategoryID]
+INTO @dms_changed 
+FROM [ProductCategory] [base]
+JOIN [changes] ON [changes].[ProductCategoryID] = [base].[ProductCategoryID]
+WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id;
+
+-- Since the delete trigger is passed, we update the tracking table to reflect the real scope deleter
+UPDATE [side] SET
+	sync_row_is_tombstone = 1, 
+	update_scope_id = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
+	last_change_datetime = GETUTCDATE()
+FROM [ProductCategory_tracking] [side]
+JOIN @dms_changed [t] on [t].[ProductCategoryID] = [side].[ProductCategoryID]
+
+
+--Select all ids not inserted / deleted / updated as conflict
+SELECT  [t].[ProductCategoryID] ,[t].[Name] ,[t].[ModifiedDate]
+FROM @changeTable [t]
+WHERE NOT EXISTS (
+	 SELECT  [ProductCategoryID]	 FROM @dms_changed [i]
+	 WHERE  [t].[ProductCategoryID] = [i].[ProductCategoryID]	)
+
+END
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_bulkupdate]
+	@sync_min_timestamp bigint,
+	@sync_scope_id uniqueidentifier,
+	@changeTable [dbo].[ProductCategory_BulkType] READONLY
+AS
+BEGIN
+-- use a temp table to store the list of PKs that successfully got updated/inserted
+declare @dms_changed TABLE ([ProductCategoryID] uniqueidentifier,  PRIMARY KEY ( [ProductCategoryID]));
+
+;WITH [changes] AS (
+	SELECT [p].[ProductCategoryID], [p].[Name], [p].[ModifiedDate], 
+	[side].[update_scope_id] as [sync_update_scope_id], [side].[timestamp] as [sync_timestamp], [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]
+	FROM @changeTable [p]
+	LEFT JOIN [ProductCategory_tracking] [side] ON 
+	[p].[ProductCategoryID] = [side].[ProductCategoryID]	)
+MERGE [ProductCategory] AS [base]
+USING [changes] on [changes].[ProductCategoryID] = [base].[ProductCategoryID]
+WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id) THEN
+
+	UPDATE SET
+	[Name] = [changes].[Name]
+	, [ModifiedDate] = [changes].[ModifiedDate]
+WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL) THEN
+
+	INSERT
+	([ProductCategoryID], [Name], [ModifiedDate])
+	VALUES ([changes].[ProductCategoryID], [changes].[Name], [changes].[ModifiedDate])
+	OUTPUT  INSERTED.[ProductCategoryID]
+	INTO @dms_changed; -- populates the temp table with successful PKs
+
+-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
+UPDATE [side] SET
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
+	[sync_row_is_tombstone] = 0,
+	[last_change_datetime] = GETUTCDATE()
+FROM [ProductCategory_tracking] [side]
+JOIN @dms_changed [t] on [t].[ProductCategoryID] = [side].[ProductCategoryID]
+
+--Select all ids not inserted / deleted / updated as conflict
+SELECT  [t].[ProductCategoryID] ,[t].[Name] ,[t].[ModifiedDate]
+FROM @changeTable [t]
+WHERE NOT EXISTS (
+	 SELECT  [ProductCategoryID]	 FROM @dms_changed [i]
+	 WHERE  [t].[ProductCategoryID] = [i].[ProductCategoryID]	)
+
+END
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_delete]
+	@ProductCategoryID uniqueidentifier,
+	@sync_scope_id uniqueidentifier,
+	@sync_force_write int,
+	@sync_min_timestamp bigint,
+	@sync_row_count int OUTPUT
+AS
+BEGIN
+-- use a temp table to store the list of PKs that successfully got updated/inserted
+declare @dms_changed TABLE ([ProductCategoryID] uniqueidentifier,  PRIMARY KEY ( [ProductCategoryID]));
+
+DELETE [ProductCategory]
+OUTPUT DELETED.[ProductCategoryID] INTO @dms_changed -- populates the temp table with successful deleted row
+FROM [ProductCategory] [base]
+LEFT JOIN [ProductCategory_tracking] [side] ON [base].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE ([side].[timestamp] <= @sync_min_timestamp OR [side].[timestamp] IS NULL OR [side].[update_scope_id] = @sync_scope_id OR @sync_force_write = 1)
+AND ([base].[ProductCategoryID] = @ProductCategoryID);
+
+SET @sync_row_count = 0;
+-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
+UPDATE [side] SET
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
+	[sync_row_is_tombstone] = 1,
+	[last_change_datetime] = GETUTCDATE()
+FROM [ProductCategory_tracking] [side]
+JOIN @dms_changed [t] on [t].[ProductCategoryID] = [side].[ProductCategoryID]
+
+SET @sync_row_count = @@ROWCOUNT;
+
+END
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_update]
+	@ProductCategoryID uniqueidentifier,
+	@Name nvarchar (50),
+	@ModifiedDate datetime = NULL,
+	@sync_min_timestamp bigint,
+	@sync_scope_id uniqueidentifier,
+	@sync_force_write int,
+	@sync_row_count int OUTPUT
+AS
+BEGIN
+-- use a temp table to store the list of PKs that successfully got updated/inserted
+declare @dms_changed TABLE ([ProductCategoryID] uniqueidentifier,  PRIMARY KEY ( [ProductCategoryID]));
+
+;WITH [changes] AS (
+	SELECT [p].[ProductCategoryID], [p].[Name], [p].[ModifiedDate], 
+	[side].[update_scope_id] as [sync_update_scope_id], [side].[timestamp] as [sync_timestamp], [side].[sync_row_is_tombstone] as [sync_row_is_tombstone]
+	FROM (SELECT 
+		 @ProductCategoryID as [ProductCategoryID], @Name as [Name], @ModifiedDate as [ModifiedDate]) AS [p]
+	LEFT JOIN [ProductCategory_tracking] [side] ON 	[p].[ProductCategoryID] = [side].[ProductCategoryID]
+	)
+MERGE [ProductCategory] AS [base]
+USING [changes] on [changes].[ProductCategoryID] = [base].[ProductCategoryID]
+WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1) THEN
+
+	UPDATE SET
+	[Name] = [changes].[Name]
+	, [ModifiedDate] = [changes].[ModifiedDate]
+WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR @sync_force_write = 1) THEN
+
+	INSERT
+	([ProductCategoryID], [Name], [ModifiedDate])
+	VALUES ([changes].[ProductCategoryID], [changes].[Name], [changes].[ModifiedDate])
+
+OUTPUT  INSERTED.[ProductCategoryID]
+INTO @dms_changed; -- populates the temp table with successful PKs
+
+SET @sync_row_count = 0;
+
+-- Since the update trigger is passed, we update the tracking table to reflect the real scope updater
+UPDATE [side] SET
+	[update_scope_id] = ISNULL(@sync_scope_id, '00000000-0000-0000-0000-000000000000'),
+	[sync_row_is_tombstone] = 0,
+	[last_change_datetime] = GETUTCDATE()
+FROM [ProductCategory_tracking] [side]
+JOIN @dms_changed [t] on [t].[ProductCategoryID] = [side].[ProductCategoryID]
+
+SET @sync_row_count = @@ROWCOUNT;
+
+END
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_initialize]
+	@sync_min_timestamp bigint = NULL
+AS
+BEGIN
+SELECT 
+	  [base].[ProductCategoryID]
+	, [base].[Name]
+	, [base].[ModifiedDate]
+	, 0 as [sync_row_is_tombstone]
+FROM [ProductCategory] [base]
+
+
+END
+
+-- ---------------------------------
+GO
+
+CREATE PROCEDURE [dbo].[ProductCategory_changes]
+	@sync_min_timestamp bigint = 0,
+	@sync_scope_id uniqueidentifier = NULL
+AS
+BEGIN
+SELECT DISTINCT	[side].[ProductCategoryID], 
+	[base].[Name], 
+	[base].[ModifiedDate], 
+	[side].[sync_row_is_tombstone] as [sync_row_is_tombstone], 
+	NULLIF([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]
+FROM [ProductCategory] [base]
+RIGHT JOIN [ProductCategory_tracking] [side] ON [base].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE (
+	[side].[timestamp] > @sync_min_timestamp
+	-- if @sync_scope_id is null, we are using sql server as client db. If it is not null, we are using it as server
+	AND ((@sync_scope_id is not null AND [side].[update_scope_id] <> @sync_scope_id) OR (@sync_scope_id is null AND [side].[update_scope_id] = '00000000-0000-0000-0000-000000000000'))
+)
+
+END

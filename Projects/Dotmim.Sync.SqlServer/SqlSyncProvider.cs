@@ -155,7 +155,8 @@ namespace Wormhole.Sync.SqlServer
         public override bool CanBeServerProvider => true;
 
         /// <inheritdoc/>
-        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName) => new SqlScopeBuilder(scopeInfoTableName);
+        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            => new SqlScopeBuilder(scopeInfoTableName, prefix, suffix);
 
         /// <inheritdoc/>
         public override DbSyncAdapter GetSyncAdapter(SyncTable tableDescription, ScopeInfo scopeInfo)

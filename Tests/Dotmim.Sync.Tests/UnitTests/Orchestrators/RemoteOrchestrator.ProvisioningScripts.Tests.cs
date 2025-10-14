@@ -63,6 +63,48 @@ namespace Wormhole.Sync.Tests.UnitTests
             output.WriteLine("====================================================");
             
             await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_SingleTable_CustomScopeInfoTableName_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTablePrefix = "default_";
+            options.ScopeInfoTableSuffix = "_v3";
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider, options);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== SQL Server Single Table Scripts ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("====================================================");
+            
+            await Verifier.Verify(scripts);
 
             
         }
@@ -1616,6 +1658,257 @@ namespace Wormhole.Sync.Tests.UnitTests
             var scopeInfoIndex = scripts.IndexOf("scope_info", StringComparison.OrdinalIgnoreCase);
             var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
             Assert.True(scopeInfoIndex < productCategoryIndex, "scope_info should appear before table-specific components in cross-provider scripts");
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithScopeTablePrefix_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_prefix_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTablePrefix = "test_";
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider, options);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Scope Table Prefix Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=============================================");
+
+            // Verify prefix is applied to scope tables
+            Assert.Contains("test_scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("test_scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify tables appear in correct order
+            var prefixedScopeInfoIndex = scripts.IndexOf("test_scope_info", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(prefixedScopeInfoIndex < productCategoryIndex, "Prefixed scope_info should appear before table-specific components");
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithScopeTableSuffix_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_suffix_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTableSuffix = "_v2";
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider, options);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Scope Table Suffix Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=============================================");
+
+            // Verify suffix is applied to scope tables (client suffix comes after custom suffix)
+            Assert.Contains("scope_info_v2", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("scope_info_v2_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithScopeTablePrefixAndSuffix_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_both_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTablePrefix = "app_";
+            options.ScopeInfoTableSuffix = "_v2";
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider, options);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Scope Table Prefix and Suffix Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("========================================================");
+
+            // Verify both prefix and suffix are applied
+            Assert.Contains("app_scope_info_v2", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("app_scope_info_v2_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify the _client suffix comes AFTER the custom suffix
+            Assert.DoesNotContain("app_scope_info_client_v2", scripts, StringComparison.OrdinalIgnoreCase);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithScopeTablePrefix_Sqlite()
+        {
+            var dbName = HelperDatabase.GetRandomName("sqlite_prov_prefix_") + ".db";
+            var cs = HelperDatabase.GetSqliteDatabaseConnectionString(dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqliteConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [ProductCategory] (
+                        [ProductCategoryID] TEXT NOT NULL PRIMARY KEY,
+                        [Name] TEXT NOT NULL,
+                        [ModifiedDate] TEXT NULL
+                    )";
+                using var cmd = new SqliteCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTablePrefix = "test_";
+
+            var provider = new SqliteSyncProvider(cs);
+            var orchestrator = new LocalOrchestrator(provider, options);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== SQLite Scope Table Prefix Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("====================================================");
+
+            // Verify prefix is applied to scope tables in SQLite
+            Assert.Contains("test_scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("test_scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            await Verifier.Verify(scripts);
+
+            // Clean up
+            SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            if (File.Exists(dbName))
+                File.Delete(dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_CrossProvider_WithPrefix()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_cross_prefix_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table in SQL Server
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var options = new SyncOptions();
+            options.ScopeInfoTablePrefix = "mobile_";
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider, options);
+
+            var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
+
+            // Act - Get SQLite scripts from SQL Server connection with prefix
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+
+            // Assert
+            output.WriteLine("========== Cross-Provider with Prefix Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=====================================================");
+
+            // Verify it's SQLite syntax
+            Assert.DoesNotContain("CREATE PROCEDURE", scripts);
+            Assert.DoesNotContain("GO", scripts);
+
+            // Verify prefix is applied to scope tables
+            Assert.Contains("mobile_scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("mobile_scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify ordering
+            var prefixedScopeInfoIndex = scripts.IndexOf("mobile_scope_info", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(prefixedScopeInfoIndex < productCategoryIndex, "Prefixed scope tables should appear before table-specific components");
 
             await Verifier.Verify(scripts);
         }

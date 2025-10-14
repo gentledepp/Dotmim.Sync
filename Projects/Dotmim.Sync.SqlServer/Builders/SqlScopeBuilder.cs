@@ -22,15 +22,17 @@ namespace Wormhole.Sync.SqlServer.Scope
         protected DbTableNames ScopeInfoClientTableNames { get; }
 
         /// <inheritdoc cref="SqlScopeBuilder"/>
-        public SqlScopeBuilder(string scopeInfoTableName)
+        public SqlScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
         {
 
             var tableParser = new TableParser(scopeInfoTableName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
 
             var schema = SqlManagementUtils.GetUnquotedSqlSchemaName(tableParser);
 
-            var scopeInfoFullTableName = $"[{schema}].[{tableParser.TableName}]";
-            var scopeInfoClientFullTableName = $"[{schema}].[{tableParser.TableName}_client]";
+            // Apply prefix and suffix to the table names
+            var scopeInfoName = $"{prefix}{tableParser.TableName}{suffix}";
+            var scopeInfoFullTableName = $"[{schema}].[{scopeInfoName}]";
+            var scopeInfoClientFullTableName = $"[{schema}].[{scopeInfoName}_client]";
 
             tableParser = new TableParser(scopeInfoFullTableName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
 

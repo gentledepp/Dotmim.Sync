@@ -96,7 +96,10 @@ namespace Wormhole.Sync
         /// <summary>
         /// Create a Scope Builder, which can create scope table, and scope config.
         /// </summary>
-        public abstract DbScopeBuilder GetScopeBuilder(string scopeInfoTableName);
+        /// <param name="scopeInfoTableName">The base name for the scope_info table.</param>
+        /// <param name="prefix">Optional prefix to add before the table name.</param>
+        /// <param name="suffix">Optional suffix to add after the table name (before "_client" for scope_info_client).</param>
+        public abstract DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "");
 
         /// <summary>
         /// Gets or sets the metadata resolver (validating the columns definition from the data store).

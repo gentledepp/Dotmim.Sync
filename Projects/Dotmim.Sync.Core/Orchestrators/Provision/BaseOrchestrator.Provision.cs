@@ -561,7 +561,9 @@ namespace Wormhole.Sync
                         }
 
                         // Generate scope table scripts FIRST, before any table-level provisioning components
-                        var scopeBuilder = scriptProvider.GetScopeBuilder(this.Options.ScopeInfoTableName);
+                        var scopeBuilder = scriptProvider.GetScopeBuilder(this.Options.ScopeInfoTableName,
+                            this.Options.ScopeInfoTablePrefix ?? string.Empty,
+                            this.Options.ScopeInfoTableSuffix ?? string.Empty);
 
                         // Get the script separator - use the first table if available, otherwise use scriptSeparator parameter
                         var separator = scriptSeparator;

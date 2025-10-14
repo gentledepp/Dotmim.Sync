@@ -8,8 +8,8 @@ namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
     public class SqlChangeTrackingScopeBuilder : SqlScopeBuilder
     {
         /// <inheritdoc />
-        public SqlChangeTrackingScopeBuilder(string scopeInfoTableName)
-            : base(scopeInfoTableName)
+        public SqlChangeTrackingScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            : base(scopeInfoTableName, prefix, suffix)
         {
         }
 

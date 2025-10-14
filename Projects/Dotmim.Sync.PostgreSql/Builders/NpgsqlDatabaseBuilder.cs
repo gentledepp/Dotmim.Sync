@@ -16,7 +16,7 @@ namespace Wormhole.Sync.PostgreSql.Builders
         /// </summary>
         public override Task DropsTableIfExistsAsync(string tableName, string schemaName, DbConnection connection, DbTransaction transaction = null)
         {
-            var tableParser = new TableParser($"{tableName}.{schemaName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+            var tableParser = new TableParser($"{schemaName}.{tableName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
             return NpgsqlManagementUtils.DropTableIfExistsAsync(connection as NpgsqlConnection, transaction as NpgsqlTransaction,
                 tableParser.TableName, tableParser.SchemaName);
         }
@@ -46,7 +46,7 @@ namespace Wormhole.Sync.PostgreSql.Builders
         /// <inheritdoc/>
         public override Task<bool> ExistsTableAsync(string tableName, string schemaName, DbConnection connection, DbTransaction transaction = null)
         {
-            var tableParser = new TableParser($"{tableName}.{schemaName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+            var tableParser = new TableParser($"{schemaName}.{tableName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
             return NpgsqlManagementUtils.TableExistsAsync(connection as NpgsqlConnection, transaction as NpgsqlTransaction,
                 tableParser.TableName, tableParser.SchemaName);
         }
@@ -62,7 +62,7 @@ namespace Wormhole.Sync.PostgreSql.Builders
         /// <inheritdoc/>
         public override Task<SyncTable> GetTableAsync(string tableName, string schemaName, DbConnection connection, DbTransaction transaction = null)
         {
-            var tableParser = new TableParser($"{tableName}.{schemaName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+            var tableParser = new TableParser($"{schemaName}.{tableName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
             return NpgsqlManagementUtils.GetTableAsync(connection as NpgsqlConnection, transaction as NpgsqlTransaction,
                 tableParser.TableName, tableParser.SchemaName);
         }
@@ -70,8 +70,8 @@ namespace Wormhole.Sync.PostgreSql.Builders
         /// <inheritdoc/>
         public override Task RenameTableAsync(string tableName, string schemaName, string newTableName, string newSchemaName, DbConnection connection, DbTransaction transaction = null)
         {
-            var tableParser = new TableParser($"{tableName}.{schemaName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
-            var newTableParser = new TableParser($"{newTableName}.{newSchemaName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+            var tableParser = new TableParser($"{schemaName}.{tableName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+            var newTableParser = new TableParser($"{newSchemaName}.{newTableName}", NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
 
             return NpgsqlManagementUtils.RenameTableAsync(tableParser.TableName, tableParser.SchemaName,
                 newTableParser.TableName, newTableParser.SchemaName, connection as NpgsqlConnection, transaction as NpgsqlTransaction);

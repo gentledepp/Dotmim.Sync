@@ -74,6 +74,21 @@ namespace Wormhole.Sync
         public string ScopeInfoTableName { get; set; }
 
         /// <summary>
+        /// Gets or sets specify a prefix for naming scope info tables (scope_info and scope_info_client).
+        /// For example, with prefix "myapp_", tables will be named "myapp_scope_info" and "myapp_scope_info_client".
+        /// Default is empty string.
+        /// </summary>
+        public string ScopeInfoTablePrefix { get; set; }
+
+        /// <summary>
+        /// Gets or sets specify a suffix for naming scope info tables (scope_info and scope_info_client).
+        /// For example, with suffix "_v2", tables will be named "scope_info_v2" and "scope_info_v2_client".
+        /// Note: The "_client" suffix for scope_info_client comes after this custom suffix.
+        /// Default is empty string.
+        /// </summary>
+        public string ScopeInfoTableSuffix { get; set; }
+
+        /// <summary>
         /// Gets or Sets the default conflict resolution policy. This value could potentially be ovewritten and replaced by the server.
         /// </summary>
         public ConflictResolutionPolicy ConflictResolutionPolicy { get; set; }

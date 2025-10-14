@@ -172,7 +172,8 @@ namespace Wormhole.Sync.MariaDB
             => new MySqlSyncAdapter(tableDescription, scopeInfo);
 
         /// <inheritdoc />
-        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName) => new MySqlScopeInfoBuilder(scopeInfoTableName);
+        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            => new MySqlScopeInfoBuilder(scopeInfoTableName, prefix, suffix);
 
         /// <inheritdoc />
         public override DbDatabaseBuilder GetDatabaseBuilder() => new MySqlDatabaseBuilder();

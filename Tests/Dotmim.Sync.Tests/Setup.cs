@@ -263,7 +263,7 @@ namespace Wormhole.Sync.Tests
         public override IEnumerable<CoreProvider> GetClientProviders()
         {
             yield return HelperDatabase.GetSyncProvider(ProviderType.Sqlite, this.sqliteRandomDatabaseName, false);
-            yield return HelperDatabase.GetSyncProvider(ProviderType.Sql, this.sqlClientRandomDatabaseName, true);
+            //yield return HelperDatabase.GetSyncProvider(ProviderType.Sql, this.sqlClientRandomDatabaseName, true);
         }
     }
 

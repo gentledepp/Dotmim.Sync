@@ -66,7 +66,8 @@ namespace Wormhole.Sync.SqlServer
         }
 
         /// <inheritdoc />
-        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName) => new SqlChangeTrackingScopeBuilder(scopeInfoTableName);
+        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            => new SqlChangeTrackingScopeBuilder(scopeInfoTableName, prefix, suffix);
 
         /// <inheritdoc />
         public override DbSyncAdapter GetSyncAdapter(SyncTable tableDescription, ScopeInfo scopeInfo)

@@ -344,8 +344,10 @@ namespace Wormhole.Sync
                     if (!schemaIsValid)
                         return true;
 
-                    // get lines
-                    var scopeInfos = await dbBuilder.GetTableAsync(this.Options.ScopeInfoTableName, default,
+                    // get lines - use actual table name with prefix/suffix applied
+                    var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
+                    var scopeTableNames = scopeBuilder.GetParsedScopeInfoTableNames();
+                    var scopeInfos = await dbBuilder.GetTableAsync(scopeTableNames.NormalizedName, scopeTableNames.SchemaName,
                         runner.Connection, runner.Transaction).ConfigureAwait(false);
 
                     // if empty, no need to upgrade
@@ -404,8 +406,10 @@ namespace Wormhole.Sync
                     // get Database builder
                     var dbBuilder = this.Provider.GetDatabaseBuilder();
 
-                    // get the scope info lines
-                    var scopeInfos = await dbBuilder.GetTableAsync(this.Options.ScopeInfoTableName, default,
+                    // get the scope info lines - use actual table name with prefix/suffix applied
+                    var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
+                    var scopeTableNames = scopeBuilder.GetParsedScopeInfoTableNames();
+                    var scopeInfos = await dbBuilder.GetTableAsync(scopeTableNames.NormalizedName, scopeTableNames.SchemaName,
                         runner.Connection, runner.Transaction).ConfigureAwait(false);
 
                     // if empty, no need to upgrade

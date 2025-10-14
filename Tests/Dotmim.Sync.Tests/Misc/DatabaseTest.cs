@@ -59,7 +59,7 @@ namespace Wormhole.Sync.Tests.Misc
         public virtual SyncSetup GetFilteredSetup()
         {
             var setup = new SyncSetup(GetTables());
-
+            
             var salesSchema = GetServerProvider().UseFallbackSchema() ? "SalesLT" : null;
             var salesSchemaWithDot = string.IsNullOrEmpty(salesSchema) ? string.Empty : $"{salesSchema}.";
 

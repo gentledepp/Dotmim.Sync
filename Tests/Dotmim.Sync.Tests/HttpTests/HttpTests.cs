@@ -64,7 +64,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             clientsProvider = GetClientProviders();
             setup = GetSetup();
 
-            this.Kestrel.AddSyncServer(serverProvider, setup, new SyncOptions { DisableConstraintsOnApplyChanges = true });
+            this.Kestrel.AddSyncServer(serverProvider, setup, new SyncOptions
+            {
+                DisableConstraintsOnApplyChanges = true
+            });
             serviceUri = this.Kestrel.Run();
         }
 
@@ -3046,7 +3049,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             // since we are testing batched downloads, reduce the batchSize to a fixed minimum
             options.BatchSize = 100;
             options.UseUnifiedBatching = true; // tests only work with unified batching enabled
-
             options.UseOptimizedFlow = true; // tests only work for optimized flow
 
             // Execute a sync on all clients to initialize client and server schema 

@@ -126,7 +126,8 @@ namespace Wormhole.Sync.PostgreSql
         public override string GetProviderTypeName() => ProviderType;
 
         /// <inheritdoc/>
-        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName) => new NpgsqlScopeBuilder(scopeInfoTableName);
+        public override DbScopeBuilder GetScopeBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
+            => new NpgsqlScopeBuilder(scopeInfoTableName, prefix, suffix);
 
         /// <inheritdoc/>
         public override string GetShortProviderTypeName() => ShortProviderType;

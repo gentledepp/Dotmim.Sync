@@ -32,15 +32,18 @@ namespace Wormhole.Sync.MySql.Builders
         protected DbTableNames ScopeInfoClientTableNames { get; }
 
         /// <inheritdoc cref="MySqlScopeInfoBuilder"/>
-        public MySqlScopeInfoBuilder(string scopeInfoTableName)
+        public MySqlScopeInfoBuilder(string scopeInfoTableName, string prefix = "", string suffix = "")
         {
 
             var tableParser = new TableParser(scopeInfoTableName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
-            var scopeInfoClientFullTableName = $"`{tableParser.TableName}_client`";
+
+            // Apply prefix and suffix to the table names
+            var scopeInfoName = $"{prefix}{tableParser.TableName}{suffix}";
+            var scopeInfoClientFullTableName = $"`{scopeInfoName}_client`";
 
             this.ScopeInfoTableNames = new DbTableNames(MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote,
-                tableParser.TableName, tableParser.NormalizedFullName, tableParser.NormalizedShortName,
-                tableParser.QuotedFullName, tableParser.QuotedShortName, tableParser.SchemaName);
+                scopeInfoName, scopeInfoName, scopeInfoName,
+                $"`{scopeInfoName}`", $"`{scopeInfoName}`", tableParser.SchemaName);
 
             tableParser = new TableParser(scopeInfoClientFullTableName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
 
