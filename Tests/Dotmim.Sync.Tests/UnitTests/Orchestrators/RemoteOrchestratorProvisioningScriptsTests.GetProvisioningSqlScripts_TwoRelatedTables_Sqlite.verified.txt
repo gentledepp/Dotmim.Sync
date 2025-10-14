@@ -1,4 +1,35 @@
-﻿CREATE TABLE IF NOT EXISTS [ProductCategory_tracking] (
+﻿CREATE TABLE [scope_info](
+                        sync_scope_id text NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+                        sync_scope_name text NOT NULL,
+                        sync_scope_schema text NULL,
+                        sync_scope_setup text NULL,
+                        sync_scope_version text NULL,
+                        sync_scope_last_clean_timestamp integer NULL,
+                        sync_scope_properties text NULL,
+                        sync_scope_server_capabilities text NULL,
+                        sync_scope_schema_hash text NULL,
+                        CONSTRAINT PKey_scope_info PRIMARY KEY(sync_scope_name))
+
+-- ---------------------------------
+;
+
+CREATE TABLE [scope_info_client](
+                        sync_scope_id blob NOT NULL,
+                        sync_scope_name text NOT NULL,
+                        sync_scope_hash text NOT NULL,
+                        sync_scope_parameters text NULL,
+                        scope_last_sync_timestamp integer NULL,
+                        scope_last_server_sync_timestamp integer NULL,
+                        scope_last_sync_duration integer NULL,
+                        scope_last_sync datetime NULL,
+                        sync_scope_errors text NULL,
+                        sync_scope_properties text NULL,
+                        CONSTRAINT PKey_scope_info_client PRIMARY KEY(sync_scope_id, sync_scope_name, sync_scope_hash))
+
+-- ---------------------------------
+;
+
+CREATE TABLE IF NOT EXISTS [ProductCategory_tracking] (
 [ProductCategoryID] TEXT NOT NULL COLLATE NOCASE, 
 [update_scope_id] [text] NULL COLLATE NOCASE, 
 [timestamp] [integer] NULL, 

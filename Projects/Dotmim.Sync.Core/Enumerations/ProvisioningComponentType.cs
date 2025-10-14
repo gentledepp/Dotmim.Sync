@@ -31,5 +31,15 @@ namespace Wormhole.Sync.Enumerations
         /// Represents custom provisioning SQL.
         /// </summary>
         CustomSql,
+
+        /// <summary>
+        /// Represents the scope_info table.
+        /// </summary>
+        ScopeInfo,
+
+        /// <summary>
+        /// Represents the scope_info_client table.
+        /// </summary>
+        ScopeInfoClient,
     }
 }

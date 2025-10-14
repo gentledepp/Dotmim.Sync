@@ -541,7 +541,8 @@ namespace Wormhole.Sync
                     // Sort tables based on dependencies
                     var schemaTables = schema.Tables
                         .SortByDependencies(tab => tab.GetRelations()
-                            .Select(r => r.GetParentTable()));
+                            .Select(r => r.GetParentTable()))
+                        .ToList();
 
                     // Determine which provider and connection to use for script generation
                     var scriptProvider = targetProvider ?? this.Provider;
@@ -557,6 +558,48 @@ namespace Wormhole.Sync
                         {
                             scriptConnection = runner.Connection;
                             scriptTransaction = runner.Transaction;
+                        }
+
+                        // Generate scope table scripts FIRST, before any table-level provisioning components
+                        var scopeBuilder = scriptProvider.GetScopeBuilder(this.Options.ScopeInfoTableName);
+
+                        // Get the script separator - use the first table if available, otherwise use scriptSeparator parameter
+                        var separator = scriptSeparator;
+                        if (string.IsNullOrEmpty(separator) && schemaTables.Count > 0)
+                            separator = scriptProvider.GetSyncAdapter(schemaTables[0], scopeInfo).ProvisioningScriptSeparator;
+                        if (string.IsNullOrEmpty(separator))
+                            separator = "\n";
+
+                        // Generate scope_info table script
+                        if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
+                        {
+                            Table = null,
+                            ComponentType = ProvisioningComponentType.ScopeInfo,
+                        }))
+                        {
+                            var scopeInfoCmd = scopeBuilder.GetCreateScopeInfoTableCommand(scriptConnection, scriptTransaction);
+                            if (scopeInfoCmd != null && !string.IsNullOrEmpty(scopeInfoCmd.CommandText))
+                            {
+                                if (allScripts.Length > 0)
+                                    allScripts.Append(separator);
+                                allScripts.Append(scopeInfoCmd.CommandText);
+                            }
+                        }
+
+                        // Generate scope_info_client table script
+                        if (shouldIncludeComponent == null || shouldIncludeComponent(new ProvisioningComponentArgs
+                        {
+                            Table = null,
+                            ComponentType = ProvisioningComponentType.ScopeInfoClient,
+                        }))
+                        {
+                            var scopeInfoClientCmd = scopeBuilder.GetCreateScopeInfoClientTableCommand(scriptConnection, scriptTransaction);
+                            if (scopeInfoClientCmd != null && !string.IsNullOrEmpty(scopeInfoClientCmd.CommandText))
+                            {
+                                if (allScripts.Length > 0)
+                                    allScripts.Append(separator);
+                                allScripts.Append(scopeInfoClientCmd.CommandText);
+                            }
                         }
 
                         foreach (var schemaTable in schemaTables)
@@ -594,7 +637,7 @@ namespace Wormhole.Sync
                                 if (!string.IsNullOrEmpty(trackingTableScript))
                                 {
                                     if (allScripts.Length > 0)
-                                        allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
+                                        allScripts.Append(separator);
                                     allScripts.Append(trackingTableScript);
                                 }
                             }
@@ -616,7 +659,7 @@ namespace Wormhole.Sync
                                     if (!string.IsNullOrEmpty(triggerScript))
                                     {
                                         if (allScripts.Length > 0)
-                                            allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
+                                            allScripts.Append(separator);
                                         allScripts.Append(triggerScript);
                                     }
                                 }
@@ -646,7 +689,7 @@ namespace Wormhole.Sync
                                     if (!string.IsNullOrEmpty(spScript))
                                     {
                                         if (allScripts.Length > 0)
-                                            allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
+                                            allScripts.Append(separator);
                                         allScripts.Append(spScript);
                                     }
                                 }
@@ -666,7 +709,7 @@ namespace Wormhole.Sync
                                         if (!string.IsNullOrWhiteSpace(customSql))
                                         {
                                             if (allScripts.Length > 0)
-                                                allScripts.Append(scriptSeparator ?? syncAdapter.ProvisioningScriptSeparator);
+                                                allScripts.Append(separator);
 
                                             allScripts.Append($"-- Custom Provisioning SQL for {schemaTable.GetFullName()}\n");
                                             allScripts.Append(customSql);

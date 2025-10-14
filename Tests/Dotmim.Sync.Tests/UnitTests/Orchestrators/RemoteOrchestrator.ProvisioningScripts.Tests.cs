@@ -1237,10 +1237,10 @@ namespace Wormhole.Sync.Tests.UnitTests
                 setup,
                 args =>
                 {
-                    if (args.Table.TableName == "ProductCategory")
+                    if (args.Table?.TableName == "ProductCategory")
                         return true; // Include all ProductCategory components
 
-                    if (args.Table.TableName == "Product")
+                    if (args.Table?.TableName == "Product")
                     {
                         // For Product, only include table-level and tracking table
                         return args.ComponentType == ProvisioningComponentType.Table ||
@@ -1264,6 +1264,358 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Product should only have tracking table
             Assert.Contains("Product_tracking", scripts);
             Assert.DoesNotContain("Product_insert_trigger", scripts, StringComparison.OrdinalIgnoreCase);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_IncludesScopeInfoTable_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_scope_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Scope Info Table Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("============================================");
+
+            // Verify scope_info table is included
+            Assert.Contains("scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("sync_scope_name", scripts);
+            Assert.Contains("sync_scope_schema", scripts);
+
+            // Verify scope_info appears before ProductCategory components
+            var scopeInfoIndex = scripts.IndexOf("scope_info", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(scopeInfoIndex < productCategoryIndex, "scope_info should appear before table-specific components");
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_IncludesScopeInfoClientTable_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_scope_client_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Scope Info Client Table Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("===================================================");
+
+            // Verify scope_info_client table is included
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("scope_last_sync_timestamp", scripts);
+
+            // Verify scope_info_client appears before ProductCategory components
+            var scopeInfoClientIndex = scripts.IndexOf("scope_info_client", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(scopeInfoClientIndex < productCategoryIndex, "scope_info_client should appear before table-specific components");
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithComponentFilter_SkipScopeInfo()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_skip_scope_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Skip scope_info table only
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+                setup,
+                args => args.ComponentType != ProvisioningComponentType.ScopeInfo
+            );
+
+            // Assert
+            output.WriteLine("========== Skip ScopeInfo Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("==========================================");
+
+            // Should NOT contain scope_info table (but check in a way that won't match scope_info_client)
+            Assert.DoesNotContain("CREATE TABLE [dbo].[scope_info]", scripts.Split(new[] { "scope_info_client" }, StringSplitOptions.None)[0]);
+
+            // Should contain scope_info_client
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Should still contain ProductCategory components
+            Assert.Contains("ProductCategory_tracking", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithComponentFilter_SkipScopeInfoClient()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_skip_scope_client_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Skip scope_info_client table only
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+                setup,
+                args => args.ComponentType != ProvisioningComponentType.ScopeInfoClient
+            );
+
+            // Assert
+            output.WriteLine("========== Skip ScopeInfoClient Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("================================================");
+
+            // Should contain scope_info table
+            var scopeInfoPattern = @"CREATE TABLE.*?scope_info[^\w]";
+            Assert.Matches(scopeInfoPattern, scripts);
+
+            // Should NOT contain scope_info_client
+            Assert.DoesNotContain("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Should still contain ProductCategory components
+            Assert.Contains("ProductCategory_tracking", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_WithComponentFilter_SkipBothScopeTables()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_skip_both_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Skip both scope tables
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+                setup,
+                args => args.ComponentType != ProvisioningComponentType.ScopeInfo &&
+                        args.ComponentType != ProvisioningComponentType.ScopeInfoClient
+            );
+
+            // Assert
+            output.WriteLine("========== Skip Both Scope Tables Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("==================================================");
+
+            // Should NOT contain scope_info or scope_info_client
+            Assert.DoesNotContain("scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Should still contain ProductCategory components
+            Assert.Contains("ProductCategory_tracking", scripts);
+            Assert.Contains("ProductCategory_insert_trigger", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("CREATE PROCEDURE", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_IncludesScopeTables_Sqlite()
+        {
+            var dbName = HelperDatabase.GetRandomName("sqlite_prov_scope_") + ".db";
+            var cs = HelperDatabase.GetSqliteDatabaseConnectionString(dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqliteConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [ProductCategory] (
+                        [ProductCategoryID] TEXT NOT NULL PRIMARY KEY,
+                        [Name] TEXT NOT NULL,
+                        [ModifiedDate] TEXT NULL
+                    )";
+                using var cmd = new SqliteCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var provider = new SqliteSyncProvider(cs);
+            var orchestrator = new LocalOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== SQLite Scope Tables Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("===============================================");
+
+            // Verify scope tables are included
+            Assert.Contains("scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify ordering - scope tables before ProductCategory
+            var scopeInfoIndex = scripts.IndexOf("scope_info", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(scopeInfoIndex < productCategoryIndex, "scope_info should appear before table-specific components");
+
+            await Verifier.Verify(scripts);
+
+            // Clean up
+            SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            if (File.Exists(dbName))
+                File.Delete(dbName);
+        }
+
+        [Fact]
+        public async Task GetProvisioningSqlScripts_CrossProvider_IncludesScopeTables()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_cross_scope_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table in SQL Server
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider);
+
+            var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
+
+            // Act - Get SQLite scripts from SQL Server connection
+            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+
+            // Assert
+            output.WriteLine("========== Cross-Provider Scope Tables Test ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=======================================================");
+
+            // Verify it's SQLite syntax
+            Assert.DoesNotContain("CREATE PROCEDURE", scripts);
+            Assert.DoesNotContain("GO", scripts);
+
+            // Verify scope tables are included
+            Assert.Contains("scope_info", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify ordering - scope tables first
+            var scopeInfoIndex = scripts.IndexOf("scope_info", StringComparison.OrdinalIgnoreCase);
+            var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
+            Assert.True(scopeInfoIndex < productCategoryIndex, "scope_info should appear before table-specific components in cross-provider scripts");
 
             await Verifier.Verify(scripts);
         }
