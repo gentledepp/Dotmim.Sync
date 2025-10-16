@@ -425,6 +425,18 @@ namespace Wormhole.Sync
         {
             try
             {
+                // Check provisioning cache first
+                if (this.ProvisioningCache != null)
+                {
+                    var connectionString = this.Provider?.ConnectionString;
+                    var (found, isProvisioned) = await this.ProvisioningCache.TryGetProvisioningStateAsync(connectionString, sScopeInfo.Setup, sScopeInfo.Setup?.ScopeInfoClientParameters, sScopeInfo.Name, cancellationToken).ConfigureAwait(false);
+                    if (found)
+                    {
+                        // Cache hit - return opposite of isProvisioned (should provision if NOT provisioned)
+                        return !isProvisioned;
+                    }
+                }
+
                 using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.Provisioning, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
                 await using (runner.ConfigureAwait(false))
                 {

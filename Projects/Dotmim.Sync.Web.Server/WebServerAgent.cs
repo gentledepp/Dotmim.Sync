@@ -891,6 +891,26 @@ namespace Wormhole.Sync.Web.Server
 
             ScopeInfo serverScopeInfo;
             bool shouldProvision;
+
+            // Check provisioning cache if available
+            if (this.RemoteOrchestrator.ProvisioningCache != null)
+            {
+                var connectionString = this.RemoteOrchestrator.Provider?.ConnectionString;
+                var (found, isProvisioned) = await this.RemoteOrchestrator.ProvisioningCache.TryGetProvisioningStateAsync(connectionString, this.Setup, this.Setup?.ScopeInfoClientParameters, httpMessage.SyncContext.ScopeName, cancellationToken).ConfigureAwait(false);
+                if (found && isProvisioned)
+                {
+                    // Already provisioned according to cache, just load scope info
+                    (context, serverScopeInfo, _) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
+
+                    // TODO : Is it used ?
+                    GetSession(httpContext).Set(httpMessage.SyncContext.ScopeName, serverScopeInfo.Schema);
+
+                    // Create http response
+                    var cachedHttpResponse = new HttpMessageEnsureScopesResponse(context, serverScopeInfo);
+                    return cachedHttpResponse;
+                }
+            }
+
             (context, serverScopeInfo, shouldProvision) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, this.Setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
             // TODO : Is it used ?
@@ -902,6 +922,13 @@ namespace Wormhole.Sync.Web.Server
                 // 2) Provision
                 var provision = SyncProvision.TrackingTable | SyncProvision.StoredProcedures | SyncProvision.Triggers;
                 (context, serverScopeInfo) = await this.RemoteOrchestrator.InternalProvisionServerAsync(serverScopeInfo, context, provision, false, default, default, progress, cancellationToken).ConfigureAwait(false);
+
+                // Update cache after successful provisioning
+                if (this.RemoteOrchestrator.ProvisioningCache != null)
+                {
+                    var connectionString = this.RemoteOrchestrator.Provider?.ConnectionString;
+                    await this.RemoteOrchestrator.ProvisioningCache.SetProvisioningStateAsync(connectionString, this.Setup, this.Setup?.ScopeInfoClientParameters, httpMessage.SyncContext.ScopeName, true, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             // Create http response

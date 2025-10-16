@@ -21,7 +21,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-		<PackageReference Include="System.Text.Json" Version="8.0.5" />
+		<PackageReference Include="System.Text.Json" Version="9.0.3" />
 	</ItemGroup>
 
 
@@ -30,10 +30,12 @@
 		<PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.1.21" />
 		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.1.1" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.1.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)' OR '$(TargetFramework)' == '$(TargetFrameworkNet8)'">
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.1.0" />
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>
 
@@ -42,6 +44,7 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
 		<PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.3" />
 		<PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>

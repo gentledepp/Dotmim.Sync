@@ -69,6 +69,12 @@ namespace Wormhole.Sync
         public virtual ILogger Logger { get; set; }
 
         /// <summary>
+        /// Gets or Sets the provisioning cache used by this orchestrator to avoid repeated database existence checks.
+        /// If null, no caching is performed (default behavior).
+        /// </summary>
+        public virtual IScopeProvisioningCache ProvisioningCache { get; set; }
+
+        /// <summary>
         /// Remove all Interceptors based on type of ProgressArgs.
         /// </summary>
         public void ClearInterceptors<T>()

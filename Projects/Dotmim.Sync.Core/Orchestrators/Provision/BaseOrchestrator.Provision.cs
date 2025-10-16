@@ -30,6 +30,18 @@ namespace Wormhole.Sync
             if (scopeInfo.Schema == null || scopeInfo.Schema.Tables == null || !scopeInfo.Schema.HasTables)
                 throw new MissingTablesException();
 
+            // Check provisioning cache if available and not overwriting
+            if (!overwrite && this.ProvisioningCache != null)
+            {
+                var connectionString = this.Provider?.ConnectionString;
+                var (found, isProvisioned) = await this.ProvisioningCache.TryGetProvisioningStateAsync(connectionString, scopeInfo.Setup, scopeInfo.Setup?.ScopeInfoClientParameters, scopeInfo.Name, cancellationToken).ConfigureAwait(false);
+                if (found && isProvisioned)
+                {
+                    // Already provisioned according to cache, skip provisioning checks
+                    return (context, false);
+                }
+            }
+
             await this.InterceptAsync(new ProvisioningArgs(context, provision, scopeInfo, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
 
             try
@@ -194,6 +206,13 @@ namespace Wormhole.Sync
                                                   || atLeastOneStoredProcedureHasBeenCreated || atLeastOneScopeInfoTableBeenCreated || atLeastOneScopeInfoClientTableBeenCreated;
 
                 await this.InterceptAsync(new ProvisionedArgs(context, provision, scopeInfo, atLeastSomethingHasBeenCreated, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
+
+                // Update provisioning cache after successful provisioning
+                if (this.ProvisioningCache != null)
+                {
+                    var connectionString = this.Provider?.ConnectionString;
+                    await this.ProvisioningCache.SetProvisioningStateAsync(connectionString, scopeInfo.Setup, scopeInfo.Setup?.ScopeInfoClientParameters, scopeInfo.Name, true, cancellationToken).ConfigureAwait(false);
+                }
 
                 return (context, true);
             }
@@ -394,6 +413,13 @@ namespace Wormhole.Sync
 
                     var args = new DeprovisionedArgs(context, provision, scopeInfo?.Setup, atLeastSomethingHasBeenDropped, runner.Connection, runner.Transaction);
                     await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);
+
+                    // Invalidate provisioning cache after deprovision
+                    if (this.ProvisioningCache != null && scopeInfo != null)
+                    {
+                        var connectionString = this.Provider?.ConnectionString;
+                        await this.ProvisioningCache.InvalidateProvisioningStateAsync(connectionString, scopeInfo.Setup, scopeInfo.Setup?.ScopeInfoClientParameters, scopeInfo.Name, cancellationToken).ConfigureAwait(false);
+                    }
 
                     await runner.CommitAsync().ConfigureAwait(false);
 

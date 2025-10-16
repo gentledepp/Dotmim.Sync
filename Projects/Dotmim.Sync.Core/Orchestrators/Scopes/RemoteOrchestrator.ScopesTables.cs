@@ -24,9 +24,23 @@ namespace Wormhole.Sync
             if (customParameters == null || customParameters.Count == 0)
                 return;
 
+            // Check provisioning cache for custom columns
+            if (this.ProvisioningCache != null)
+            {
+                var connectionString = this.Provider?.ConnectionString;
+                // For custom columns, we use null for setup and just the customParameters
+                var (found, areColumnsProvisioned) = await this.ProvisioningCache.TryGetProvisioningStateAsync(connectionString, null, customParameters, context.ScopeName, cancellationToken).ConfigureAwait(false);
+                if (found && areColumnsProvisioned)
+                {
+                    // Columns already provisioned according to cache
+                    return;
+                }
+            }
+
             try
             {
                 var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
+                var atLeastOneColumnAdded = false;
 
                 using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.None, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
                 await using (runner.ConfigureAwait(false))
@@ -49,8 +63,19 @@ namespace Wormhole.Sync
                             using var alterCommand = scopeBuilder.GetAddScopeInfoClientColumnCommand(runner.Connection, runner.Transaction, customParam);
 
                             if (alterCommand != null)
+                            {
                                 await alterCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                                atLeastOneColumnAdded = true;
+                            }
                         }
+                    }
+
+                    // Update cache after successful column provisioning
+                    if (this.ProvisioningCache != null && !atLeastOneColumnAdded)
+                    {
+                        // All columns already existed, mark as provisioned in cache
+                        var connectionString = this.Provider?.ConnectionString;
+                        await this.ProvisioningCache.SetProvisioningStateAsync(connectionString, null, customParameters, context.ScopeName, true, cancellationToken).ConfigureAwait(false);
                     }
                 }
             }

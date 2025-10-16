@@ -1,6 +1,7 @@
 ﻿using Wormhole.Sync;
 using Wormhole.Sync.Web.Client;
 using Wormhole.Sync.Web.Server;
+using Microsoft.Extensions.Caching.Hybrid;
 #if NET48
 using System.Web;
 using HttpContext = System.Web.HttpContextBase;
@@ -94,8 +95,30 @@ namespace Microsoft.Extensions.DependencyInjection
 
             serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
 
+            // Register HybridCache if not already registered
+#if NET8_0_OR_GREATER
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(HybridCache)))
+                serviceCollection.AddHybridCache();
+#else
+            // For older frameworks, add memory cache as fallback
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Caching.Memory.IMemoryCache)))
+                serviceCollection.AddMemoryCache();
+#endif
+
+            // Register provisioning cache as singleton
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(IScopeProvisioningCache)))
+                serviceCollection.AddSingleton<IScopeProvisioningCache, HybridScopeProvisioningCache>();
+
             // Create orchestrator
-            serviceCollection.AddScoped(sp => new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
+            serviceCollection.AddScoped(sp =>
+            {
+                var webServerAgent = new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>());
+
+                // Set the provisioning cache on the RemoteOrchestrator
+                webServerAgent.RemoteOrchestrator.ProvisioningCache = sp.GetService<IScopeProvisioningCache>();
+
+                return webServerAgent;
+            });
 
             return serviceCollection;
         }
@@ -127,8 +150,30 @@ namespace Microsoft.Extensions.DependencyInjection
 
             serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
 
+            // Register HybridCache if not already registered
+#if NET8_0_OR_GREATER
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(HybridCache)))
+                serviceCollection.AddHybridCache();
+#else
+            // For older frameworks, add memory cache as fallback
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Caching.Memory.IMemoryCache)))
+                serviceCollection.AddMemoryCache();
+#endif
+
+            // Register provisioning cache as singleton
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(IScopeProvisioningCache)))
+                serviceCollection.AddSingleton<IScopeProvisioningCache, HybridScopeProvisioningCache>();
+
             // Create orchestrator
-            serviceCollection.AddScoped(sp => new WebServerAgent(sp.GetRequiredService<TCoreProvider>(), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
+            serviceCollection.AddScoped(sp =>
+            {
+                var webServerAgent = new WebServerAgent(sp.GetRequiredService<TCoreProvider>(), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>());
+
+                // Set the provisioning cache on the RemoteOrchestrator
+                webServerAgent.RemoteOrchestrator.ProvisioningCache = sp.GetService<IScopeProvisioningCache>();
+
+                return webServerAgent;
+            });
 
             return serviceCollection;
         }
@@ -164,8 +209,30 @@ namespace Microsoft.Extensions.DependencyInjection
 
             serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
 
+            // Register HybridCache if not already registered
+#if NET8_0_OR_GREATER
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(HybridCache)))
+                serviceCollection.AddHybridCache();
+#else
+            // For older frameworks, add memory cache as fallback
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Caching.Memory.IMemoryCache)))
+                serviceCollection.AddMemoryCache();
+#endif
+
+            // Register provisioning cache as singleton
+            if (!serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(IScopeProvisioningCache)))
+                serviceCollection.AddSingleton<IScopeProvisioningCache, HybridScopeProvisioningCache>();
+
             // Create orchestrator
-            serviceCollection.AddScoped(sp => new WebServerAgent(sp.GetRequiredKeyedService<TCoreProvider>(providerKey), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>()));
+            serviceCollection.AddScoped(sp =>
+            {
+                var webServerAgent = new WebServerAgent(sp.GetRequiredKeyedService<TCoreProvider>(providerKey), setup, options, webServerOptions, scopeName, identifier, sp.GetRequiredService<IBatchCleanupService>());
+
+                // Set the provisioning cache on the RemoteOrchestrator
+                webServerAgent.RemoteOrchestrator.ProvisioningCache = sp.GetService<IScopeProvisioningCache>();
+
+                return webServerAgent;
+            });
 
             return serviceCollection;
         }

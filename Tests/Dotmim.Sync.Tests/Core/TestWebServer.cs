@@ -1,11 +1,10 @@
-﻿using Wormhole.Sync.Tests.Core;
-using Wormhole.Sync.Web.Server;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Session;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
 using System;
 using System.Collections.Generic;
@@ -13,8 +12,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Web.Server;
 
 namespace Wormhole.Sync.Tests
 {
@@ -72,6 +74,14 @@ namespace Wormhole.Sync.Tests
             this.builder.ConfigureServices(services =>
             {
                 services.AddSyncServer(provider, setup, options, webServerOptions, scopeName, identifier);
+            });
+        }
+
+        public void ConfigureServices(Action<IServiceCollection> configure)
+        {
+            this.builder.ConfigureServices(services =>
+            {
+                configure(services);
             });
         }
 
