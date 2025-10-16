@@ -1,58 +1,70 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-		<AssemblyName>Wormhole.Sync.Web.Client</AssemblyName>
-		<PackageId>Wormhole.Sync.Web.Client</PackageId>
-		<RootNamespace>Wormhole.Sync.Web.Client</RootNamespace>
-		<Authors>Sébastien Pertus</Authors>
-		<Company>Microsoft</Company>
-		<Title>Wormhole.Sync.Web.Client</Title>
-		<Summary>Web client proxy Sync Provider .Net Standard 2.0</Summary>
-		<Description>Proxy to be able to Sync through an ASP.NET CORE application. Choose a Wormhole.Sync provider and protects your database call through web api calls only. this assembly is meant to be used from within your client application and will execute all the http calls</Description>
-		<RepositoryType>git</RepositoryType>
-		<PackageTags>Data, Database, Sync, Synchronization, Framework, Sql, MySql, Sqlite, Wormhole.Sync, NetStandard, SyncFramework</PackageTags>
-		<ApplicationIcon>favicon.ico</ApplicationIcon>
-		<PackageIcon>packageIcon.png</PackageIcon>
+    <PropertyGroup>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+        <AssemblyName>Wormhole.Sync.Web.Client</AssemblyName>
+        <PackageId>Wormhole.Sync.Web.Client</PackageId>
+        <RootNamespace>Wormhole.Sync.Web.Client</RootNamespace>
+        <Authors>Sébastien Pertus</Authors>
+        <Company>Microsoft</Company>
+        <Title>Wormhole.Sync.Web.Client</Title>
+        <Summary>Web client proxy Sync Provider .Net Standard 2.0</Summary>
+        <Description>Proxy to be able to Sync through an ASP.NET CORE application. Choose a Wormhole.Sync provider and protects your database call through web api calls only. this assembly is meant to be used from within your client application and will execute all the http calls</Description>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>Data, Database, Sync, Synchronization, Framework, Sql, MySql, Sqlite, Wormhole.Sync, NetStandard, SyncFramework</PackageTags>
+        <ApplicationIcon>favicon.ico</ApplicationIcon>
+        <PackageIcon>packageIcon.png</PackageIcon>
 
-	</PropertyGroup>
-	<PropertyGroup>
-		<NoWarn>$(NoWarn)</NoWarn>
-	</PropertyGroup>
+    </PropertyGroup>
+    <PropertyGroup>
+        <NoWarn>$(NoWarn)</NoWarn>
+    </PropertyGroup>
 
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)'  ">
-		<PackageReference Include="Microsoft.Extensions.Features" Version="6.0.0" />
-		<PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
-	</ItemGroup>
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet8)' ">
-		<PackageReference Include="Microsoft.Extensions.Features" Version="8.0.6" />
-		<PackageReference Include="Microsoft.Net.Http.Headers" Version="8.0.6" />
-	</ItemGroup>
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetStandard)' ">
-		<PackageReference Include="Microsoft.Extensions.Features" Version="6.0.0" />
-		<PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
-		<PackageReference Include="Microsoft.Net.Http.Headers" Version="2.2.8" />
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-	</ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)'  ">
+        <PackageReference Include="Microsoft.Extensions.Features" Version="6.0.0" />
+        <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+    </ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet8)' ">
+        <PackageReference Include="Microsoft.Extensions.Features" Version="8.0.6" />
+        <PackageReference Include="Microsoft.Net.Http.Headers" Version="8.0.6" />
+    </ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetStandard)' ">
+        <PackageReference Include="Microsoft.Extensions.Features" Version="6.0.0" />
+        <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Net.Http.Headers" Version="2.2.8" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
-	</ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<None Include="..\..\docs\assets\packageIcon.png">
-			<Pack>True</Pack>
-			<PackagePath></PackagePath>
-		</None>
-	</ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\docs\assets\packageIcon.png">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+    </ItemGroup>
 
-	
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<IncludeSource>True</IncludeSource>
-		<IncludeSymbols>True</IncludeSymbols>
-	</PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <!-- for nuget sources debug-->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <IncludeSource>true</IncludeSource>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <!---normalizes filepaths when build by ci (CI is set by ci pipeline)-->
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
 
 </Project>

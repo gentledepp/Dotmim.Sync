@@ -1,44 +1,57 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
-		<AssemblyName>Wormhole.Sync.Sqlite</AssemblyName>
-		<PackageId>Wormhole.Sync.Sqlite</PackageId>
-		<RootNamespace>Wormhole.Sync</RootNamespace>
-		<Authors>Sébastien Pertus</Authors>
-		<Company>Microsoft</Company>
-		<Title>Wormhole.Sync.Sqlite</Title>
-		<Summary>SQLite Sync Provider. Client provider .Net Standard 2.0</Summary>
-		<Description>SQLite Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used only as Client provider. Use SqlSyncProvider or MySqlSyncProvider for the server side .Net Standard 2.0</Description>
-		<PackageProjectUrl>https://dotmimsync.readthedocs.io/</PackageProjectUrl>
-		<PackageIconFullPath>../../docs/assets/packageIcon.png</PackageIconFullPath>
-		<RepositoryUrl>https://github.com/Mimetis/Dotmim.Sync</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<ApplicationIcon>favicon.ico</ApplicationIcon>
-		<PackageIcon>packageIcon.png</PackageIcon>
+    <PropertyGroup>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+        <AssemblyName>Wormhole.Sync.Sqlite</AssemblyName>
+        <PackageId>Wormhole.Sync.Sqlite</PackageId>
+        <RootNamespace>Wormhole.Sync</RootNamespace>
+        <Authors>Sébastien Pertus</Authors>
+        <Company>Microsoft</Company>
+        <Title>Wormhole.Sync.Sqlite</Title>
+        <Summary>SQLite Sync Provider. Client provider .Net Standard 2.0</Summary>
+        <Description>SQLite Sync Provider. Manage a sync process beetween two relational databases provider. This provider works with SQL Server and can be used only as Client provider. Use SqlSyncProvider or MySqlSyncProvider for the server side .Net Standard 2.0</Description>
+        <PackageProjectUrl>https://dotmimsync.readthedocs.io/</PackageProjectUrl>
+        <PackageIconFullPath>../../docs/assets/packageIcon.png</PackageIconFullPath>
+        <RepositoryUrl>https://github.com/Mimetis/Dotmim.Sync</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <ApplicationIcon>favicon.ico</ApplicationIcon>
+        <PackageIcon>packageIcon.png</PackageIcon>
 
-	</PropertyGroup>
-	<PropertyGroup>
-		<NoWarn>$(NoWarn)SA0001;SA1202;CA1308;CA1305;CA1822;CA1834;SA1600;IDE0017;CA2249;CA1866;CA2100;CA1307;CA1310;</NoWarn>
-	</PropertyGroup>
+    </PropertyGroup>
+    <PropertyGroup>
+        <NoWarn>$(NoWarn)SA0001;SA1202;CA1308;CA1305;CA1822;CA1834;SA1600;IDE0017;CA2249;CA1866;CA2100;CA1307;CA1310;</NoWarn>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<None Include="..\..\docs\assets\packageIcon.png">
-			<Pack>True</Pack>
-			<PackagePath></PackagePath>
-		</None>
-	</ItemGroup>
-	
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<IncludeSource>True</IncludeSource>
-		<IncludeSymbols>True</IncludeSymbols>
-	</PropertyGroup>
+    <ItemGroup>
+        <None Include="..\..\docs\assets\packageIcon.png">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+    </ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-		<ProjectReference Include="..\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
-	</ItemGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <!-- for nuget sources debug-->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <IncludeSource>true</IncludeSource>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <!---normalizes filepaths when build by ci (CI is set by ci pipeline)-->
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <ProjectReference Include="..\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
+    </ItemGroup>
 
 </Project>
 

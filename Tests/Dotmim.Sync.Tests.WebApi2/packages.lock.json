@@ -65,15 +65,6 @@
           "Microsoft.CodeCoverage": "17.10.0"
         }
       },
-      "Microsoft.NETFramework.ReferenceAssemblies": {
-        "type": "Direct",
-        "requested": "[1.0.3, )",
-        "resolved": "1.0.3",
-        "contentHash": "vUc9Npcs14QsyOD01tnv/m8sQUnGTGOw1BCmKcv77LBJY7OxhJ+zJF7UD/sCL3lYNFuqmQEVlkfS4Quif6FyYg==",
-        "dependencies": {
-          "Microsoft.NETFramework.ReferenceAssemblies.net48": "1.0.3"
-        }
-      },
       "Microsoft.Owin.Host.HttpListener": {
         "type": "Direct",
         "requested": "[4.2.2, )",
@@ -435,11 +426,6 @@
           "System.Buffers": "4.5.0"
         }
       },
-      "Microsoft.NETFramework.ReferenceAssemblies.net48": {
-        "type": "Transitive",
-        "resolved": "1.0.3",
-        "contentHash": "zMk4D+9zyiEWByyQ7oPImPN/Jhpj166Ky0Nlla4eXlNL8hI/BtSJsgR8Inldd4NNpIAH3oh8yym0W2DrhXdSLQ=="
-      },
       "Microsoft.Owin": {
         "type": "Transitive",
         "resolved": "4.2.2",
@@ -738,6 +724,7 @@
           "Microsoft.Bcl.AsyncInterfaces": "[8.0.0, )",
           "Microsoft.CSharp": "[4.7.0, )",
           "Microsoft.Extensions.Logging": "[2.2.0, )",
+          "System.ComponentModel.Annotations": "[4.5.0, )",
           "System.Text.Json": "[8.0.5, )",
           "System.Threading.Tasks.Dataflow": "[8.0.0, )"
         }
@@ -746,14 +733,14 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.3.0, )"
+          "Wormhole.Sync.Core": "[1.6.4, )"
         }
       },
       "Wormhole.Sync.SqlServer": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.3.0, )"
+          "Wormhole.Sync.Core": "[1.6.4, )"
         }
       },
       "Wormhole.Sync.Web.Client": {
@@ -762,7 +749,7 @@
           "Microsoft.AspNet.WebApi.Client": "[6.0.0, )",
           "Microsoft.Extensions.Features": "[6.0.0, )",
           "Microsoft.Net.Http.Headers": "[2.2.8, )",
-          "Wormhole.Sync.Core": "[1.3.0, )"
+          "Wormhole.Sync.Core": "[1.6.4, )"
         }
       },
       "Wormhole.Sync.Web.Server": {
@@ -772,7 +759,7 @@
           "Microsoft.AspNet.WebApi.Core": "[5.2.3, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
           "System.Text.Json": "[8.0.5, )",
-          "Wormhole.Sync.Web.Client": "[1.3.0, )"
+          "Wormhole.Sync.Web.Client": "[1.6.4, )"
         }
       }
     }

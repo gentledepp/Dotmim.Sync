@@ -216,6 +216,7 @@
           "Microsoft.Bcl.AsyncInterfaces": "[8.0.0, )",
           "Microsoft.CSharp": "[4.7.0, )",
           "Microsoft.Extensions.Logging": "[2.2.0, )",
+          "System.ComponentModel.Annotations": "[4.5.0, )",
           "System.Text.Json": "[8.0.5, )",
           "System.Threading.Tasks.Dataflow": "[8.0.0, )"
         }

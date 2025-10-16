@@ -15,11 +15,12 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.6.3.0</Version>
+        <Version>1.6.4.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            
 	        # Version 1.6.3.0
             - you can set a prefix/postfix for scope_info and scope_info_client tables in SyncOptions
             # Version 1.6.2.0
@@ -46,15 +47,6 @@
         <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
 
     </PropertyGroup>
-
-    <!--generate NUGET package including symbols ans source on each release build -->
-    <!--<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<IncludeSource>True</IncludeSource>
-		<IncludeSymbols>True</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-		<DefineConstants>MARIADB</DefineConstants>
-	</PropertyGroup>-->
 
     <PropertyGroup>
 

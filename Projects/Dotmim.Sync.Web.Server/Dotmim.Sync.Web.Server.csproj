@@ -1,61 +1,74 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8);net48</TargetFrameworks>
-		<AssemblyName>Wormhole.Sync.Web.Server</AssemblyName>
-		<PackageId>Wormhole.Sync.Web.Server</PackageId>
-		<RootNamespace>Wormhole.Sync.Web.Server</RootNamespace>
-		<Authors>Sébastien Pertus</Authors>
-		<Company>Microsoft</Company>
-		<Title>Wormhole.Sync.Web.Server</Title>
-		<Summary>Web server proxy Sync Provider .Net Standard 2.0</Summary>
-		<Description>Proxy to be able to Sync through an ASP.NET CORE application. Choose a Wormhole.Sync provider and protects your database call through web api calls only. This assembly is meant to be used from your ASP.Net core Web Api project, and will handle all http requests calls.</Description>
-		<RepositoryType>git</RepositoryType>
-		<PackageTags>Data, Database, Sync, Synchronization, Framework, Sql, MySql, Sqlite, Wormhole.Sync, NetStandard, SyncFramework</PackageTags>
-		<ApplicationIcon>favicon.ico</ApplicationIcon>
-		<PackageIcon>packageIcon.png</PackageIcon>
-	</PropertyGroup>
-	<PropertyGroup>
-		<NoWarn>$(NoWarn)</NoWarn>
-	</PropertyGroup>
+    <PropertyGroup>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8);net48</TargetFrameworks>
+        <AssemblyName>Wormhole.Sync.Web.Server</AssemblyName>
+        <PackageId>Wormhole.Sync.Web.Server</PackageId>
+        <RootNamespace>Wormhole.Sync.Web.Server</RootNamespace>
+        <Authors>Sébastien Pertus</Authors>
+        <Company>Microsoft</Company>
+        <Title>Wormhole.Sync.Web.Server</Title>
+        <Summary>Web server proxy Sync Provider .Net Standard 2.0</Summary>
+        <Description>Proxy to be able to Sync through an ASP.NET CORE application. Choose a Wormhole.Sync provider and protects your database call through web api calls only. This assembly is meant to be used from your ASP.Net core Web Api project, and will handle all http requests calls.</Description>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>Data, Database, Sync, Synchronization, Framework, Sql, MySql, Sqlite, Wormhole.Sync, NetStandard, SyncFramework</PackageTags>
+        <ApplicationIcon>favicon.ico</ApplicationIcon>
+        <PackageIcon>packageIcon.png</PackageIcon>
+    </PropertyGroup>
+    <PropertyGroup>
+        <NoWarn>$(NoWarn)</NoWarn>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-		<PackageReference Include="System.Text.Json" Version="8.0.5" />
-	</ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    </ItemGroup>
 
 
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetStandard)' ">
-		<PackageReference Include="Microsoft.Extensions.Http" Version="3.1.32" />
-		<PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.1.21" />
-		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.1.1" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
-	</ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetStandard)' ">
+        <PackageReference Include="Microsoft.Extensions.Http" Version="3.1.32" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.1.21" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.1.1" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+    </ItemGroup>
 
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)' OR '$(TargetFramework)' == '$(TargetFrameworkNet8)'">
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
-		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-	</ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)' OR '$(TargetFramework)' == '$(TargetFrameworkNet8)'">
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
 
-	<ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
-		<Reference Include="System.Web" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
-		<PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.3" />
-		<PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
-	</ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
+        <Reference Include="System.Web" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+        <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.3" />
+        <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<None Include="..\..\docs\assets\packageIcon.png">
-			<Pack>True</Pack>
-			<PackagePath></PackagePath>
-		</None>
-	</ItemGroup>
-	
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<IncludeSource>True</IncludeSource>
-		<IncludeSymbols>True</IncludeSymbols>
-	</PropertyGroup>
+    <ItemGroup>
+        <None Include="..\..\docs\assets\packageIcon.png">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+    </ItemGroup>
+
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <!-- for nuget sources debug-->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <IncludeSource>true</IncludeSource>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <!---normalizes filepaths when build by ci (CI is set by ci pipeline)-->
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
 
 </Project>
