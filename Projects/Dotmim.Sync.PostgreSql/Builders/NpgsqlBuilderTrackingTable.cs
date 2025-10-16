@@ -106,7 +106,24 @@ namespace Wormhole.Sync.PostgreSql.Builders
                 stringBuilder.AppendLine($"\t,{pkColumnParser.QuotedShortName} ASC");
             }
 
-            stringBuilder.Append(");");
+            stringBuilder.AppendLine(");");
+
+            // Create indexes for tracked columns
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+                        stringBuilder.AppendLine();
+                        stringBuilder.AppendLine($"CREATE INDEX {this.NpgsqlObjectNames.TrackingTableNormalizedFullName}_{columnParser.NormalizedShortName}_index ON {this.NpgsqlObjectNames.TrackingTableQuotedFullName} (");
+                        stringBuilder.AppendLine($"\t{columnParser.QuotedShortName} ASC");
+                        stringBuilder.AppendLine(");");
+                    }
+                }
+            }
 
             var command = new NpgsqlCommand(stringBuilder.ToString(), (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
             NpgsqlParameter sqlParameter = new NpgsqlParameter()

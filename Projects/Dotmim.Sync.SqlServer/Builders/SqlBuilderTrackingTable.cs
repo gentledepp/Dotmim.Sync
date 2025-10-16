@@ -107,6 +107,24 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             stringBuilder.Append(");");
 
+            // Create indexes for tracked columns
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                stringBuilder.AppendLine("");
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var qColumnName = new ObjectParser(column.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
+                        stringBuilder.AppendLine();
+                        stringBuilder.AppendLine($"CREATE NONCLUSTERED INDEX [{this.SqlObjectNames.TrackingTableNormalizedFullName}_{qColumnName.NormalizedShortName}_index] ON {this.SqlObjectNames.TrackingTableQuotedFullName} (");
+                        stringBuilder.AppendLine($"\t{qColumnName.QuotedShortName} ASC");
+                        stringBuilder.AppendLine(");");
+                    }
+                }
+            }
+
             var command = new SqlCommand(stringBuilder.ToString(), (SqlConnection)connection, (SqlTransaction)transaction);
 
             return Task.FromResult((DbCommand)command);

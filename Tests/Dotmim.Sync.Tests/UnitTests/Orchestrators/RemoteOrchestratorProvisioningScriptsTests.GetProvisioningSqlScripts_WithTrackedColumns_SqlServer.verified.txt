@@ -407,6 +407,11 @@ CREATE NONCLUSTERED INDEX [Product_tracking_timestamp_index] ON [Product_trackin
 	,[ProductID] ASC
 );
 
+CREATE NONCLUSTERED INDEX [Product_tracking_ProductCategoryID_index] ON [Product_tracking] (
+	[ProductCategoryID] ASC
+);
+
+
 -- ---------------------------------
 GO
 

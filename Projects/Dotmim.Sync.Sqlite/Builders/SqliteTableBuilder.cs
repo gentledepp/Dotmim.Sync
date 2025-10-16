@@ -188,6 +188,28 @@ namespace Wormhole.Sync.Sqlite
                 stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} NOT NULL COLLATE NOCASE, ");
             }
 
+            // Adding tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    // Find the column in the table description
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        var columnType = this.SqliteDbMetadata.GetCompatibleColumnTypeDeclarationString(column, this.TableDescription.OriginalProvider);
+
+                        // Check if it's a text type for collation
+                        string casesensitive = string.Empty;
+                        if (this.SqliteDbMetadata.IsTextType(column))
+                            casesensitive = "COLLATE NOCASE";
+
+                        stringBuilder.AppendLine($"{columnParser.QuotedShortName} {columnType} NULL {casesensitive}, ");
+                    }
+                }
+            }
+
             // adding the tracking columns
             stringBuilder.AppendLine($"[update_scope_id] [text] NULL COLLATE NOCASE, ");
             stringBuilder.AppendLine($"[timestamp] [integer] NULL, ");
@@ -229,6 +251,21 @@ namespace Wormhole.Sync.Sqlite
             // Add index for sync_session_id
             stringBuilder.Append($"\n\nCREATE INDEX IF NOT EXISTS {this.trackingTableNames.NormalizedName}_sync_session_id ON {this.trackingTableNames.QuotedName} ([sync_session_id]);");
 
+            // Create indexes for tracked columns
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        stringBuilder.Append($"\n\nCREATE INDEX IF NOT EXISTS {this.trackingTableNames.NormalizedName}_{columnParser.NormalizedShortName}_index ON {this.trackingTableNames.QuotedName} (");
+                        stringBuilder.Append($"{columnParser.QuotedShortName} ASC");
+                        stringBuilder.Append(");");
+                    }
+                }
+            }
 
             return stringBuilder.ToString();
         }
@@ -385,6 +422,22 @@ namespace Wormhole.Sync.Sqlite
                 argAnd = " AND ";
             }
 
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                        stringBuilderArguments2.AppendLine($"\t\t{argComma}new.{columnParser.QuotedShortName}");
+                        argComma = ",";
+                    }
+                }
+            }
+
             createTrigger.Append(stringBuilderArguments);
             createTrigger.AppendLine("\t\t,[update_scope_id]");
             createTrigger.AppendLine("\t\t,[timestamp]");
@@ -436,6 +489,22 @@ namespace Wormhole.Sync.Sqlite
                 argAnd = " AND ";
             }
 
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                        stringBuilderArguments2.AppendLine($"\t\t{argComma}old.{columnParser.QuotedShortName}");
+                        argComma = ",";
+                    }
+                }
+            }
+
             createTrigger.Append(stringBuilderArguments);
             createTrigger.AppendLine("\t\t,[update_scope_id]");
             createTrigger.AppendLine("\t\t,[timestamp]");
@@ -476,6 +545,20 @@ namespace Wormhole.Sync.Sqlite
             createTrigger.AppendLine("\t\t,[is_dirty] = 1");
             createTrigger.AppendLine("\t\t,[sync_session_id] = NULL");
 
+            // Update tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        createTrigger.AppendLine($"\t\t,{columnParser.QuotedShortName} = new.{columnParser.QuotedShortName}");
+                    }
+                }
+            }
+
             createTrigger.Append($"\tWhere ");
             createTrigger.Append(SqliteManagementUtils.JoinTwoTablesOnClause(this.TableDescription.PrimaryKeys, this.trackingTableNames.QuotedName.ToString(), "new"));
             createTrigger.AppendLine($"; ");
@@ -496,6 +579,22 @@ namespace Wormhole.Sync.Sqlite
                 stringPkAreNull.Append($"{argAnd}{this.trackingTableNames.QuotedName}.{columnParser.QuotedShortName} IS NULL");
                 argComma = ",";
                 argAnd = " AND ";
+            }
+
+            // Add tracked columns from table description
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, SqliteObjectNames.LeftQuote, SqliteObjectNames.RightQuote);
+                        stringBuilderArguments.AppendLine($"\t\t{argComma}{columnParser.QuotedShortName}");
+                        stringBuilderArguments2.AppendLine($"\t\t{argComma}new.{columnParser.QuotedShortName}");
+                        argComma = ",";
+                    }
+                }
             }
 
             createTrigger.Append(stringBuilderArguments);

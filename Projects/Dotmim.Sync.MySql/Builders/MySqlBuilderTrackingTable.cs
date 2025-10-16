@@ -95,7 +95,24 @@ namespace Wormhole.Sync.MySql.Builders
                 comma = ", ";
             }
 
-            stringBuilder.Append("));");
+            stringBuilder.AppendLine("));");
+
+            // Create indexes for tracked columns
+            if (this.TableDescription.TrackedColumns != null && this.TableDescription.TrackedColumns.Count > 0)
+            {
+                foreach (var trackedColumnName in this.TableDescription.TrackedColumns)
+                {
+                    var column = this.TableDescription.Columns[trackedColumnName];
+                    if (column != null)
+                    {
+                        var columnParser = new ObjectParser(column.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                        stringBuilder.AppendLine();
+                        stringBuilder.AppendLine($"CREATE INDEX `{this.MySqlObjectNames.TrackingTableNormalizedShortName}_{columnParser.NormalizedShortName}_index` ON {this.MySqlObjectNames.TrackingTableQuotedShortName} (");
+                        stringBuilder.AppendLine($"\t{columnParser.QuotedShortName} ASC");
+                        stringBuilder.Append(");");
+                    }
+                }
+            }
 
             var command = connection.CreateCommand();
             command.Connection = connection;
