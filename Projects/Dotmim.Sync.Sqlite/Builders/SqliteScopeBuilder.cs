@@ -596,5 +596,29 @@ namespace Wormhole.Sync.Sqlite
             ";
             return command;
         }
+
+        /// <inheritdoc/>
+        public override DbCommand GetExistsScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, string columnName)
+        {
+            // SQLite is used on the client side and doesn't need custom columns on the server
+            // Return null to indicate this operation is not supported/needed
+            return null;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetAddScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, ScopeInfoClientParameter parameter)
+        {
+            // SQLite is used on the client side and doesn't need custom columns on the server
+            // Return null to indicate this operation is not supported/needed
+            return null;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetCreateScopeInfoClientIndexesCommand(DbConnection connection, DbTransaction transaction)
+        {
+            // SQLite is used on the client side and doesn't need custom columns on the server
+            // Return null to indicate this operation is not supported/needed
+            return null;
+        }
     }
 }

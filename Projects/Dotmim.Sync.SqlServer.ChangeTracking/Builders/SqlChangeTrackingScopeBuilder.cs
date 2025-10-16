@@ -25,56 +25,60 @@ namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
         /// <inheritdoc />
         public override DbCommand GetUpdateScopeInfoClientCommand(DbConnection connection, DbTransaction transaction)
         {
+            var customSelectForUsing = Wormhole.Sync.Builders.DbScopeBuilderHelper.GetSelectForMergeUsing(this.ScopeInfoClientParameters);
+            var customColumnListForInsert = Wormhole.Sync.Builders.DbScopeBuilderHelper.GetColumnListForInsert(this.ScopeInfoClientParameters);
+            var customSetForMerge = Wormhole.Sync.Builders.DbScopeBuilderHelper.GetSetClauseForMerge(this.ScopeInfoClientParameters);
+            var customColumnsForOutput = Wormhole.Sync.Builders.DbScopeBuilderHelper.GetColumnListForSelect(this.ScopeInfoClientParameters, "INSERTED.");
 
             var commandText = $@"
-                    
+
                     -- Need to update the last clean up in scope info as it's done automatically by SQL Server
                     -- Here is a good place as this update is called at the end of any sync to update the current client
-                    
+
                     IF EXISTS (SELECT t.name FROM sys.tables t WHERE t.name = N'{this.ScopeInfoTableNames.Name}')
                     BEGIN
                         DECLARE @maxVersion bigint;
-                        SELECT @maxVersion = MAX(CHANGE_TRACKING_MIN_VALID_VERSION(T.object_id)) 
-                        FROM sys.tables T 
+                        SELECT @maxVersion = MAX(CHANGE_TRACKING_MIN_VALID_VERSION(T.object_id))
+                        FROM sys.tables T
                         WHERE CHANGE_TRACKING_MIN_VALID_VERSION(T.object_id) is not null;
-                        
-                        UPDATE {this.ScopeInfoTableNames.QuotedFullName} WITH (READCOMMITTED) SET sync_scope_last_clean_timestamp = @maxVersion;
-                    END 
 
-                    MERGE {this.ScopeInfoClientTableNames.QuotedFullName} WITH (READCOMMITTED) AS [base] 
+                        UPDATE {this.ScopeInfoTableNames.QuotedFullName} WITH (READCOMMITTED) SET sync_scope_last_clean_timestamp = @maxVersion;
+                    END
+
+                    MERGE {this.ScopeInfoClientTableNames.QuotedFullName} WITH (READCOMMITTED) AS [base]
                     USING (
-                               SELECT  @sync_scope_id AS sync_scope_id,  
-	                                   @sync_scope_name AS sync_scope_name,  
-	                                   @sync_scope_hash AS sync_scope_hash,  
-	                                   @sync_scope_parameters AS sync_scope_parameters,  
+                               SELECT  @sync_scope_id AS sync_scope_id,
+	                                   @sync_scope_name AS sync_scope_name,
+	                                   @sync_scope_hash AS sync_scope_hash,
+	                                   @sync_scope_parameters AS sync_scope_parameters,
                                        @scope_last_sync_timestamp AS scope_last_sync_timestamp,
                                        @scope_last_server_sync_timestamp AS scope_last_server_sync_timestamp,
                                        @scope_last_sync_duration AS scope_last_sync_duration,
                                        @scope_last_sync AS scope_last_sync,
                                        @sync_scope_errors AS sync_scope_errors,
-                                       @sync_scope_properties AS sync_scope_properties
-                           ) AS [changes] 
+                                       @sync_scope_properties AS sync_scope_properties{customSelectForUsing}
+                           ) AS [changes]
                     ON [base].[sync_scope_id] = [changes].[sync_scope_id] and [base].[sync_scope_name] = [changes].[sync_scope_name] and [base].[sync_scope_hash] = [changes].[sync_scope_hash]
                     WHEN NOT MATCHED THEN
-	                    INSERT ([sync_scope_name], [sync_scope_id], [sync_scope_hash], [sync_scope_parameters], [scope_last_sync_timestamp],  [scope_last_server_sync_timestamp], [scope_last_sync], [scope_last_sync_duration], [sync_scope_errors], [sync_scope_properties])
-	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_id], [changes].[sync_scope_hash], [changes].[sync_scope_parameters], [changes].[scope_last_sync_timestamp], [changes].[scope_last_server_sync_timestamp], [changes].[scope_last_sync], [changes].[scope_last_sync_duration], [changes].[sync_scope_errors], [changes].[sync_scope_properties])
+	                    INSERT ([sync_scope_name], [sync_scope_id], [sync_scope_hash], [sync_scope_parameters], [scope_last_sync_timestamp],  [scope_last_server_sync_timestamp], [scope_last_sync], [scope_last_sync_duration], [sync_scope_errors], [sync_scope_properties]{customColumnListForInsert})
+	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_id], [changes].[sync_scope_hash], [changes].[sync_scope_parameters], [changes].[scope_last_sync_timestamp], [changes].[scope_last_server_sync_timestamp], [changes].[scope_last_sync], [changes].[scope_last_sync_duration], [changes].[sync_scope_errors], [changes].[sync_scope_properties]{customColumnListForInsert})
                     WHEN MATCHED THEN
 	                    UPDATE SET [scope_last_sync_timestamp] = [changes].[scope_last_sync_timestamp],
                                    [scope_last_server_sync_timestamp] = [changes].[scope_last_server_sync_timestamp],
                                    [scope_last_sync] = [changes].[scope_last_sync],
                                    [scope_last_sync_duration] = [changes].[scope_last_sync_duration],
                                    [sync_scope_errors] = [changes].[sync_scope_errors],
-                                   [sync_scope_properties] = [changes].[sync_scope_properties]
-                    OUTPUT  INSERTED.[sync_scope_name], 
-                            INSERTED.[sync_scope_id], 
-                            INSERTED.[sync_scope_hash], 
-                            INSERTED.[sync_scope_parameters], 
+                                   [sync_scope_properties] = [changes].[sync_scope_properties]{customSetForMerge}
+                    OUTPUT  INSERTED.[sync_scope_name],
+                            INSERTED.[sync_scope_id],
+                            INSERTED.[sync_scope_hash],
+                            INSERTED.[sync_scope_parameters],
                             INSERTED.[scope_last_sync_timestamp],
                             INSERTED.[scope_last_server_sync_timestamp],
                             INSERTED.[scope_last_sync],
                             INSERTED.[scope_last_sync_duration],
                             INSERTED.[sync_scope_errors],
-                            INSERTED.[sync_scope_properties]; ";
+                            INSERTED.[sync_scope_properties]{customColumnsForOutput}; ";
 
             var command = connection.CreateCommand();
             if (transaction != null)
@@ -136,6 +140,20 @@ namespace Wormhole.Sync.SqlServer.ChangeTracking.Builders
             p.DbType = DbType.String;
             p.Size = -1;
             command.Parameters.Add(p);
+
+            // Add parameters for custom columns
+            if (this.ScopeInfoClientParameters != null && this.ScopeInfoClientParameters.Count > 0)
+            {
+                foreach (var customParam in this.ScopeInfoClientParameters)
+                {
+                    p = command.CreateParameter();
+                    p.ParameterName = $"@{customParam.Name}";
+                    p.DbType = customParam.DbType;
+                    if (customParam.MaxLength > 0)
+                        p.Size = customParam.MaxLength;
+                    command.Parameters.Add(p);
+                }
+            }
 
             return command;
         }

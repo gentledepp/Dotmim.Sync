@@ -15,6 +15,11 @@ namespace Wormhole.Sync.Builders
         private ConcurrentDictionary<string, Lazy<SyncPreparedCommand>> commands = new();
 
         /// <summary>
+        /// Gets or sets the custom parameters for scope_info_client table.
+        /// </summary>
+        public ScopeInfoClientParameters ScopeInfoClientParameters { get; set; }
+
+        /// <summary>
         /// Gets the parsed name of the table.
         /// </summary>
         public abstract DbTableNames GetParsedScopeInfoTableNames();
@@ -124,6 +129,24 @@ namespace Wormhole.Sync.Builders
         /// This method checks the current table schema and adds any missing columns using database-specific syntax.
         /// </summary>
         public abstract DbCommand GetMigrateScopeInfoTableCommand(DbConnection connection, DbTransaction transaction);
+
+        /// <summary>
+        /// Returns a command to check if a custom column exists in scope_info_client table.
+        /// Returns null if the provider doesn't support custom columns (e.g., SQLite client).
+        /// </summary>
+        public abstract DbCommand GetExistsScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, string columnName);
+
+        /// <summary>
+        /// Returns a command to add a custom column to scope_info_client table via ALTER TABLE.
+        /// Returns null if the provider doesn't support custom columns (e.g., SQLite client).
+        /// </summary>
+        public abstract DbCommand GetAddScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, ScopeInfoClientParameter parameter);
+
+        /// <summary>
+        /// Returns a command to create indexes on custom columns in scope_info_client table.
+        /// Returns null if there are no indexed parameters or the provider doesn't support indexes.
+        /// </summary>
+        public abstract DbCommand GetCreateScopeInfoClientIndexesCommand(DbConnection connection, DbTransaction transaction);
 
         /// <summary>
         /// Remove a Command from internal shared dictionary.

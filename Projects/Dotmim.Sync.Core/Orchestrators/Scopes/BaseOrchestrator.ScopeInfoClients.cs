@@ -1,9 +1,11 @@
-﻿using Wormhole.Sync.Builders;
+﻿using Microsoft.Extensions.Logging;
+using Wormhole.Sync.Builders;
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -268,11 +270,14 @@ namespace Wormhole.Sync
         /// Internal upsert scope info client.
         /// </summary>
         internal async Task<(SyncContext Context, ScopeInfoClient ScopeInfoClient)>
-            InternalSaveScopeInfoClientAsync(ScopeInfoClient scopeInfoClient, SyncContext context, DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+            InternalSaveScopeInfoClientAsync(ScopeInfoClient scopeInfoClient, SyncContext context, DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken, ScopeInfoClientParameters customParameters = null)
         {
             try
             {
                 var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
+
+                // Set custom parameters on the scope builder so it can generate commands with custom columns
+                scopeBuilder.ScopeInfoClientParameters = customParameters;
 
                 using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.ScopeLoading, connection, transaction, cancellationToken: cancellationToken).ConfigureAwait(false);
                 await using (runner.ConfigureAwait(false))
@@ -291,13 +296,7 @@ namespace Wormhole.Sync
                     if (command == null)
                         return (context, null);
 
-                    /* Unmerged change from project 'Dotmim.Sync.Core (net6.0)'
-                    Before:
-                                        this.InternalSetSaveScopeInfoClientParameters(scopeInfoClient, command);
-                    After:
-                                        InternalSetSaveScopeInfoClientParameters(scopeInfoClient, command);
-                    */
-                    BaseOrchestrator.InternalSetSaveScopeInfoClientParameters(scopeInfoClient, command);
+                    this.InternalSetSaveScopeInfoClientParameters(scopeInfoClient, command, customParameters);
 
                     // var action = new ScopeSavingArgs(context, scopeBuilder.ScopeInfoTableName.ToString(), scopeInfoClient, command, runner.Connection, runner.Transaction);
                     // await this.InterceptAsync(action, progress, cancellationToken).ConfigureAwait(false);
@@ -332,7 +331,7 @@ namespace Wormhole.Sync
         /// <summary>
         /// Set the parameters for the scope info client.
         /// </summary>
-        private static DbCommand InternalSetSaveScopeInfoClientParameters(ScopeInfoClient scopeInfoClient, DbCommand command)
+        private DbCommand InternalSetSaveScopeInfoClientParameters(ScopeInfoClient scopeInfoClient, DbCommand command, ScopeInfoClientParameters customParameters = null)
         {
             InternalSetParameterValue(command, "sync_scope_id", scopeInfoClient.Id.ToString());
             InternalSetParameterValue(command, "sync_scope_name", scopeInfoClient.Name);
@@ -344,6 +343,39 @@ namespace Wormhole.Sync
             InternalSetParameterValue(command, "sync_scope_properties", scopeInfoClient.Properties);
             InternalSetParameterValue(command, "sync_scope_errors", scopeInfoClient.Errors);
             InternalSetParameterValue(command, "sync_scope_parameters", scopeInfoClient.Parameters != null ? Serializer.Serialize(scopeInfoClient.Parameters).ToUtf8String() : DBNull.Value);
+
+            // Set custom parameter values if definitions exist
+            if (customParameters != null && customParameters.Count > 0)
+            {
+                foreach (var customParam in customParameters)
+                {
+                    object paramValue = DBNull.Value;
+
+                    // Try to find matching SyncParameter from the client
+                    if (scopeInfoClient.Parameters != null && scopeInfoClient.Parameters.Count > 0)
+                    {
+                        var syncParam = scopeInfoClient.Parameters.FirstOrDefault(p =>
+                            string.Equals(p.Name, customParam.Name, StringComparison.OrdinalIgnoreCase));
+
+                        if (syncParam != null)
+                        {
+                            // Check if types are compatible and get the converted value
+                            if (customParam.TryGetCompatibleValue(syncParam, out var convertedValue))
+                            {
+                                paramValue = convertedValue ?? DBNull.Value;
+                            }
+                            // If types are not compatible, log and leave it as NULL
+                            else
+                            {
+                                this.Logger.LogWarning($"Could not set param {syncParam.Name} as its value '{syncParam.Value}' (type:{syncParam.Value?.GetType().FullName}) is not compatible with the scopeinfoclientparameter {customParam.Name} (dbType:{Enum.GetName(typeof(System.Data.DbType), customParam.DbType)}");
+                            }
+                        }
+                    }
+
+                    // Set the parameter value (NULL if not found or incompatible)
+                    InternalSetParameterValue(command, customParam.Name, paramValue);
+                }
+            }
 
             return command;
         }

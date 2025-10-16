@@ -55,7 +55,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQL Server Single Table Scripts ==========");
@@ -97,7 +97,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider, options);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQL Server Single Table Scripts ==========");
@@ -142,7 +142,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQL Server Single Table Scripts ==========");
@@ -199,7 +199,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Table Scripts ==========");
@@ -238,7 +238,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new LocalOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetClientProvisioningSqlScriptsAsync(setup);
 
             // Assert
 
@@ -299,7 +299,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new LocalOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetClientProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQLite Two Related Tables Scripts ==========");
@@ -353,7 +353,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Trigger Interceptor Test ==========");
@@ -404,7 +404,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Stored Procedure Interceptor Test ==========");
@@ -454,7 +454,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Tracking Table Interceptor Test ==========");
@@ -504,7 +504,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Trigger Cancellation Test ==========");
@@ -554,7 +554,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Custom Provisioning SQL Test ==========");
@@ -603,7 +603,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Multiple Custom Provisioning SQL Test ==========");
@@ -665,7 +665,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Tracked Columns Test ==========");
@@ -727,7 +727,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
 
             // Act - Get SQLite scripts from SQL Server connection
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup, sqliteProvider);
 
             // Assert
             output.WriteLine("========== SQL Server → SQLite Scripts ==========");
@@ -790,7 +790,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
 
             // Act - Get SQLite scripts from SQL Server connection
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup, sqliteProvider);
 
             // Assert
             output.WriteLine("========== SQL Server → SQLite Two Tables Scripts ==========");
@@ -834,13 +834,13 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqlServerProvider = new SqlSyncProvider(cs);
             var orchestrator = new RemoteOrchestrator(sqlServerProvider);
 
-            var expectedScripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var expectedScripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Create a second SQL Server provider (could be for a different server)
             var targetSqlServerProvider = new SqlSyncProvider(cs);
 
             // Act - Get SQL Server scripts using target provider
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, targetSqlServerProvider);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup, targetSqlServerProvider);
 
             // Assert
             output.WriteLine("========== SQL Server → SQL Server Cross-Orchestrator ==========");
@@ -896,7 +896,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Filter to exclude Product table entirely
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.Table || args.Table.TableName != "Product"
             );
@@ -945,7 +945,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip Delete trigger only
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args =>
                 {
@@ -1001,7 +1001,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip BulkUpdate and BulkDelete stored procedures
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args =>
                 {
@@ -1059,7 +1059,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip tracking table
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.TrackingTable
             );
@@ -1112,7 +1112,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip custom SQL
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.CustomSql
             );
@@ -1161,7 +1161,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Only include tracking tables and triggers
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType == ProvisioningComponentType.Table ||
                         args.ComponentType == ProvisioningComponentType.TrackingTable ||
@@ -1215,7 +1215,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
 
             // Act - Get SQLite scripts without stored procedures (SQLite doesn't use them anyway)
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 sqliteProvider,
                 args => args.ComponentType != ProvisioningComponentType.StoredProcedure
@@ -1275,7 +1275,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Include all ProductCategory components, but only tracking table for Product
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args =>
                 {
@@ -1338,7 +1338,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Scope Info Table Test ==========");
@@ -1386,7 +1386,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Scope Info Client Table Test ==========");
@@ -1433,7 +1433,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip scope_info table only
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.ScopeInfo
             );
@@ -1483,7 +1483,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip scope_info_client table only
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.ScopeInfoClient
             );
@@ -1534,7 +1534,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider);
 
             // Act - Skip both scope tables
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
                 setup,
                 args => args.ComponentType != ProvisioningComponentType.ScopeInfo &&
                         args.ComponentType != ProvisioningComponentType.ScopeInfoClient
@@ -1583,7 +1583,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new LocalOrchestrator(provider);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQLite Scope Tables Test ==========");
@@ -1639,7 +1639,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
 
             // Act - Get SQLite scripts from SQL Server connection
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup, sqliteProvider);
 
             // Assert
             output.WriteLine("========== Cross-Provider Scope Tables Test ==========");
@@ -1693,7 +1693,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider, options);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Scope Table Prefix Test ==========");
@@ -1743,7 +1743,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider, options);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Scope Table Suffix Test ==========");
@@ -1789,7 +1789,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new RemoteOrchestrator(provider, options);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== Scope Table Prefix and Suffix Test ==========");
@@ -1836,7 +1836,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var orchestrator = new LocalOrchestrator(provider, options);
 
             // Act
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup);
+            var scripts = await orchestrator.GetClientProvisioningSqlScriptsAsync(setup);
 
             // Assert
             output.WriteLine("========== SQLite Scope Table Prefix Test ==========");
@@ -1890,7 +1890,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
 
             // Act - Get SQLite scripts from SQL Server connection with prefix
-            var scripts = await orchestrator.GetProvisioningSqlScriptsAsync(setup, sqliteProvider);
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup, sqliteProvider);
 
             // Assert
             output.WriteLine("========== Cross-Provider with Prefix Test ==========");
@@ -1909,6 +1909,377 @@ namespace Wormhole.Sync.Tests.UnitTests
             var prefixedScopeInfoIndex = scripts.IndexOf("mobile_scope_info", StringComparison.OrdinalIgnoreCase);
             var productCategoryIndex = scripts.IndexOf("ProductCategory_tracking", StringComparison.OrdinalIgnoreCase);
             Assert.True(prefixedScopeInfoIndex < productCategoryIndex, "Prefixed scope tables should appear before table-specific components");
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetServerProvisioningSqlScripts_WithScopeInfoClientParameters_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_server_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters for server-side scope_info_client table
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid, isIndexed: true),
+                new ScopeInfoClientParameter("DeviceIdentifier", System.Data.DbType.Guid, isIndexed: true),
+                new ScopeInfoClientParameter("DeviceName", System.Data.DbType.String, maxLength: 100),
+                new ScopeInfoClientParameter("IsActive", System.Data.DbType.Boolean)
+            };
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Get SERVER provisioning scripts (should include custom parameters)
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Server Provisioning with Custom Parameters ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("================================================================");
+
+            // Verify scope_info_client table includes custom columns
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("[TenantId]", scripts);
+            Assert.Contains("UNIQUEIDENTIFIER NULL", scripts);
+            Assert.Contains("[DeviceIdentifier]", scripts);
+            Assert.Contains("[DeviceName]", scripts);
+            Assert.Contains("NVARCHAR(100) NULL", scripts);
+            Assert.Contains("[IsActive]", scripts);
+            Assert.Contains("BIT NULL", scripts);
+
+            // Verify custom columns appear in the CREATE TABLE statement for scope_info_client
+            var scopeInfoClientTableStart = scripts.IndexOf("CREATE TABLE", scripts.IndexOf("scope_info_client", StringComparison.OrdinalIgnoreCase) - 100);
+            var nextCreateTableOrEnd = scripts.IndexOf("CREATE TABLE", scopeInfoClientTableStart + 100);
+            if (nextCreateTableOrEnd == -1) nextCreateTableOrEnd = scripts.Length;
+            var scopeInfoClientSection = scripts.Substring(scopeInfoClientTableStart, nextCreateTableOrEnd - scopeInfoClientTableStart);
+
+            Assert.Contains("[TenantId]", scopeInfoClientSection);
+            Assert.Contains("[DeviceIdentifier]", scopeInfoClientSection);
+            Assert.Contains("[DeviceName]", scopeInfoClientSection);
+            Assert.Contains("[IsActive]", scopeInfoClientSection);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetClientProvisioningSqlScripts_WithScopeInfoClientParameters_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_client_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters (these should be IGNORED for client provisioning)
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid, isIndexed: true),
+                new ScopeInfoClientParameter("DeviceIdentifier", System.Data.DbType.Guid, isIndexed: true),
+                new ScopeInfoClientParameter("DeviceName", System.Data.DbType.String, maxLength: 100),
+                new ScopeInfoClientParameter("IsActive", System.Data.DbType.Boolean)
+            };
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Get CLIENT provisioning scripts (should NOT include custom parameters)
+            var scripts = await orchestrator.GetClientProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Client Provisioning WITHOUT Custom Parameters ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("====================================================================");
+
+            // Verify scope_info_client table exists but does NOT include custom columns
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Find the scope_info_client table creation section
+            var scopeInfoClientIndex = scripts.IndexOf("scope_info_client", StringComparison.OrdinalIgnoreCase);
+            Assert.True(scopeInfoClientIndex > 0, "scope_info_client table should exist in client scripts");
+
+            // Verify custom columns are NOT present
+            Assert.DoesNotContain("[TenantId]", scripts);
+            Assert.DoesNotContain("[DeviceIdentifier]", scripts);
+            Assert.DoesNotContain("[DeviceName]", scripts);
+            Assert.DoesNotContain("[IsActive]", scripts);
+
+            // Verify standard columns are still present
+            Assert.Contains("sync_scope_id", scripts);
+            Assert.Contains("sync_scope_name", scripts);
+            Assert.Contains("scope_last_sync_timestamp", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetClientProvisioningSqlScripts_WithScopeInfoClientParameters_CrossProvider_SqliteTarget()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_client_cross_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table in SQL Server
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters (should be IGNORED for client provisioning)
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid),
+                new ScopeInfoClientParameter("DeviceType", System.Data.DbType.String, maxLength: 50)
+            };
+
+            var sqlServerProvider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(sqlServerProvider);
+
+            var sqliteProvider = new SqliteSyncProvider("data source=:memory:");
+
+            // Act - Get SQLite CLIENT scripts from SQL Server connection (should NOT include custom parameters)
+            var scripts = await orchestrator.GetClientProvisioningSqlScriptsAsync(setup, sqliteProvider);
+
+            // Assert
+            output.WriteLine("========== Cross-Provider Client Scripts WITHOUT Parameters ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("========================================================================");
+
+            // Verify it's SQLite syntax
+            Assert.DoesNotContain("CREATE PROCEDURE", scripts);
+            Assert.DoesNotContain("GO", scripts);
+
+            // Verify scope_info_client table exists
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+
+            // Verify custom columns are NOT present
+            Assert.DoesNotContain("TenantId", scripts);
+            Assert.DoesNotContain("DeviceType", scripts);
+
+            // Verify standard columns are present
+            Assert.Contains("sync_scope_id", scripts);
+            Assert.Contains("sync_scope_name", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetServerProvisioningSqlScripts_WithScopeInfoClientParameters_MultipleTypes_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_types_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters with various data types
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("UserId", System.Data.DbType.Int64),
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid),
+                new ScopeInfoClientParameter("AppVersion", System.Data.DbType.String, maxLength: 20),
+                new ScopeInfoClientParameter("IsOnline", System.Data.DbType.Boolean),
+                new ScopeInfoClientParameter("LastSyncDate", System.Data.DbType.DateTime),
+                new ScopeInfoClientParameter("SyncDuration", System.Data.DbType.Time),
+                new ScopeInfoClientParameter("DataSize", System.Data.DbType.Decimal)
+            };
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Server Provisioning with Multiple Parameter Types ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("========================================================================");
+
+            // Verify all custom columns with correct SQL Server types
+            Assert.Contains("[UserId] BIGINT NULL", scripts);
+            Assert.Contains("[TenantId] UNIQUEIDENTIFIER NULL", scripts);
+            Assert.Contains("[AppVersion] NVARCHAR(20) NULL", scripts);
+            Assert.Contains("[IsOnline] BIT NULL", scripts);
+            Assert.Contains("[LastSyncDate] DATETIME NULL", scripts);
+            Assert.Contains("[SyncDuration] TIME NULL", scripts);
+            Assert.Contains("[DataSize] DECIMAL(18, 2) NULL", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetServerProvisioningSqlScripts_WithScopeInfoClientParameters_MultipleTypesWithIndex_SqlServer()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_types_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters with various data types
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("UserId", System.Data.DbType.Int64, isIndexed:true),
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid, isIndexed:true),
+                new ScopeInfoClientParameter("AppVersion", System.Data.DbType.String, maxLength: 20, isIndexed:true),
+                new ScopeInfoClientParameter("IsOnline", System.Data.DbType.Boolean, isIndexed:true),
+                new ScopeInfoClientParameter("LastSyncDate", System.Data.DbType.DateTime, isIndexed:true),
+                new ScopeInfoClientParameter("SyncDuration", System.Data.DbType.Time, isIndexed:true),
+                new ScopeInfoClientParameter("DataSize", System.Data.DbType.Decimal, isIndexed:true)
+            };
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(setup);
+
+            // Assert
+            output.WriteLine("========== Server Provisioning with Multiple Parameter Types ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("========================================================================");
+
+            // Verify all custom columns with correct SQL Server types
+            Assert.Contains("[UserId] BIGINT NULL", scripts);
+            Assert.Contains("[TenantId] UNIQUEIDENTIFIER NULL", scripts);
+            Assert.Contains("[AppVersion] NVARCHAR(20) NULL", scripts);
+            Assert.Contains("[IsOnline] BIT NULL", scripts);
+            Assert.Contains("[LastSyncDate] DATETIME NULL", scripts);
+            Assert.Contains("[SyncDuration] TIME NULL", scripts);
+            Assert.Contains("[DataSize] DECIMAL(18, 2) NULL", scripts);
+
+            await Verifier.Verify(scripts);
+        }
+
+        [Fact]
+        public async Task GetServerProvisioningSqlScripts_WithComponentFilter_IncludesCustomParametersInScopeInfoClient()
+        {
+            this.dbName = HelperDatabase.GetRandomName("tcp_prov_params_filter_");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbName, true);
+            var cs = HelperDatabase.GetConnectionString(ProviderType.Sql, dbName);
+
+            // Create a simple ProductCategory table
+            using (var connection = new SqlConnection(cs))
+            {
+                connection.Open();
+                var commandText = @"
+                    CREATE TABLE [dbo].[ProductCategory] (
+                        [ProductCategoryID] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT (NEWID()),
+                        [Name] [nvarchar](50) NOT NULL,
+                        [ModifiedDate] [datetime] NULL
+                    )";
+                using var cmd = new SqlCommand(commandText, connection);
+                cmd.ExecuteNonQuery();
+            }
+
+            var setup = new SyncSetup("ProductCategory");
+            setup.Tables["ProductCategory"].Columns.AddRange("ProductCategoryID", "Name", "ModifiedDate");
+
+            // Add custom parameters
+            setup.ScopeInfoClientParameters = new ScopeInfoClientParameters
+            {
+                new ScopeInfoClientParameter("TenantId", System.Data.DbType.Guid),
+                new ScopeInfoClientParameter("Region", System.Data.DbType.String, maxLength: 50)
+            };
+
+            var provider = new SqlSyncProvider(cs);
+            var orchestrator = new RemoteOrchestrator(provider);
+
+            // Act - Get SERVER scripts with filter (only scope tables, no ProductCategory components)
+            var scripts = await orchestrator.GetServerProvisioningSqlScriptsAsync(
+                setup,
+                args => args.ComponentType == ProvisioningComponentType.ScopeInfo ||
+                        args.ComponentType == ProvisioningComponentType.ScopeInfoClient
+            );
+
+            // Assert
+            output.WriteLine("========== Filtered Server Scripts with Custom Parameters ==========");
+            output.WriteLine(scripts);
+            output.WriteLine("=====================================================================");
+
+            // Should contain scope_info_client with custom parameters
+            Assert.Contains("scope_info_client", scripts, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("[TenantId]", scripts);
+            Assert.Contains("[Region]", scripts);
+
+            // Should NOT contain ProductCategory components (due to filter)
+            Assert.DoesNotContain("ProductCategory_tracking", scripts);
+            Assert.DoesNotContain("ProductCategory_insert_trigger", scripts, StringComparison.OrdinalIgnoreCase);
 
             await Verifier.Verify(scripts);
         }

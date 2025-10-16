@@ -63,6 +63,13 @@ namespace Wormhole.Sync
         public string TrackingTablesSuffix { get; set; }
 
         /// <summary>
+        /// Gets or sets custom parameters to be stored in the scope_info_client table.
+        /// These parameters will be added as nullable columns on the server-side scope_info_client table.
+        /// </summary>
+        [DataMember(Name = "sicp", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        public ScopeInfoClientParameters ScopeInfoClientParameters { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SyncSetup"/> class.
         /// Create a list of tables to be added to the sync process.
         /// </summary>
@@ -84,6 +91,7 @@ namespace Wormhole.Sync
         {
             this.Tables = [];
             this.Filters = [];
+            this.ScopeInfoClientParameters = [];
 
             // this.Version = SyncVersion.Current.ToString();
         }
@@ -128,7 +136,17 @@ namespace Wormhole.Sync
             if (!this.Tables.CompareWith(otherSetup.Tables))
                 return false;
 
-            return this.Filters.CompareWith(otherSetup.Filters);
+            if (!this.Filters.CompareWith(otherSetup.Filters))
+                return false;
+
+            // Compare scope info client parameters
+            if (this.ScopeInfoClientParameters == null && otherSetup.ScopeInfoClientParameters != null)
+                return false;
+
+            if (this.ScopeInfoClientParameters != null && !this.ScopeInfoClientParameters.CompareWith(otherSetup.ScopeInfoClientParameters))
+                return false;
+
+            return true;
         }
 
         /// <inheritdoc cref="SyncNamedItem{T}.EqualsByProperties(T)" />

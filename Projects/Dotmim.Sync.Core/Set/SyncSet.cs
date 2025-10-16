@@ -30,6 +30,12 @@ namespace Wormhole.Sync
         public SyncFilters Filters { get; set; }
 
         /// <summary>
+        /// Gets or sets custom parameters definition for scope_info_client table.
+        /// </summary>
+        [DataMember(Name = "sicp", IsRequired = false, EmitDefaultValue = false, Order = 4)]
+        public ScopeInfoClientParameters ScopeInfoClientParameters { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SyncSet"/> class.
         /// Create a new SyncSet, empty.
         /// </summary>
@@ -38,6 +44,7 @@ namespace Wormhole.Sync
             this.Tables = new SyncTables(this);
             this.Relations = new SyncRelations(this);
             this.Filters = new SyncFilters(this);
+            this.ScopeInfoClientParameters = [];
         }
 
         /// <summary>
@@ -52,6 +59,12 @@ namespace Wormhole.Sync
 
             foreach (var setupTable in setup.Tables)
                 this.Tables.Add(new SyncTable(setupTable.TableName, setupTable.SchemaName));
+
+            // Copy scope info client parameters from setup
+            if (setup.ScopeInfoClientParameters != null)
+            {
+                this.ScopeInfoClientParameters = setup.ScopeInfoClientParameters.Clone();
+            }
 
             this.EnsureSchema();
         }
@@ -90,6 +103,10 @@ namespace Wormhole.Sync
             foreach (var t in this.Tables)
                 clone.Tables.Add(t.Clone());
 
+            // Clone scope info client parameters
+            if (this.ScopeInfoClientParameters != null)
+                clone.ScopeInfoClientParameters = this.ScopeInfoClientParameters.Clone();
+
             // Ensure all elements has the correct ref to its parent
             clone.EnsureSchema();
 
@@ -121,6 +138,12 @@ namespace Wormhole.Sync
                 this.Filters.Schema = null;
                 this.Filters = null;
             }
+
+            if (this.ScopeInfoClientParameters != null)
+            {
+                this.ScopeInfoClientParameters.Clear();
+                this.ScopeInfoClientParameters = null;
+            }
         }
 
         /// <inheritdoc cref="SyncNamedItem{T}.EqualsByProperties(T)"/>
@@ -137,6 +160,13 @@ namespace Wormhole.Sync
                 return false;
 
             if (!this.Relations.CompareWith(otherSet.Relations))
+                return false;
+
+            // Compare scope info client parameters
+            if (this.ScopeInfoClientParameters == null && otherSet.ScopeInfoClientParameters != null)
+                return false;
+
+            if (this.ScopeInfoClientParameters != null && !this.ScopeInfoClientParameters.CompareWith(otherSet.ScopeInfoClientParameters))
                 return false;
 
             return true;

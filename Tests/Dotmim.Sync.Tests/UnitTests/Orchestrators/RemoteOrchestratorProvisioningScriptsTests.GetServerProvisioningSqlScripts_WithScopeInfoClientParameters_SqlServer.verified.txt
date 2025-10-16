@@ -26,8 +26,19 @@ CREATE TABLE [dbo].[scope_info_client](
     [scope_last_sync] [datetime] NULL,
     [sync_scope_errors] [nvarchar](MAX) NULL,
     [sync_scope_properties] [nvarchar](MAX) NULL
+,   [TenantId] UNIQUEIDENTIFIER NULL
+,   [DeviceIdentifier] UNIQUEIDENTIFIER NULL
+,   [DeviceName] NVARCHAR(100) NULL
+,   [IsActive] BIT NULL
     CONSTRAINT [PKey_scope_info_client] PRIMARY KEY CLUSTERED ([sync_scope_id] ASC, [sync_scope_name] ASC, [sync_scope_hash] ASC)
 )
+
+
+-- ---------------------------------
+GO
+
+CREATE NONCLUSTERED INDEX [IX_scope_info_client_TenantId] ON [dbo].[scope_info_client] ([TenantId] ASC);
+CREATE NONCLUSTERED INDEX [IX_scope_info_client_DeviceIdentifier] ON [dbo].[scope_info_client] ([DeviceIdentifier] ASC);
 
 
 -- ---------------------------------
@@ -123,6 +134,37 @@ SELECT
 FROM INSERTED [i]
 JOIN DELETED AS [d] ON [d].[ProductCategoryID] = [i].[ProductCategoryID]
 LEFT JOIN [ProductCategory_tracking] [side] ON [i].[ProductCategoryID] = [side].[ProductCategoryID]
+WHERE [side].[ProductCategoryID] IS NULL
+
+
+
+-- ---------------------------------
+GO
+
+CREATE TRIGGER [dbo].[ProductCategory_delete_trigger] ON [ProductCategory] FOR DELETE AS
+
+SET NOCOUNT ON;
+
+UPDATE [side] 
+SET  [sync_row_is_tombstone] = 1
+	,[update_scope_id] = '00000000-0000-0000-0000-000000000000' -- scope id is always empty GUID when update is made locally
+	,[last_change_datetime] = GetUtcDate()
+FROM [ProductCategory_tracking] [side]
+JOIN DELETED AS [d] ON [side].[ProductCategoryID] = [d].[ProductCategoryID]
+
+INSERT INTO [ProductCategory_tracking] (
+	 [ProductCategoryID]
+	,[update_scope_id]
+	,[sync_row_is_tombstone]
+	,[last_change_datetime]
+) 
+SELECT
+	 [d].[ProductCategoryID]
+	,'00000000-0000-0000-0000-000000000000'
+	,1
+	,GetUtcDate()
+FROM DELETED [d]
+LEFT JOIN [ProductCategory_tracking] [side] ON [d].[ProductCategoryID] = [side].[ProductCategoryID]
 WHERE [side].[ProductCategoryID] IS NULL
 
 

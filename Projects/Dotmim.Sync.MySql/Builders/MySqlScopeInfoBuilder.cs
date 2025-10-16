@@ -730,5 +730,79 @@ namespace Wormhole.Sync.MySql.Builders
             ";
             return command;
         }
+
+        /// <inheritdoc/>
+        public override DbCommand GetExistsScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, string columnName)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = schema()
+                AND table_name = @tableName
+                AND column_name = @columnName";
+
+            var p = command.CreateParameter();
+            p.ParameterName = "@tableName";
+            p.DbType = DbType.String;
+            p.Value = this.ScopeInfoClientTableNames.Name;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@columnName";
+            p.DbType = DbType.String;
+            p.Value = columnName;
+            command.Parameters.Add(p);
+
+            return command;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetAddScopeInfoClientColumnCommand(DbConnection connection, DbTransaction transaction, ScopeInfoClientParameter parameter)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+
+            var columnDef = DbScopeBuilderHelper.GetMySqlColumnDefinition(parameter);
+            command.CommandText = $"ALTER TABLE {this.ScopeInfoClientTableNames.QuotedName} ADD COLUMN {columnDef}";
+
+            return command;
+        }
+
+        /// <inheritdoc/>
+        public override DbCommand GetCreateScopeInfoClientIndexesCommand(DbConnection connection, DbTransaction transaction)
+        {
+            // Check if there are any indexed parameters
+            if (this.ScopeInfoClientParameters == null || this.ScopeInfoClientParameters.Count == 0)
+                return null;
+
+            var indexedParams = new System.Collections.Generic.List<ScopeInfoClientParameter>();
+            foreach (var param in this.ScopeInfoClientParameters)
+            {
+                if (param.IsIndexed)
+                    indexedParams.Add(param);
+            }
+
+            if (indexedParams.Count == 0)
+                return null;
+
+            var sb = new StringBuilder();
+            foreach (var param in indexedParams)
+            {
+                // Generate a unique index name based on table name and column name
+                var indexName = $"IX_{this.ScopeInfoClientTableNames.Name}_{param.Name}";
+                sb.AppendLine($"CREATE INDEX `{indexName}` ON {this.ScopeInfoClientTableNames.QuotedName} (`{param.Name}` ASC);");
+            }
+
+            if (sb.Length == 0)
+                return null;
+
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sb.ToString();
+            return command;
+        }
     }
 }

@@ -251,6 +251,10 @@ namespace Wormhole.Sync
             {
                 var scopeBuilder = this.GetScopeBuilder(this.Options.ScopeInfoTableName);
 
+                // For scope_info_client table on RemoteOrchestrator, we need to get ScopeInfoClientParameters from Setup
+                // This is handled in the derived RemoteOrchestrator implementation
+                // NOTE: Custom columns will be created based on the Setup that's available when the table is created
+
                 var scopeCommandType = scopeType switch
                 {
                     DbScopeType.ScopeInfo => DbScopeCommandType.CreateScopeInfoTable,

@@ -506,6 +506,7 @@ namespace Wormhole.Sync
             SyncSetup setup,
             CoreProvider targetProvider,
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            SyncRole role,
             string scopeName = null,
             DbConnection connection = null,
             DbTransaction transaction = null,
@@ -516,7 +517,7 @@ namespace Wormhole.Sync
             try
             {
                 if (this.Provider == null)
-                    throw new MissingProviderException(nameof(this.GetProvisioningSqlScriptsAsync));
+                    throw new MissingProviderException(nameof(this.InternalGetProvisioningSqlScriptsAsync));
 
                 if (setup == null || setup.Tables.Count <= 0)
                     throw new MissingTablesException();
@@ -595,12 +596,30 @@ namespace Wormhole.Sync
                             ComponentType = ProvisioningComponentType.ScopeInfoClient,
                         }))
                         {
+                            // Only include custom parameters if provisioning for Server role
+                            if (role == SyncRole.Server)
+                                scopeBuilder.ScopeInfoClientParameters = setup.ScopeInfoClientParameters;
+                            else
+                                scopeBuilder.ScopeInfoClientParameters = null;
+
                             var scopeInfoClientCmd = scopeBuilder.GetCreateScopeInfoClientTableCommand(scriptConnection, scriptTransaction);
                             if (scopeInfoClientCmd != null && !string.IsNullOrEmpty(scopeInfoClientCmd.CommandText))
                             {
                                 if (allScripts.Length > 0)
                                     allScripts.Append(separator);
                                 allScripts.Append(scopeInfoClientCmd.CommandText);
+                            }
+
+                            // Generate indexes for custom parameters (only for Server role with indexed parameters)
+                            if (role == SyncRole.Server)
+                            {
+                                var scopeInfoClientIndexesCmd = scopeBuilder.GetCreateScopeInfoClientIndexesCommand(scriptConnection, scriptTransaction);
+                                if (scopeInfoClientIndexesCmd != null && !string.IsNullOrEmpty(scopeInfoClientIndexesCmd.CommandText))
+                                {
+                                    if (allScripts.Length > 0)
+                                        allScripts.Append(separator);
+                                    allScripts.Append(scopeInfoClientIndexesCmd.CommandText);
+                                }
                             }
                         }
 
@@ -745,19 +764,21 @@ namespace Wormhole.Sync
         }
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for all tables in the setup.
+        /// Gets all provisioning SQL scripts for all tables in the setup for SERVER-SIDE provisioning.
         /// Requires connection to discover schema but generates scripts without executing them.
+        /// Includes custom ScopeInfoClientParameters in the scope_info_client table creation.
         /// </summary>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+        public virtual async Task<string> GetServerProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
             string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, SyncRole.Server, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for all tables in the setup, using a different target provider for script generation.
+        /// Gets all provisioning SQL scripts for all tables in the setup for SERVER-SIDE provisioning, using a different target provider for script generation.
         /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
         /// Useful for generating scripts for a different database type (e.g., get SQLite scripts from a SQL Server connection).
+        /// Includes custom ScopeInfoClientParameters in the scope_info_client table creation.
         /// Note: A connection string for the target database is still required, but the connection is not opened or used for schema discovery.
         /// </summary>
         /// <param name="setup">The sync setup containing table configurations.</param>
@@ -767,16 +788,17 @@ namespace Wormhole.Sync
         /// <param name="transaction">Optional existing transaction.</param>
         /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider.</returns>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+        public virtual async Task<string> GetServerProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
             string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, SyncRole.Server, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for all tables in the setup supporting custom filtering.
+        /// Gets all provisioning SQL scripts for all tables in the setup for SERVER-SIDE provisioning, supporting custom filtering.
         /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
         /// Allows filtering of specific provisioning components through a callback function.
+        /// Includes custom ScopeInfoClientParameters in the scope_info_client table creation.
         /// </summary>
         /// <param name="setup">The sync setup containing table configurations.</param>
         /// <param name="shouldIncludeComponent">Optional callback to filter which components should be included in the generated scripts. Return true to include, false to exclude.</param>
@@ -785,7 +807,7 @@ namespace Wormhole.Sync
         /// <param name="transaction">Optional existing transaction.</param>
         /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(
+        public virtual async Task<string> GetServerProvisioningSqlScriptsAsync(
             SyncSetup setup,
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
             string scopeName = null,
@@ -793,13 +815,14 @@ namespace Wormhole.Sync
             DbTransaction transaction = null,
             string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, SyncRole.Server, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Gets all provisioning SQL scripts for all tables in the setup, using a different target provider for script generation and custom filtering.
+        /// Gets all provisioning SQL scripts for all tables in the setup for SERVER-SIDE provisioning, using a different target provider for script generation and custom filtering.
         /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
         /// Allows filtering of specific provisioning components through a callback function.
+        /// Includes custom ScopeInfoClientParameters in the scope_info_client table creation.
         /// </summary>
         /// <param name="setup">The sync setup containing table configurations.</param>
         /// <param name="targetProvider">The target provider to generate scripts for (e.g., SqliteSyncProvider to generate SQLite scripts). If null, uses the current provider.</param>
@@ -809,7 +832,7 @@ namespace Wormhole.Sync
         /// <param name="transaction">Optional existing transaction.</param>
         /// <param name="scriptSeparator">custom script separator</param>
         /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
-        public virtual async Task<string> GetProvisioningSqlScriptsAsync(
+        public virtual async Task<string> GetServerProvisioningSqlScriptsAsync(
             SyncSetup setup,
             CoreProvider targetProvider,
             Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
@@ -818,7 +841,88 @@ namespace Wormhole.Sync
             DbTransaction transaction = null,
             string scriptSeparator = null)
         {
-            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, SyncRole.Server, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup for CLIENT-SIDE provisioning.
+        /// Requires connection to discover schema but generates scripts without executing them.
+        /// Does NOT include custom ScopeInfoClientParameters - generates standard scope_info_client table only.
+        /// </summary>
+        public virtual async Task<string> GetClientProvisioningSqlScriptsAsync(SyncSetup setup, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+            string scriptSeparator = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, null, SyncRole.Client, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup for CLIENT-SIDE provisioning, using a different target provider for script generation.
+        /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
+        /// Useful for generating scripts for a different database type (e.g., get SQLite scripts from a SQL Server connection).
+        /// Does NOT include custom ScopeInfoClientParameters - generates standard scope_info_client table only.
+        /// Note: A connection string for the target database is still required, but the connection is not opened or used for schema discovery.
+        /// </summary>
+        /// <param name="setup">The sync setup containing table configurations.</param>
+        /// <param name="targetProvider">The target provider to generate scripts for (e.g., SqliteSyncProvider to generate SQLite scripts).</param>
+        /// <param name="scopeName">Optional scope name.</param>
+        /// <param name="connection">Optional existing connection to use for schema discovery.</param>
+        /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
+        /// <returns>A string containing all the provisioning SQL scripts for the target provider.</returns>
+        public virtual async Task<string> GetClientProvisioningSqlScriptsAsync(SyncSetup setup, CoreProvider targetProvider, string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+            string scriptSeparator = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, null, SyncRole.Client, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup for CLIENT-SIDE provisioning, supporting custom filtering.
+        /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
+        /// Allows filtering of specific provisioning components through a callback function.
+        /// Does NOT include custom ScopeInfoClientParameters - generates standard scope_info_client table only.
+        /// </summary>
+        /// <param name="setup">The sync setup containing table configurations.</param>
+        /// <param name="shouldIncludeComponent">Optional callback to filter which components should be included in the generated scripts. Return true to include, false to exclude.</param>
+        /// <param name="scopeName">Optional scope name.</param>
+        /// <param name="connection">Optional existing connection to use for schema discovery.</param>
+        /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
+        /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
+        public virtual async Task<string> GetClientProvisioningSqlScriptsAsync(
+            SyncSetup setup,
+            Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            string scopeName = null,
+            DbConnection connection = null,
+            DbTransaction transaction = null,
+            string scriptSeparator = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, null, shouldIncludeComponent, SyncRole.Client, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets all provisioning SQL scripts for all tables in the setup for CLIENT-SIDE provisioning, using a different target provider for script generation and custom filtering.
+        /// Requires connection to discover schema from the current provider, but generates scripts for the target provider.
+        /// Allows filtering of specific provisioning components through a callback function.
+        /// Does NOT include custom ScopeInfoClientParameters - generates standard scope_info_client table only.
+        /// </summary>
+        /// <param name="setup">The sync setup containing table configurations.</param>
+        /// <param name="targetProvider">The target provider to generate scripts for (e.g., SqliteSyncProvider to generate SQLite scripts). If null, uses the current provider.</param>
+        /// <param name="shouldIncludeComponent">Optional callback to filter which components should be included in the generated scripts. Return true to include, false to exclude.</param>
+        /// <param name="scopeName">Optional scope name.</param>
+        /// <param name="connection">Optional existing connection to use for schema discovery.</param>
+        /// <param name="transaction">Optional existing transaction.</param>
+        /// <param name="scriptSeparator">custom script separator</param>
+        /// <returns>A string containing all the provisioning SQL scripts for the target provider, filtered by the callback.</returns>
+        public virtual async Task<string> GetClientProvisioningSqlScriptsAsync(
+            SyncSetup setup,
+            CoreProvider targetProvider,
+            Func<ProvisioningComponentArgs, bool> shouldIncludeComponent,
+            string scopeName = null,
+            DbConnection connection = null,
+            DbTransaction transaction = null,
+            string scriptSeparator = null)
+        {
+            return await this.InternalGetProvisioningSqlScriptsAsync(setup, targetProvider, shouldIncludeComponent, SyncRole.Client, scopeName, connection, transaction, scriptSeparator).ConfigureAwait(false);
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Globalization;
 
@@ -109,7 +110,7 @@ namespace Wormhole.Sync
                 else if (value.ToString().Trim() == "1")
                     return (T)Convert.ChangeType(true, typeOfT, provider);
                 else
-                    return Convert.ToBoolean(value);
+                    throw new FormatException($"Cannot convert '{value}' to boolean. Only 'true', 'false', '0', or '1' are accepted.");
             }
             else if (typeOfT == typeof(Guid))
             {

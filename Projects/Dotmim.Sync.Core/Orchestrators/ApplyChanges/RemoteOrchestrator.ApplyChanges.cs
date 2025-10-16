@@ -285,7 +285,22 @@ namespace Wormhole.Sync
 
                     // Save scope info client coming from client
                     // to scope info client table on server
-                    await this.InternalSaveScopeInfoClientAsync(sScopeInfoClient, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                    // First, get the server's ScopeInfo to access its Setup with ScopeInfoClientParameters
+                    ScopeInfo serverScopeInfo;
+                    using var runnerServerScope = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.ScopeLoading, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                    await using (runnerServerScope.ConfigureAwait(false))
+                    {
+                        (context, serverScopeInfo) = await this.InternalLoadScopeInfoAsync(context, runnerServerScope.Connection, runnerServerScope.Transaction, runnerServerScope.Progress, runnerServerScope.CancellationToken).ConfigureAwait(false);
+                    }
+
+                    // Now ensure custom columns exist if Setup has custom parameters (use SERVER's Setup, not client's)
+                    if (serverScopeInfo?.Setup?.ScopeInfoClientParameters != null && serverScopeInfo.Setup.ScopeInfoClientParameters.Count > 0)
+                    {
+                        await this.InternalEnsureScopeInfoClientCustomColumnsAsync(serverScopeInfo.Setup.ScopeInfoClientParameters, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                    }
+
+                    // Pass custom parameters from server's Setup if available
+                    await this.InternalSaveScopeInfoClientAsync(sScopeInfoClient, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken, serverScopeInfo?.Setup?.ScopeInfoClientParameters).ConfigureAwait(false);
 
                     var serverSyncChanges = new ServerSyncChanges(remoteClientTimestamp, serverBatchInfo, serverChangesSelected, serverChangesApplied, cScopeInfo.Id);
 
