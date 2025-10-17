@@ -143,6 +143,11 @@ namespace Wormhole.Sync.SqlServer.Builders
                     command.CommandText = this.SqlObjectNames.GetCommandName(DbCommandType.DeleteMetadata);
                     isBatch = false;
                     break;
+                case DbCommandType.UpdateMetadata:
+                    command.CommandType = CommandType.Text;
+                    command.CommandText = this.SqlObjectNames.GetCommandName(DbCommandType.UpdateMetadata);
+                    isBatch = false;
+                    break;
                 case DbCommandType.InsertTrigger:
                     command.CommandType = CommandType.Text;
                     command.CommandText = this.SqlObjectNames.GetTriggerCommandName(DbTriggerType.Insert);
@@ -173,7 +178,6 @@ namespace Wormhole.Sync.SqlServer.Builders
                     command.CommandText = this.SqlObjectNames.GetCommandName(DbCommandType.Reset, filter);
                     isBatch = false;
                     break;
-                case DbCommandType.UpdateMetadata:
                 case DbCommandType.SelectMetadata:
                 case DbCommandType.PreDeleteRow:
                 case DbCommandType.PreDeleteRows:

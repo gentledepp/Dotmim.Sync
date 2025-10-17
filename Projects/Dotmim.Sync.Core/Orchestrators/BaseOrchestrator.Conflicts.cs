@@ -294,9 +294,9 @@ namespace Wormhole.Sync
                             if (serverRow != null)
                             {
                                 // Update tracking table metadata to mark server's row for sending to client
-                                // This updates update_scope_id to NULL/zero, marking the row as changed without touching base table
+                                // This updates update_scope_id to Guid.Empty, marking the row as changed without touching base table
                                 (_, var isUpdated, exception) = await this.InternalUpdateMetadatasAsync(scopeInfo, context,
-                                    serverRow, schemaChangesTable, null, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                                    serverRow, schemaChangesTable, Guid.Empty, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                                 applied = isUpdated;
                                 conflictResolved = isUpdated && exception == null;
