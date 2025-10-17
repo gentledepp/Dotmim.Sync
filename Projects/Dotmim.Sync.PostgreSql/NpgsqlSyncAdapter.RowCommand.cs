@@ -28,25 +28,23 @@ namespace Wormhole.Sync.PostgreSql
                 var columnName = columnParser.QuotedShortName;
                 var parameterName = columnParser.NormalizedShortName;
 
-                stringBuilderWhere.Append($@"{empty}side.{columnName} = @{parameterName}");
+                stringBuilderWhere.Append($@"{empty}base.{columnName} = @{parameterName}");
                 empty = " AND ";
             }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
-                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pkey => mutableColumn.ColumnName.Equals(pkey, SyncGlobalization.DataSourceStringComparison));
-
-                if (isPrimaryKey)
-                    stringBuilder.AppendLine($"\tside.{columnParser.QuotedShortName}, ");
-                else
-                    stringBuilder.AppendLine($"\tbase.{columnParser.QuotedShortName}, ");
+                stringBuilder.AppendLine($"\tbase.{columnParser.QuotedShortName}, ");
             }
 
-            stringBuilder.AppendLine($"\tside.\"sync_row_is_tombstone\" as sync_row_is_tombstone, ");
-            stringBuilder.AppendLine($"\tside.\"update_scope_id\" as sync_update_scope_id");
+            // Use COALESCE (PostgreSQL standard) to provide default values when tracking table has no row
+            // sync_row_is_tombstone defaults to 0 (not a tombstone)
+            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
+            stringBuilder.AppendLine($"\tCOALESCE(side.\"sync_row_is_tombstone\", 0) as sync_row_is_tombstone, ");
+            stringBuilder.AppendLine($"\tCOALESCE(side.\"update_scope_id\", '00000000-0000-0000-0000-000000000000') as sync_update_scope_id");
             stringBuilder.AppendLine($"FROM {this.NpgsqlObjectNames.TableQuotedFullName} base");
-            stringBuilder.AppendLine($"RIGHT JOIN {this.NpgsqlObjectNames.TrackingTableQuotedFullName} side ON");
+            stringBuilder.AppendLine($"LEFT JOIN {this.NpgsqlObjectNames.TrackingTableQuotedFullName} side ON");
 
             string str2 = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())

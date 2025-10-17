@@ -501,32 +501,29 @@ namespace Wormhole.Sync.Sqlite
         {
             StringBuilder stringBuilder = new StringBuilder("SELECT ");
             stringBuilder.AppendLine();
-            StringBuilder stringBuilder1 = new StringBuilder();
+            StringBuilder stringBuilderWhere = new StringBuilder();
             string empty = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
             {
                 var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
-                stringBuilder1.Append($"{empty}[side].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                stringBuilderWhere.Append($"{empty}[base].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
                 empty = " AND ";
             }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var nonPkColumnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
-
-                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pkey => mutableColumn.ColumnName.Equals(pkey, SyncGlobalization.DataSourceStringComparison));
-
-                if (isPrimaryKey)
-                    stringBuilder.AppendLine($"\t[side].{nonPkColumnParser.QuotedShortName}, ");
-                else
-                    stringBuilder.AppendLine($"\t[base].{nonPkColumnParser.QuotedShortName}, ");
+                stringBuilder.AppendLine($"\t[base].{nonPkColumnParser.QuotedShortName}, ");
             }
 
-            stringBuilder.AppendLine("\t[side].[sync_row_is_tombstone], ");
-            stringBuilder.AppendLine("\t[side].[update_scope_id] as [sync_update_scope_id]");
+            // Use IFNULL (SQLite equivalent of ISNULL) to provide default values when tracking table has no row
+            // sync_row_is_tombstone defaults to 0 (not a tombstone)
+            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
+            stringBuilder.AppendLine("\tIFNULL([side].[sync_row_is_tombstone], 0) as [sync_row_is_tombstone], ");
+            stringBuilder.AppendLine("\tIFNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
 
-            stringBuilder.AppendLine($"FROM {this.TrackingTableQuotedShortName} [side] ");
-            stringBuilder.AppendLine($"LEFT JOIN {this.TableQuotedShortName} [base] ON ");
+            stringBuilder.AppendLine($"FROM {this.TableQuotedShortName} [base] ");
+            stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON ");
 
             string str = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
@@ -537,7 +534,7 @@ namespace Wormhole.Sync.Sqlite
             }
 
             stringBuilder.AppendLine();
-            stringBuilder.Append(string.Concat("WHERE ", stringBuilder1.ToString()));
+            stringBuilder.Append(string.Concat("WHERE ", stringBuilderWhere.ToString()));
             stringBuilder.Append(";");
 
             return stringBuilder.ToString();

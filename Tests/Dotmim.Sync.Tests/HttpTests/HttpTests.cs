@@ -3320,7 +3320,11 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             ConflictResolution? capturedResolution = null;
             string mergedFirstName = null;
             int? mergedEmployeeId = null;
-
+            
+            var customerId = new Guid("0c382fd6-95a9-428d-bee3-c1f6e068f07d").ToCustomerId();
+            var serverFirstName = "ServerFirst";
+            var serverLastName = "ServerLast";
+            var serverEmployeeId = 1;
             
             // Configure table-scoped async interceptor on Customer table
             var customerTable = setup.Tables["Customer"];
@@ -3333,7 +3337,8 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     foreach (var row in args.SyncRows)
                     {
-                        args.MarkAsConflict(row);
+                        if(row["LastName"] != serverLastName)
+                            args.MarkAsConflict(row);
                       
                     }
                 }
@@ -3347,7 +3352,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 var clientRow = conflict.RemoteRow;
 
                 acf.Resolution = ConflictResolution.MergeRow;
-
+                capturedResolution = acf.Resolution;
                 handleConflictInvokedCount++;
 
                 // Copy all values from the incoming row
@@ -3373,10 +3378,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             this.serviceUri = this.Kestrel.Run();
 
             // Create a customer on the server with an EmployeeId
-            var customerId = new Guid("0c382fd6-95a9-428d-bee3-c1f6e068f07d").ToCustomerId();
-            var serverFirstName = "ServerFirst";
-            var serverLastName = "ServerLast";
-            var serverEmployeeId = 1;
 
             using (var ctx = new AdventureWorksContext(this.serverProvider))
             {
@@ -3424,7 +3425,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var s2 = await agent.SynchronizeAsync(setup);
 
             // Verify interceptor was invoked
-            Assert.Equal(1, interceptorInvokedCount); // one row sent to server
+            Assert.Equal(2, interceptorInvokedCount); // one row sent to server, but after conflict resolution, it is applied again!! => must not blindly mark rows as conflict
             Assert.Equal(1, handleConflictInvokedCount); // one conflict to handle
             Assert.Equal(ConflictResolution.MergeRow, capturedResolution);
 

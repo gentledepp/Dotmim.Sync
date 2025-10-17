@@ -395,33 +395,30 @@ namespace Wormhole.Sync.SqlServer.Builders
         {
             var stringBuilder = new StringBuilder("SELECT ");
             stringBuilder.AppendLine();
-            var stringBuilder1 = new StringBuilder();
+            var stringBuilderWhere = new StringBuilder();
             string empty = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
             {
                 var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
 
-                stringBuilder1.Append($"{empty}[side].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                stringBuilderWhere.Append($"{empty}[base].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
                 empty = " AND ";
             }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
-
-                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pkey => mutableColumn.ColumnName.Equals(pkey, SyncGlobalization.DataSourceStringComparison));
-
-                if (isPrimaryKey)
-                    stringBuilder.AppendLine($"\t[side].{columnParser.QuotedShortName}, ");
-                else
-                    stringBuilder.AppendLine($"\t[base].{columnParser.QuotedShortName}, ");
+                stringBuilder.AppendLine($"\t[base].{columnParser.QuotedShortName}, ");
             }
 
-            stringBuilder.AppendLine($"\t[side].[sync_row_is_tombstone] as [sync_row_is_tombstone], ");
-            stringBuilder.AppendLine($"\t[side].[update_scope_id] as [sync_update_scope_id]");
+            // Use ISNULL to provide default values when tracking table has no row
+            // sync_row_is_tombstone defaults to 0 (not a tombstone)
+            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
+            stringBuilder.AppendLine($"\tISNULL([side].[sync_row_is_tombstone], 0) as [sync_row_is_tombstone], ");
+            stringBuilder.AppendLine($"\tISNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
 
             stringBuilder.AppendLine($"FROM {this.TableQuotedFullName} [base]");
-            stringBuilder.AppendLine($"RIGHT JOIN {this.TrackingTableQuotedFullName} [side] ON");
+            stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedFullName} [side] ON");
 
             string str = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
@@ -432,7 +429,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             }
 
             stringBuilder.AppendLine();
-            stringBuilder.Append(string.Concat("WHERE ", stringBuilder1.ToString()));
+            stringBuilder.Append(string.Concat("WHERE ", stringBuilderWhere.ToString()));
             return stringBuilder.ToString();
         }
 

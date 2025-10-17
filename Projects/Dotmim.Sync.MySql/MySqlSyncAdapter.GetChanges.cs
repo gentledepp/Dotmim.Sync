@@ -393,31 +393,28 @@ namespace Wormhole.Sync.MySql
 
             StringBuilder stringBuilder = new StringBuilder("SELECT ");
             stringBuilder.AppendLine();
-            StringBuilder stringBuilder1 = new StringBuilder();
+            StringBuilder stringBuilderWhere = new StringBuilder();
             string empty = string.Empty;
             foreach (var pkColumn in this.TableDescription.PrimaryKeys)
             {
                 var columnParser = new ObjectParser(pkColumn, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
-                stringBuilder1.Append($"{empty}`side`.{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                stringBuilderWhere.Append($"{empty}`base`.{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
                 empty = " AND ";
             }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
-
-                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pkey => mutableColumn.ColumnName.Equals(pkey, SyncGlobalization.DataSourceStringComparison));
-
-                if (isPrimaryKey)
-                    stringBuilder.AppendLine($"\t`side`.{columnParser.QuotedShortName}, ");
-                else
-                    stringBuilder.AppendLine($"\t`base`.{columnParser.QuotedShortName}, ");
+                stringBuilder.AppendLine($"\t`base`.{columnParser.QuotedShortName}, ");
             }
 
-            stringBuilder.AppendLine("\t`side`.`sync_row_is_tombstone`, ");
-            stringBuilder.AppendLine("\t`side`.`update_scope_id` as `sync_update_scope_id`");
+            // Use IFNULL (MySQL equivalent of ISNULL) to provide default values when tracking table has no row
+            // sync_row_is_tombstone defaults to 0 (not a tombstone)
+            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
+            stringBuilder.AppendLine("\tIFNULL(`side`.`sync_row_is_tombstone`, 0) as `sync_row_is_tombstone`, ");
+            stringBuilder.AppendLine("\tIFNULL(`side`.`update_scope_id`, '00000000-0000-0000-0000-000000000000') as `sync_update_scope_id`");
             stringBuilder.AppendLine($"FROM {this.MySqlObjectNames.TableQuotedShortName} `base`");
-            stringBuilder.AppendLine($"RIGHT JOIN {this.MySqlObjectNames.TrackingTableQuotedShortName} `side` ON");
+            stringBuilder.AppendLine($"LEFT JOIN {this.MySqlObjectNames.TrackingTableQuotedShortName} `side` ON");
 
             string str = string.Empty;
             foreach (var pkColumn in this.TableDescription.PrimaryKeys)
@@ -429,7 +426,7 @@ namespace Wormhole.Sync.MySql
 
             stringBuilder.AppendLine();
             stringBuilder.Append("WHERE ");
-            stringBuilder.Append(stringBuilder1);
+            stringBuilder.Append(stringBuilderWhere);
             stringBuilder.Append(";");
             return stringBuilder.ToString();
         }
