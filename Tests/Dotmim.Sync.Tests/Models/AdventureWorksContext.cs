@@ -36,8 +36,13 @@ namespace Wormhole.Sync.Tests.Models
         public ProviderType ProviderType { get; set; }
         public string ConnectionString { get; set; }
 
+#if NET48
+        public static string CustomerId1ForFilter = Guid.NewGuid().ToString();
+        public static string CustomerId2ForFilter = Guid.NewGuid().ToString();
+#else
         public static Guid CustomerId1ForFilter = Guid.NewGuid();
         public static Guid CustomerId2ForFilter = Guid.NewGuid();
+#endif
 
 
 #if NET48
@@ -1507,10 +1512,10 @@ namespace Wormhole.Sync.Tests.Models
                 new Employee { EmployeeId = 3, FirstName = "Jillian", LastName = "Jon" }
             });
 
-            Guid customerId1 = AdventureWorksContext.CustomerId1ForFilter;
-            Guid customerId2 = AdventureWorksContext.CustomerId2ForFilter;
-            Guid customerId3 = Guid.NewGuid();
-            Guid customerId4 = Guid.NewGuid();
+            var customerId1 = AdventureWorksContext.CustomerId1ForFilter;
+            var customerId2 = AdventureWorksContext.CustomerId2ForFilter;
+            var customerId3 = Guid.NewGuid().ToCustomerId();
+            var customerId4 = Guid.NewGuid().ToCustomerId();
 
             context.Customer.AddRange(new[] {
                 new Customer { CustomerId = customerId1, EmployeeId = 1, NameStyle = false, Title = "Mr.", FirstName = "Orlando", MiddleName = "N.", LastName = "Gee", CompanyName = "A Bike Store", SalesPerson = @"adventure-works\pamela0", EmailAddress = "orlando0@adventure-works.com", Phone = "245-555-0173", PasswordHash = "L/Rlwxzp4w7RWmEgXX+/A7cXaePEPcp+KwQhl2fJL7w=", PasswordSalt = "1KjXYs4=" },

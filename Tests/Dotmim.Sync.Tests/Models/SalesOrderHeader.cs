@@ -24,7 +24,12 @@ namespace Wormhole.Sync.Tests.Models
         public string SalesOrderNumber { get; set; }
         public string PurchaseOrderNumber { get; set; }
         public string AccountNumber { get; set; }
+
+#if NET48
+        public string CustomerId { get; set; }
+#else
         public Guid CustomerId { get; set; }
+#endif
         public int? ShipToAddressId { get; set; }
         public int? BillToAddressId { get; set; }
         public string ShipMethod { get; set; }

@@ -11,7 +11,11 @@ namespace Wormhole.Sync.Tests.Models
             SalesOrderHeader = new HashSet<SalesOrderHeader>();
         }
 
+#if NET48
+        public string CustomerId { get; set; }
+#else
         public Guid CustomerId { get; set; }
+#endif
         public int? EmployeeId { get; set; }
         public bool NameStyle { get; set; }
         public string Title { get; set; }

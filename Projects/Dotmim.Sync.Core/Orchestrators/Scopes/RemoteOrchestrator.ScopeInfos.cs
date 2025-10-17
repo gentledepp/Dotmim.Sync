@@ -183,9 +183,11 @@ namespace Wormhole.Sync
 
                     if (shouldSave)
                         (context, sScopeInfo) = await this.InternalSaveScopeInfoAsync(sScopeInfo, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
-                    
-                    // Apply interceptors from input setup (they are not serialized to database)
-                    this.ApplySetupInterceptors(setup, sScopeInfo);
+
+                    // Register table-scoped interceptors as global orchestrator interceptors
+                    // Interceptors are cached by scope name and only fire for matching scope + table
+                    if (setup != null)
+                        this.RegisterTableInterceptorsFromSetup(setup, context.ScopeName);
 
                     await runner.CommitAsync().ConfigureAwait(false);
 
@@ -199,48 +201,6 @@ namespace Wormhole.Sync
                 message += $"Overwrite:{overwrite}.";
 
                 throw this.GetSyncError(context, ex, message);
-            }
-        }
-
-        /// <summary>
-        /// Apply interceptors from input setup to the scope info setup.
-        /// Interceptors are not serialized to database, so they need to be reapplied after loading.
-        /// </summary>
-        internal void ApplySetupInterceptors(SyncSetup inputSetup, ScopeInfo scopeInfo)
-        {
-            if (inputSetup == null || inputSetup.Tables.Count == 0)
-                return;
-
-            if (scopeInfo?.Setup?.Tables == null || scopeInfo.Setup.Tables.Count == 0)
-                return;
-
-            // Copy interceptors from input setup to loaded setup
-            foreach (var inputTable in inputSetup.Tables)
-            {
-                var loadedTable = scopeInfo.Setup.Tables[inputTable.TableName, inputTable.SchemaName];
-                if (loadedTable != null)
-                {
-                    // Copy interceptors (they are not serialized, so need to be reapplied)
-                    if (inputTable.TrackingTableInterceptor != null)
-                        loadedTable.TrackingTableInterceptor = inputTable.TrackingTableInterceptor;
-
-                    if (inputTable.TriggerInterceptor != null)
-                        loadedTable.TriggerInterceptor = inputTable.TriggerInterceptor;
-
-                    if (inputTable.StoredProcedureInterceptor != null)
-                        loadedTable.StoredProcedureInterceptor = inputTable.StoredProcedureInterceptor;
-
-                    // Copy custom provisioning SQL
-                    if (inputTable.CustomProvisioningSql != null && inputTable.CustomProvisioningSql.Count > 0)
-                        loadedTable.CustomProvisioningSql = new List<string>(inputTable.CustomProvisioningSql);
-
-                    // copy tracked colmns
-                    if (inputTable.TrackedColumns != null && inputTable.TrackedColumns.Count > 0)
-                    {
-                        loadedTable.TrackedColumns = new SetupColumns();
-                        loadedTable.TrackedColumns.AddRange(inputTable.TrackedColumns);
-                    }
-                }
             }
         }
 

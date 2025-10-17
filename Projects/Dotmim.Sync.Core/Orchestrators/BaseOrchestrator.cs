@@ -33,6 +33,12 @@ namespace Wormhole.Sync
         internal Interceptors Interceptors { get; } = new();
 
         /// <summary>
+        /// Cache of registered table interceptor IDs per scope name.
+        /// Key: ScopeName, Value: List of interceptor IDs registered for that scope.
+        /// </summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Generic.List<Guid>> scopeInterceptors = new();
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="BaseOrchestrator"/> class.
         /// </summary>
         internal BaseOrchestrator(CoreProvider provider, SyncOptions options)
@@ -84,6 +90,85 @@ namespace Wormhole.Sync
         /// Remove interceptor based on Id.
         /// </summary>
         public void ClearInterceptors(Guid id) => this.Interceptors.Clear(id);
+
+        /// <summary>
+        /// Registers table-scoped interceptors from the setup as global orchestrator interceptors.
+        /// The interceptors are cached by scope name and only fire for rows matching both the scope name and table name.
+        /// This method is called automatically during scope initialization but can be called manually if needed.
+        /// </summary>
+        /// <param name="setup">The setup containing table-scoped interceptors to register.</param>
+        /// <param name="scopeName">The scope name to associate these interceptors with.</param>
+        public void RegisterTableInterceptorsFromSetup(SyncSetup setup, string scopeName)
+        {
+            if (setup == null || setup.Tables == null || setup.Tables.Count == 0)
+                return;
+
+            if (string.IsNullOrEmpty(scopeName))
+                return;
+
+            // Check if already registered for this scope
+            if (this.scopeInterceptors.ContainsKey(scopeName))
+                return;
+
+            var interceptorIds = new System.Collections.Generic.List<Guid>();
+
+            foreach (var table in setup.Tables)
+            {
+                // Register RowsChangesApplyingAsync interceptors
+                if (table.RowsChangesApplyingInterceptors != null && table.RowsChangesApplyingInterceptors.Count > 0)
+                {
+                    foreach (var action in table.RowsChangesApplyingInterceptors)
+                    {
+                        var id = this.OnRowsChangesApplying(async args =>
+                        {
+                            // Check BOTH scope name AND table name
+                            if (args.Context.ScopeName == scopeName &&
+                                args.SchemaTable.TableName == table.TableName &&
+                                args.SchemaTable.SchemaName == table.SchemaName)
+                                await action(args).ConfigureAwait(false);
+                        });
+                        interceptorIds.Add(id);
+                    }
+                }
+
+                // Register RowsChangesSelectedAsync interceptors
+                if (table.RowsChangesSelectedInterceptors != null && table.RowsChangesSelectedInterceptors.Count > 0)
+                {
+                    foreach (var action in table.RowsChangesSelectedInterceptors)
+                    {
+                        var id = this.OnRowsChangesSelected(async args =>
+                        {
+                            // Check BOTH scope name AND table name
+                            if (args.Context.ScopeName == scopeName &&
+                                args.SchemaTable.TableName == table.TableName &&
+                                args.SchemaTable.SchemaName == table.SchemaName)
+                                await action(args).ConfigureAwait(false);
+                        });
+                        interceptorIds.Add(id);
+                    }
+                }
+
+                // Register ApplyChangesConflictOccurredAsync interceptors
+                if (table.ApplyChangesConflictOccurredInterceptors != null && table.ApplyChangesConflictOccurredInterceptors.Count > 0)
+                {
+                    foreach (var action in table.ApplyChangesConflictOccurredInterceptors)
+                    {
+                        var id = this.OnApplyChangesConflictOccured(async args =>
+                        {
+                            // Check BOTH scope name AND table name
+                            if (args.Context.ScopeName == scopeName &&
+                                args.FinalRow?.SchemaTable?.TableName == table.TableName &&
+                                args.FinalRow?.SchemaTable?.SchemaName == table.SchemaName)
+                                await action(args).ConfigureAwait(false);
+                        });
+                        interceptorIds.Add(id);
+                    }
+                }
+            }
+
+            // Cache the interceptor IDs for this scope
+            this.scopeInterceptors[scopeName] = interceptorIds;
+        }
 
         /// <summary>
         /// Returns a boolean value indicating if we have any Interceptors for the current type T.

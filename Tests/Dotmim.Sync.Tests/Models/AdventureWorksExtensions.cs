@@ -201,7 +201,13 @@
 #else
         public static Guid ToProductId(this Guid productId) => productId;
 #endif
+        
+#if NET48
+        public static string ToCustomerId(this Guid productId) => productId.ToString();
 
+#else
+        public static Guid ToCustomerId(this Guid productId) => productId;
+#endif
         
 
 #if NET48
@@ -311,9 +317,15 @@
 
             return await ctx.PricesList.FindAsync(priceListId);
         }
+        
+#if NET48
+        public static async Task<Customer> AddCustomerAsync(this CoreProvider provider, string? customerId = default, string firstName = default,
+            string lastName = default, string companyName = default, DbTransaction transaction = null)
+#else
 
         public static async Task<Customer> AddCustomerAsync(this CoreProvider provider, Guid? customerId = default, string firstName = default,
             string lastName = default, string companyName = default, DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
@@ -324,7 +336,7 @@
 
             var customer = new Customer
             {
-                CustomerId = customerId == default ? Guid.NewGuid() : customerId.Value,
+                CustomerId = customerId ?? Guid.NewGuid().ToCustomerId() ,
                 FirstName = firstName == default ? HelperDatabase.GetRandomName() : firstName,
                 LastName = lastName == default ? HelperDatabase.GetRandomName() : lastName,
                 CompanyName = companyName,
@@ -422,9 +434,14 @@
 
             return await ctx.Address.FindAsync(addressId);
         }
-
+        
+#if NET48
+        public static async Task<CustomerAddress> AddCustomerAddressAsync(this CoreProvider provider, int addressId, string customerId, string addressType = default,
+            DbTransaction transaction = null)
+#else
         public static async Task<CustomerAddress> AddCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, string addressType = default,
             DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
@@ -464,7 +481,11 @@
             return customerAddress;
         }
 
+#if NET48
+        public static async Task DeleteCustomerAddressAsync(this CoreProvider provider, int addressId, string customerId, DbTransaction transaction = null)
+#else
         public static async Task DeleteCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
@@ -478,8 +499,12 @@
 
             await ctx.SaveChangesAsync();
         }
-
+        
+#if NET48
+        public static async Task<CustomerAddress> GetCustomerAddressAsync(this CoreProvider provider, int addressId, string customerId, DbTransaction transaction = null)
+#else
         public static async Task<CustomerAddress> GetCustomerAddressAsync(this CoreProvider provider, int addressId, Guid customerId, DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
@@ -490,9 +515,13 @@
 
             return await ctx.CustomerAddress.FirstOrDefaultAsync(pc => pc.AddressId == addressId && pc.CustomerId == customerId);
         }
-
+#if NET48
+        public static async Task<SalesOrderHeader> AddSalesOrderHeaderAsync(this CoreProvider provider, string? customerId, int? salesOrderId = default,
+          DbTransaction transaction = null)
+#else        
         public static async Task<SalesOrderHeader> AddSalesOrderHeaderAsync(this CoreProvider provider, Guid? customerId, int? salesOrderId = default,
           DbTransaction transaction = null)
+#endif
         {
             using var ctx = new AdventureWorksContext(provider, provider.UseFallbackSchema());
 
@@ -508,7 +537,7 @@
             var soh = new SalesOrderHeader
             {
                 SalesOrderId = salesOrderId.HasValue ? salesOrderId.Value : default,
-                CustomerId = customerId.HasValue ? customerId.Value : AdventureWorksContext.CustomerId1ForFilter,
+                CustomerId = customerId ?? AdventureWorksContext.CustomerId1ForFilter,
                 SalesOrderNumber = $"SO-99099",
                 RevisionNumber = 1,
                 Status = 5,
@@ -769,12 +798,15 @@
 
             return totalCountRows;
         }
-
+#if NET48
+        public static int GetDatabaseFilteredRowsCount(this CoreProvider coreProvider, string? customerId = default)
+#else
         public static int GetDatabaseFilteredRowsCount(this CoreProvider coreProvider, Guid? customerId = default)
+#endif
         {
             int totalCountRows = 0;
 
-            if (!customerId.HasValue)
+            if (customerId is null)
             {
                 customerId = AdventureWorksContext.CustomerId1ForFilter;
             }
@@ -782,6 +814,7 @@
             using var ctx = new AdventureWorksContext(coreProvider);
 
             totalCountRows += ctx.Address.Where(a => a.CustomerAddress.Any(ca => ca.CustomerId == customerId)).Count();
+           
             totalCountRows += ctx.Customer.Where(c => c.CustomerId == customerId).Count();
             totalCountRows += ctx.CustomerAddress.Where(c => c.CustomerId == customerId).Count();
             totalCountRows += ctx.SalesOrderDetail.Where(sod => sod.SalesOrder.CustomerId == customerId).Count();

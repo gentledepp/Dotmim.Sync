@@ -22,12 +22,49 @@ namespace Wormhole.Sync
             this.BatchInfo = batchInfo;
             this.SyncRows = syncRows;
             this.SchemaTable = schemaTable;
+            this.RejectedRows = new Dictionary<SyncRow, ConflictResolution?>();
         }
 
         /// <summary>
         /// Gets or sets a value indicating whether the changes to applied should be canceled.
         /// </summary>
         public bool Cancel { get; set; }
+
+        /// <summary>
+        /// Gets the dictionary of rows that have been marked as conflicts and should not be applied to the database.
+        /// The key is the SyncRow, and the value is the optional ConflictResolution to use (null means use normal conflict policy).
+        /// </summary>
+        public Dictionary<SyncRow, ConflictResolution?> RejectedRows { get; }
+
+        /// <summary>
+        /// Marks a row as a conflict. The row will NOT be applied to the database and will be handled as a conflict.
+        /// The normal conflict resolution policy will be used to determine the final state.
+        /// </summary>
+        /// <param name="row">The row to mark as a conflict.</param>
+        public void MarkAsConflict(SyncRow row)
+        {
+            if (row != null && !this.RejectedRows.ContainsKey(row))
+                this.RejectedRows[row] = null;
+        }
+
+        /// <summary>
+        /// Marks a row as a conflict with a pre-determined resolution. The row will NOT be applied to the database.
+        /// The conflict resolution is already decided and will be applied directly WITHOUT calling conflict handlers.
+        /// Exception: If resolution is MergeRow, this behaves like MarkAsConflict(row) and the conflict handler WILL be called.
+        /// </summary>
+        /// <param name="row">The row to mark as a conflict.</param>
+        /// <param name="resolution">The conflict resolution to apply (ServerWins, ClientWins, or MergeRow).</param>
+        public void MarkAsResolvedConflict(SyncRow row, ConflictResolution resolution)
+        {
+            if (row != null)
+            {
+                // MergeRow requires conflict handler to decide what to merge, so store null
+                if (resolution == ConflictResolution.MergeRow)
+                    this.RejectedRows[row] = null;
+                else
+                    this.RejectedRows[row] = resolution;  // ServerWins or ClientWins - pre-resolved
+            }
+        }
 
         /// <summary>
         /// Gets or sets the command to be executed to apply the changes to the datasource.

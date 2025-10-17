@@ -399,6 +399,23 @@ namespace Wormhole.Sync
                             var tableChangesSelectedSyncRowArgs = await this.InterceptAsync(new RowsChangesSelectedArgs(context, syncRow, schemaChangesTable, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
                             syncRow = tableChangesSelectedSyncRowArgs.SyncRow;
 
+                            // Invoke table-scoped interceptors if any are registered
+                            if (setupTable != null && syncRow != null)
+                            {
+                                // Invoke asynchronous interceptors
+                                if (setupTable.RowsChangesSelectedInterceptors != null)
+                                {
+                                    foreach (var interceptor in setupTable.RowsChangesSelectedInterceptors)
+                                    {
+                                        if (interceptor != null)
+                                            await interceptor.Invoke(tableChangesSelectedSyncRowArgs).ConfigureAwait(false);
+                                    }
+                                }
+
+                                // Get the potentially modified syncRow from the interceptor args
+                                syncRow = tableChangesSelectedSyncRowArgs.SyncRow;
+                            }
+
                             if (syncRow == null)
                                 continue;
 
@@ -643,6 +660,23 @@ namespace Wormhole.Sync
 
                         var tableChangesSelectedSyncRowArgs = await this.InterceptAsync(new RowsChangesSelectedArgs(context, syncRow, schemaChangesTable, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
                         syncRow = tableChangesSelectedSyncRowArgs.SyncRow;
+
+                        // Invoke table-scoped interceptors if any are registered
+                        if (setupTable != null && syncRow != null)
+                        {
+                            // Invoke asynchronous interceptors
+                            if (setupTable.RowsChangesSelectedInterceptors != null)
+                            {
+                                foreach (var interceptor in setupTable.RowsChangesSelectedInterceptors)
+                                {
+                                    if (interceptor != null)
+                                        await interceptor.Invoke(tableChangesSelectedSyncRowArgs).ConfigureAwait(false);
+                                }
+                            }
+
+                            // Get the potentially modified syncRow from the interceptor args
+                            syncRow = tableChangesSelectedSyncRowArgs.SyncRow;
+                        }
 
                         if (syncRow == null)
                             continue;

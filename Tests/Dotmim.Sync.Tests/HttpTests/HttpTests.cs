@@ -3218,5 +3218,231 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(categoryName + "_modified", clientCategory.Name);
             }
         }
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public virtual async Task TableScopedInterceptor_CustomerChange_ServerWins(SyncOptions options)
+        {
+            // Create a unique client for this test
+            var dbNameClient = HelperDatabase.GetRandomName("tcp_lo_cli");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbNameClient, true);
+            var sqliteClient = this.clientsProvider.OfType<SqliteSyncProvider>().Single();
+
+            // Setup with Customer table
+            var setup = new SyncSetup("Customer");
+
+            // Variable to track interceptor invocation
+            var interceptorInvoked = false;
+            ConflictResolution? capturedResolution = null;
+
+            // Configure table-scoped async interceptor on Customer table
+            var customerTable = setup.Tables["Customer"];
+            customerTable.OnRowsChangesApplying(async args =>
+            {
+                interceptorInvoked = true;
+
+                // Check if there's a conflict - if any rows in the batch
+                if (args.SyncRows != null && args.SyncRows.Count > 0)
+                {
+                    // Mark all rows for ServerWins resolution (pre-resolved, no conflict handler needed)
+                    foreach (var row in args.SyncRows)
+                    {
+                        args.MarkAsResolvedConflict(row, ConflictResolution.ServerWins);
+                    }
+                    capturedResolution = ConflictResolution.ServerWins;
+                }
+                await Task.CompletedTask;
+            });
+            
+            await this.Kestrel.StopAsync();
+            this.Kestrel.AddSyncServer(this.serverProvider, setup, options);
+            this.serviceUri = this.Kestrel.Run();
+
+            // Create a customer on the server
+            var customerId = Guid.NewGuid();
+            var serverFirstName = "ServerFirst";
+            var serverLastName = "ServerLast";
+            await serverProvider.AddCustomerAsync(customerId.ToCustomerId(), serverFirstName, serverLastName);
+
+            // Initial sync to get the customer on client
+            var agent = new SyncAgent(sqliteClient, new WebRemoteOrchestrator(serviceUri), options);
+            var s1 = await agent.SynchronizeAsync(setup);
+            Assert.Equal(5, s1.TotalChangesDownloadedFromServer);
+            Assert.Equal(5, s1.TotalChangesAppliedOnClient);
+
+            // Modify customer on client
+            var clientFirstName = "ClientFirst";
+            var clientLastName = "ClientLast";
+            using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var customer = await ctx.Customer.FindAsync(customerId);
+                Assert.NotNull(customer);
+                customer.FirstName = clientFirstName;
+                customer.LastName = clientLastName;
+                await ctx.SaveChangesAsync();
+            }
+            
+            // Second sync - should trigger conflict and interceptor
+            var s2 = await agent.SynchronizeAsync(setup);
+
+            // Verify interceptor was invoked
+            Assert.True(interceptorInvoked, "Table-scoped interceptor should have been invoked");
+            Assert.Equal(ConflictResolution.ServerWins, capturedResolution);
+
+            // Verify client has server's values (ServerWins)
+            using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var customer = await ctx.Customer.FindAsync(customerId);
+                Assert.NotNull(customer);
+                Assert.Equal(serverFirstName, customer.FirstName);
+                Assert.Equal(serverLastName, customer.LastName);
+            }
+
+            // Cleanup
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbNameClient);
+        }
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public virtual async Task TableScopedInterceptor_CustomerChange_MergeRow(SyncOptions options)
+        {
+            // Create a unique client for this test
+            var dbNameClient = HelperDatabase.GetRandomName("tcp_lo_cli");
+            await HelperDatabase.CreateDatabaseAsync(ProviderType.Sql, dbNameClient, true);
+            var sqliteClient = clientsProvider.OfType<SqliteSyncProvider>().Single();
+
+            // Setup with Customer table
+            var setup = new SyncSetup("Customer");
+
+            // Variables to track interceptor behavior
+            var interceptorInvokedCount = 0;
+            var handleConflictInvokedCount = 0;
+            ConflictResolution? capturedResolution = null;
+            string mergedFirstName = null;
+            int? mergedEmployeeId = null;
+
+            
+            // Configure table-scoped async interceptor on Customer table
+            var customerTable = setup.Tables["Customer"];
+            customerTable.OnRowsChangesApplying(async args =>
+            {
+                interceptorInvokedCount++;
+
+                // Check if there are rows to process
+                if (args.SyncRows != null && args.SyncRows.Count > 0)
+                {
+                    foreach (var row in args.SyncRows)
+                    {
+                        args.MarkAsConflict(row);
+                      
+                    }
+                }
+                await Task.CompletedTask;
+            });
+            customerTable.OnApplyChangesConflictOccurred(async acf =>
+            {
+                // Create a merged row: allow FirstName change, but reject EmployeeId change
+                var conflict = await acf.GetSyncConflictAsync();
+                var serverRow = conflict.LocalRow;
+                var clientRow = conflict.RemoteRow;
+
+                acf.Resolution = ConflictResolution.MergeRow;
+
+                handleConflictInvokedCount++;
+
+                // Copy all values from the incoming row
+                foreach (var column in serverRow.SchemaTable.Columns)
+                {
+                    if (serverRow[column.ColumnName] != null)
+                        acf.FinalRow[column.ColumnName] = serverRow[column.ColumnName];
+                }
+
+                // Allow FirstName from client
+                if (clientRow["FirstName"] != null)
+                {
+                    mergedFirstName = clientRow["FirstName"].ToString();
+                    acf.FinalRow["FirstName"] = clientRow["FirstName"];
+                }
+
+                // do not allow client to overwrite LastName
+                acf.FinalRow["EmployeeId"] = serverRow["EmployeeId"];
+            });
+
+            await this.Kestrel.StopAsync();
+            this.Kestrel.AddSyncServer(this.serverProvider, setup, options);
+            this.serviceUri = this.Kestrel.Run();
+
+            // Create a customer on the server with an EmployeeId
+            var customerId = new Guid("0c382fd6-95a9-428d-bee3-c1f6e068f07d").ToCustomerId();
+            var serverFirstName = "ServerFirst";
+            var serverLastName = "ServerLast";
+            var serverEmployeeId = 1;
+
+            using (var ctx = new AdventureWorksContext(this.serverProvider))
+            {
+                var customer = new Customer
+                {
+                    CustomerId = customerId,
+                    FirstName = serverFirstName,
+                    LastName = serverLastName,
+                    EmployeeId = serverEmployeeId,
+                    NameStyle = false,
+                    CompanyName = "TestCompany"
+                };
+                ctx.Customer.Add(customer);
+                await ctx.SaveChangesAsync();
+            }
+
+            // Initial sync to get the customer on client
+            var agent = new SyncAgent(sqliteClient, new WebRemoteOrchestrator(serviceUri), options);
+            var s1 = await agent.SynchronizeAsync(setup);
+            Assert.Equal(5, s1.TotalChangesDownloadedFromServer);
+            Assert.Equal(5, s1.TotalChangesAppliedOnClient);
+
+            // Verify initial sync
+            using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var customer = await ctx.Customer.FindAsync(customerId);
+                Assert.NotNull(customer);
+                Assert.Equal(serverEmployeeId, customer.EmployeeId);
+            }
+
+            // Client tries to change both FirstName (allowed) and EmployeeId (not allowed)
+            var clientFirstName = "ClientFirst";
+            var clientLastName = "Client lastname"; // This should be rejected by the merge
+            using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var customer = await ctx.Customer.FindAsync(customerId);
+                Assert.NotNull(customer);
+                customer.FirstName = clientFirstName;
+                customer.LastName = clientLastName;
+                await ctx.SaveChangesAsync();
+            }
+
+
+            // Second sync - should trigger merge via interceptor
+            var s2 = await agent.SynchronizeAsync(setup);
+
+            // Verify interceptor was invoked
+            Assert.Equal(1, interceptorInvokedCount); // one row sent to server
+            Assert.Equal(1, handleConflictInvokedCount); // one conflict to handle
+            Assert.Equal(ConflictResolution.MergeRow, capturedResolution);
+
+            // Verify the merge result: FirstName from client was allowed, but EmployeeId was from the merge logic
+            using (var ctx = new AdventureWorksContext(sqliteClient))
+            {
+                var customer = await ctx.Customer.FindAsync(customerId);
+                Assert.NotNull(customer);
+
+                // FirstName should be from the client (the merge allowed it)
+                Assert.Equal(clientFirstName, customer.FirstName);
+                
+                // LastName should remain from the merged row (which had the original client value before conflict)
+                Assert.Equal(serverLastName, customer.LastName);
+            }
+
+            // Cleanup
+            HelperDatabase.DropDatabase(ProviderType.Sql, dbNameClient);
+        }
     }
 }

@@ -3,6 +3,7 @@ using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
 namespace Wormhole.Sync
 {
@@ -107,6 +108,27 @@ namespace Wormhole.Sync
         /// </summary>
         [IgnoreDataMember]
         public List<string> CustomProvisioningSql { get; set; }
+
+        /// <summary>
+        /// Gets or sets the list of asynchronous interceptors for rows being applied to this table.
+        /// These interceptors are called when rows for this specific table are being applied.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<Func<RowsChangesApplyingArgs, Task>> RowsChangesApplyingInterceptors { get; set; }
+
+        /// <summary>
+        /// Gets or sets the list of asynchronous interceptors for rows being selected from this table.
+        /// These interceptors are called when rows for this specific table are being selected.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<Func<RowsChangesSelectedArgs, Task>> RowsChangesSelectedInterceptors { get; set; }
+
+        /// <summary>
+        /// Gets or sets the list of asynchronous interceptors for conflicts occurring on this table.
+        /// These interceptors are called when conflicts occur for this specific table.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<Func<ApplyChangesConflictOccuredArgs, Task>> ApplyChangesConflictOccurredInterceptors { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SetupTable"/> class.
@@ -246,6 +268,57 @@ namespace Wormhole.Sync
 
             if (!string.IsNullOrWhiteSpace(columnName) && !this.TrackedColumns.Contains(columnName))
                 this.TrackedColumns.Add(columnName);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Register an asynchronous interceptor for rows being applied to this table.
+        /// This interceptor is called when rows for this specific table are being applied.
+        /// </summary>
+        /// <param name="action">The async action to invoke when rows are being applied.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnRowsChangesApplying(Func<RowsChangesApplyingArgs, Task> action)
+        {
+            if (this.RowsChangesApplyingInterceptors == null)
+                this.RowsChangesApplyingInterceptors = new List<Func<RowsChangesApplyingArgs, Task>>();
+
+            if (action != null)
+                this.RowsChangesApplyingInterceptors.Add(action);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Register an asynchronous interceptor for rows being selected from this table.
+        /// This interceptor is called when rows for this specific table are being selected.
+        /// </summary>
+        /// <param name="action">The async action to invoke when rows are being selected.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnRowsChangesSelected(Func<RowsChangesSelectedArgs, Task> action)
+        {
+            if (this.RowsChangesSelectedInterceptors == null)
+                this.RowsChangesSelectedInterceptors = new List<Func<RowsChangesSelectedArgs, Task>>();
+
+            if (action != null)
+                this.RowsChangesSelectedInterceptors.Add(action);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Register an asynchronous interceptor for conflicts occurring on this table.
+        /// This interceptor is called when conflicts occur for this specific table.
+        /// </summary>
+        /// <param name="action">The async action to invoke when conflicts occur.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnApplyChangesConflictOccurred(Func<ApplyChangesConflictOccuredArgs, Task> action)
+        {
+            if (this.ApplyChangesConflictOccurredInterceptors == null)
+                this.ApplyChangesConflictOccurredInterceptors = new List<Func<ApplyChangesConflictOccuredArgs, Task>>();
+
+            if (action != null)
+                this.ApplyChangesConflictOccurredInterceptors.Add(action);
 
             return this;
         }

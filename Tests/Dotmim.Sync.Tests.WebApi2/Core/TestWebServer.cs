@@ -25,6 +25,10 @@ namespace Wormhole.Sync.Tests
         public void AddSyncServer(CoreProvider provider, SyncSetup setup = null, SyncOptions options = null,
             WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
         {
+            scopeName = string.IsNullOrEmpty(scopeName) ? SyncOptions.DefaultScopeName : scopeName;
+            
+            this.WebServerAgents.RemoveAll(wsa => wsa.ScopeName == scopeName);
+
             this.WebServerAgents.Add(new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier));
         }
 

@@ -357,6 +357,9 @@ namespace Wormhole.Sync
             // Conflicts occured when trying to apply rows
             var conflictRows = new List<SyncRow>();
 
+            // Track rejected rows and their specified conflict resolutions
+            var rejectedRowResolutions = new Dictionary<SyncRow, ConflictResolution?>();
+
             // failed rows that were ignored
             var failedRows = 0;
 
@@ -496,7 +499,7 @@ namespace Wormhole.Sync
                                 command.Connection = runner.Connection;
                                 command.Transaction = runner.Transaction;
 
-                                var (rowAppliedCount, conflictSyncRows, errorException) = await this.InternalApplyBatchRowsAsync(context, command, batchRows, schemaChangesTable, applyType, message, dbCommandType, syncAdapter,
+                                var (rowAppliedCount, conflictSyncRows, rejectedResolutions, errorException) = await this.InternalApplyBatchRowsAsync(context, command, batchRows, schemaChangesTable, applyType, message, dbCommandType, syncAdapter, setupTable,
                                                 runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
                                 if (errorException == null)
@@ -508,6 +511,16 @@ namespace Wormhole.Sync
                                     if (conflictSyncRows != null)
                                     {
                                         conflictRows.AddRange(conflictSyncRows);
+                                    }
+
+                                    // Collect rejected row resolutions
+                                    if (rejectedResolutions != null)
+                                    {
+                                        foreach (var kvp in rejectedResolutions)
+                                        {
+                                            if (!rejectedRowResolutions.ContainsKey(kvp.Key))
+                                                rejectedRowResolutions[kvp.Key] = kvp.Value;
+                                        }
                                     }
                                 }
                                 else
@@ -555,7 +568,7 @@ namespace Wormhole.Sync
                                         command.Connection = runner.Connection;
                                         command.Transaction = runner.Transaction;
 
-                                        var (singleRowAppliedCount, singleErrorException) = await this.InternalApplySingleRowAsync(context, command, batchRow, schemaChangesTable, syncAdapter, applyType, message, dbCommandType,
+                                        var (singleRowAppliedCount, rejectedResolution, singleErrorException) = await this.InternalApplySingleRowAsync(context, command, batchRow, schemaChangesTable, syncAdapter, applyType, message, dbCommandType, setupTable,
                                                         runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
                                         if (singleRowAppliedCount > 0)
@@ -565,7 +578,11 @@ namespace Wormhole.Sync
                                         else if (singleErrorException != null)
                                             errorsRows.Add((batchRow, singleErrorException));
                                         else
+                                        {
                                             conflictRows.Add(batchRow);
+                                            if (rejectedResolution.HasValue && !rejectedRowResolutions.ContainsKey(batchRow))
+                                                rejectedRowResolutions[batchRow] = rejectedResolution;
+                                        }
                                     }
 
                                     // revert back bulk operation
@@ -599,7 +616,7 @@ namespace Wormhole.Sync
                                 if (applyType == SyncRowState.Deleted && syncRow.RowState is not (SyncRowState.RetryDeletedOnNextSync or SyncRowState.Deleted))
                                     continue;
 
-                                var (rowAppliedCount, errorException) = await this.InternalApplySingleRowAsync(context, command, syncRow, schemaChangesTable, syncAdapter, applyType, message, dbCommandType,
+                                var (rowAppliedCount, rejectedResolution, errorException) = await this.InternalApplySingleRowAsync(context, command, syncRow, schemaChangesTable, syncAdapter, applyType, message, dbCommandType, setupTable,
                                         runner.Connection, runner.Transaction, progress, cancellationToken).ConfigureAwait(false);
 
                                 if (rowAppliedCount > 0)
@@ -609,7 +626,11 @@ namespace Wormhole.Sync
                                 else if (errorException != null)
                                     errorsRows.Add((syncRow, errorException));
                                 else
+                                {
                                     conflictRows.Add(syncRow);
+                                    if (rejectedResolution.HasValue && !rejectedRowResolutions.ContainsKey(syncRow))
+                                        rejectedRowResolutions[syncRow] = rejectedResolution;
+                                }
                             }
                         }
 
@@ -652,7 +673,7 @@ namespace Wormhole.Sync
 
             try
             {
-                var ce = await this.InternalApplyConflictsAndErrorsAsync(scopeInfo, context, schemaChangesTable, applyType, errorsTable, conflictRows, errorsRows, message,
+                var ce = await this.InternalApplyConflictsAndErrorsAsync(scopeInfo, context, schemaChangesTable, applyType, errorsTable, conflictRows, rejectedRowResolutions, errorsRows, message,
                       connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                 appliedRows += ce.AppliedRows;
@@ -730,17 +751,35 @@ namespace Wormhole.Sync
         /// <summary>
         /// Apply a single row.
         /// </summary>
-        internal virtual async Task<(int RowAppliedCount, Exception ErrorException)> InternalApplySingleRowAsync(SyncContext context, DbCommand command,
+        internal virtual async Task<(int RowAppliedCount, ConflictResolution? RejectedResolution, Exception ErrorException)> InternalApplySingleRowAsync(SyncContext context, DbCommand command,
             SyncRow syncRow, SyncTable schemaChangesTable, DbSyncAdapter syncAdapter,
-            SyncRowState applyType, MessageApplyChanges message, DbCommandType dbCommandType,
+            SyncRowState applyType, MessageApplyChanges message, DbCommandType dbCommandType, SetupTable setupTable,
             DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
 
             var batchArgs = new RowsChangesApplyingArgs(context, message.Changes, [syncRow], schemaChangesTable, applyType, command, connection, transaction);
             await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
 
+            // Invoke table-scoped interceptors if any are registered
+            if (setupTable != null)
+            {
+                // Invoke asynchronous interceptors
+                if (setupTable.RowsChangesApplyingInterceptors != null)
+                {
+                    foreach (var interceptor in setupTable.RowsChangesApplyingInterceptors)
+                    {
+                        if (interceptor != null)
+                            await interceptor.Invoke(batchArgs).ConfigureAwait(false);
+                    }
+                }
+            }
+
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
-                return (-1, null);
+                return (-1, null, null);
+
+            // Check if the row was marked as rejected/conflict - if so, skip DB execution and return as not applied
+            if (batchArgs.RejectedRows.ContainsKey(syncRow))
+                return (0, batchArgs.RejectedRows[syncRow], null);
 
             Exception errorException = null;
             var rowAppliedCount = 0;
@@ -781,14 +820,14 @@ namespace Wormhole.Sync
             var rowAppliedArgs = new RowsChangesAppliedArgs(context, message.Changes, [batchArgs.SyncRows[0]], schemaChangesTable, applyType, rowAppliedCount, errorException, connection, transaction);
             await this.InterceptAsync(rowAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
 
-            return (rowAppliedCount, errorException);
+            return (rowAppliedCount, null, errorException);
         }
 
         /// <summary>
         /// Apply a batch of rows.
         /// </summary>
-        internal virtual async Task<(int RowAppliedCount, SyncRows Conflicts, Exception ErrorException)> InternalApplyBatchRowsAsync(SyncContext context, DbCommand command, List<SyncRow> batchRows, SyncTable schemaChangesTable,
-             SyncRowState applyType, MessageApplyChanges message, DbCommandType dbCommandType, DbSyncAdapter syncAdapter,
+        internal virtual async Task<(int RowAppliedCount, SyncRows Conflicts, Dictionary<SyncRow, ConflictResolution?> RejectedRowResolutions, Exception ErrorException)> InternalApplyBatchRowsAsync(SyncContext context, DbCommand command, List<SyncRow> batchRows, SyncTable schemaChangesTable,
+             SyncRowState applyType, MessageApplyChanges message, DbCommandType dbCommandType, DbSyncAdapter syncAdapter, SetupTable setupTable,
              DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
             var conflictRowsTable = schemaChangesTable.Schema.Clone().Tables[schemaChangesTable.TableName, schemaChangesTable.SchemaName];
@@ -796,8 +835,36 @@ namespace Wormhole.Sync
             var batchArgs = new RowsChangesApplyingArgs(context, message.Changes, batchRows, schemaChangesTable, applyType, command, connection, transaction);
             await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
 
+            // Invoke table-scoped interceptors if any are registered
+            if (setupTable != null)
+            {
+                // Invoke asynchronous interceptors
+                if (setupTable.RowsChangesApplyingInterceptors != null)
+                {
+                    foreach (var interceptor in setupTable.RowsChangesApplyingInterceptors)
+                    {
+                        if (interceptor != null)
+                            await interceptor.Invoke(batchArgs).ConfigureAwait(false);
+                    }
+                }
+            }
+
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
-                return (-1, null, null);
+                return (-1, null, null, null);
+
+            // Filter out rejected rows before executing batch command
+            var rejectedRows = batchArgs.RejectedRows.Keys.ToList();
+            var rowsToApply = batchArgs.SyncRows.Where(r => !batchArgs.RejectedRows.ContainsKey(r)).ToList();
+
+            // If all rows were rejected, return with conflicts
+            if (rowsToApply.Count == 0)
+            {
+                // Add all rejected rows to conflicts table
+                foreach (var rejectedRow in rejectedRows)
+                    conflictRowsTable.Rows.Add(rejectedRow);
+
+                return (0, conflictRowsTable.Rows, batchArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), null);
+            }
 
             // get the correct pointer to the command from the interceptor in case user change the whole instance
             command = batchArgs.Command;
@@ -808,7 +875,8 @@ namespace Wormhole.Sync
 
             try
             {
-                await syncAdapter.ExecuteBatchCommandAsync(context, command, message.SenderScopeId, batchArgs.SyncRows, schemaChangesTable, conflictRowsTable, message.LastTimestamp, connection, transaction).ConfigureAwait(false);
+                // Execute batch command only with non-rejected rows
+                await syncAdapter.ExecuteBatchCommandAsync(context, command, message.SenderScopeId, rowsToApply, schemaChangesTable, conflictRowsTable, message.LastTimestamp, connection, transaction).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -816,12 +884,16 @@ namespace Wormhole.Sync
                 errorException = new Exception(errorMessage, ex);
             }
 
-            var rowAppliedCount = errorException != null ? 0 : batchRows.Count - conflictRowsTable.Rows.Count;
+            // Add rejected rows to conflicts
+            foreach (var rejectedRow in rejectedRows)
+                conflictRowsTable.Rows.Add(rejectedRow);
+
+            var rowAppliedCount = errorException != null ? 0 : rowsToApply.Count - (conflictRowsTable.Rows.Count - rejectedRows.Count);
 
             var rowAppliedArgs = new RowsChangesAppliedArgs(context, message.Changes, batchRows, schemaChangesTable, applyType, rowAppliedCount, errorException, connection, transaction);
             await this.InterceptAsync(rowAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
 
-            return (rowAppliedCount, conflictRowsTable.Rows, errorException);
+            return (rowAppliedCount, conflictRowsTable.Rows, batchArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), errorException);
         }
 
         /// <summary>
@@ -829,7 +901,7 @@ namespace Wormhole.Sync
         /// </summary>
         internal virtual async Task<(int AppliedRows, int ConflictsResolvedCount, int FailedRows, ApplyChangesException FailureException)> InternalApplyConflictsAndErrorsAsync(ScopeInfo scopeInfo, SyncContext context,
             SyncTable schemaChangesTable, SyncRowState applyType, SyncTable errorsTable,
-            List<SyncRow> conflictRows, List<(SyncRow SyncRow, Exception Exception)> errorsRows, MessageApplyChanges message, DbConnection connection, DbTransaction transaction,
+            List<SyncRow> conflictRows, Dictionary<SyncRow, ConflictResolution?> rejectedRowResolutions, List<(SyncRow SyncRow, Exception Exception)> errorsRows, MessageApplyChanges message, DbConnection connection, DbTransaction transaction,
             IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
 
@@ -856,9 +928,14 @@ namespace Wormhole.Sync
                     {
                         this.Logger.LogInformation("[InternalApplyTableChangesAsync]. Handle {ConflictsCount} conflicts", conflictRows.Count);
 
+                        // Check if this row has a specified conflict resolution
+                        ConflictResolution? specifiedResolution = null;
+                        if (rejectedRowResolutions != null && rejectedRowResolutions.ContainsKey(conflictRow))
+                            specifiedResolution = rejectedRowResolutions[conflictRow];
+
                         (var isApplied, var isConflictResolved, var exception) =
                             await this.HandleConflictAsync(scopeInfo, context, message.Changes, message.LocalScopeId, message.SenderScopeId, conflictRow, schemaChangesTable,
-                                                           message.Policy, message.LastTimestamp,
+                                                           message.Policy, specifiedResolution, message.LastTimestamp,
                                                            runnerError.Connection, runnerError.Transaction, runnerError.Progress, runnerError.CancellationToken).ConfigureAwait(false);
 
                         if (exception != null)

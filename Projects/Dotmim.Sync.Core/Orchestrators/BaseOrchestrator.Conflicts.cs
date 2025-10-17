@@ -166,12 +166,12 @@ namespace Wormhole.Sync
         /// </summary>
         private async Task<(ConflictResolution ConflictResolution, ConflictType ConflictType, SyncRow FinalRow, Guid? FinalSenderScopeId)>
             GetConflictResolutionAsync(ScopeInfo scopeInfo, SyncContext context, Guid localScopeId, SyncRow conflictRow,
-            SyncTable schemaChangesTable, ConflictResolutionPolicy policy, Guid senderScopeId,
+            SyncTable schemaChangesTable, ConflictResolutionPolicy policy, ConflictResolution? specifiedResolution, Guid senderScopeId,
             DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
 
-            // default action
-            var resolution = policy == ConflictResolutionPolicy.ClientWins ? ConflictResolution.ClientWins : ConflictResolution.ServerWins;
+            // Use specified resolution if provided, otherwise use policy
+            var resolution = specifiedResolution ?? (policy == ConflictResolutionPolicy.ClientWins ? ConflictResolution.ClientWins : ConflictResolution.ServerWins);
 
             // check the interceptor
             var interceptors = this.Interceptors.GetInterceptors<ApplyChangesConflictOccuredArgs>();
@@ -216,13 +216,13 @@ namespace Wormhole.Sync
         private async Task<(bool IsApplied, bool IsConflictResolved, Exception Exception)> HandleConflictAsync(ScopeInfo scopeInfo, SyncContext context,
                                 BatchInfo batchInfo, Guid localScopeId, Guid senderScopeId, SyncRow conflictRow,
                                 SyncTable schemaChangesTable,
-                                ConflictResolutionPolicy policy, long? lastTimestamp,
+                                ConflictResolutionPolicy policy, ConflictResolution? specifiedResolution, long? lastTimestamp,
                                 DbConnection connection, DbTransaction transaction,
                                 IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
             var (conflictResolution, conflictType, finalRow, nullableSenderScopeId) =
                  await this.GetConflictResolutionAsync(scopeInfo, context, localScopeId, conflictRow, schemaChangesTable,
-                policy, senderScopeId, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                policy, specifiedResolution, senderScopeId, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
             Exception exception = null;
             var applied = false;
