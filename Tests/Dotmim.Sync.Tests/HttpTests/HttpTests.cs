@@ -3237,7 +3237,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             // Configure table-scoped async interceptor on Customer table
             var customerTable = setup.Tables["Customer"];
-            customerTable.OnRowsChangesApplying(async args =>
+            customerTable.OnRowsChangesValidating(async args =>
             {
                 interceptorInvoked = true;
 
@@ -3328,7 +3328,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             
             // Configure table-scoped async interceptor on Customer table
             var customerTable = setup.Tables["Customer"];
-            customerTable.OnRowsChangesApplying(async args =>
+            customerTable.OnRowsChangesValidating(async args =>
             {
                 interceptorInvokedCount++;
 
@@ -3337,7 +3337,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     foreach (var row in args.SyncRows)
                     {
-                        if(row["LastName"] != serverLastName)
+                        if(!string.Equals((string)row["LastName"], serverLastName))
                             args.MarkAsConflict(row);
                       
                     }
@@ -3370,7 +3370,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 }
 
                 // do not allow client to overwrite LastName
-                acf.FinalRow["EmployeeId"] = serverRow["EmployeeId"];
+                acf.FinalRow["LastName"] = serverRow["LastName"];
             });
 
             await this.Kestrel.StopAsync();
@@ -3425,7 +3425,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var s2 = await agent.SynchronizeAsync(setup);
 
             // Verify interceptor was invoked
-            Assert.Equal(2, interceptorInvokedCount); // one row sent to server, but after conflict resolution, it is applied again!! => must not blindly mark rows as conflict
+            Assert.Equal(1, interceptorInvokedCount); // one row sent to server and should be validated
             Assert.Equal(1, handleConflictInvokedCount); // one conflict to handle
             Assert.Equal(ConflictResolution.MergeRow, capturedResolution);
 

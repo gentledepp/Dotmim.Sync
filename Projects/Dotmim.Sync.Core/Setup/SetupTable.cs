@@ -110,6 +110,14 @@ namespace Wormhole.Sync
         public List<string> CustomProvisioningSql { get; set; }
 
         /// <summary>
+        /// Gets or sets the list of asynchronous interceptors for validating rows before they are applied to this table.
+        /// These interceptors are called BEFORE RowsChangesApplying and allow marking rows as conflicts.
+        /// This validation phase is NOT called during conflict resolution, preventing infinite loops.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<Func<RowsChangesValidatingArgs, Task>> RowsChangesValidatingInterceptors { get; set; }
+
+        /// <summary>
         /// Gets or sets the list of asynchronous interceptors for rows being applied to this table.
         /// These interceptors are called when rows for this specific table are being applied.
         /// </summary>
@@ -268,6 +276,24 @@ namespace Wormhole.Sync
 
             if (!string.IsNullOrWhiteSpace(columnName) && !this.TrackedColumns.Contains(columnName))
                 this.TrackedColumns.Add(columnName);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Register an asynchronous interceptor for validating rows before they are applied to this table.
+        /// This validation phase runs BEFORE RowsChangesApplying and is NOT called during conflict resolution.
+        /// Use this to mark rows as conflicts without creating infinite loops.
+        /// </summary>
+        /// <param name="action">The async action to invoke when rows are being validated.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnRowsChangesValidating(Func<RowsChangesValidatingArgs, Task> action)
+        {
+            if (this.RowsChangesValidatingInterceptors == null)
+                this.RowsChangesValidatingInterceptors = new List<Func<RowsChangesValidatingArgs, Task>>();
+
+            if (action != null)
+                this.RowsChangesValidatingInterceptors.Add(action);
 
             return this;
         }

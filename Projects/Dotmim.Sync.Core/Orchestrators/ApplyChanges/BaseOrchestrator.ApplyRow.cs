@@ -54,10 +54,6 @@ namespace Wormhole.Sync
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
                 return (context, false, null);
 
-            // Check if the row was marked as rejected/conflict - if so, skip DB execution
-            if (batchArgs.RejectedRows.ContainsKey(row))
-                return (context, false, null);
-
             // get the correct pointer to the command from the interceptor in case user change the whole instance
             command = batchArgs.Command;
 
@@ -138,10 +134,6 @@ namespace Wormhole.Sync
             await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
 
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
-                return (context, false, null);
-
-            // Check if the row was marked as rejected/conflict - if so, skip DB execution
-            if (batchArgs.RejectedRows.ContainsKey(row))
                 return (context, false, null);
 
             // get the correct pointer to the command from the interceptor in case user change the whole instance

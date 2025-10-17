@@ -182,12 +182,17 @@ namespace Wormhole.Sync
             // default conflict type
             var conflictType = conflictRow.RowState == SyncRowState.Deleted ? ConflictType.RemoteIsDeletedLocalExists : ConflictType.RemoteExistsLocalExists;
 
+            // Check if we have a pre-resolved conflict (from MarkAsResolvedConflict)
+            // If resolution is pre-determined and NOT MergeRow, skip calling conflict interceptors
+            // MergeRow requires interceptor to provide the merged row, so we still call it
+            var skipInterceptors = specifiedResolution.HasValue && specifiedResolution.Value != ConflictResolution.MergeRow;
+
             // if is not empty, get the conflict and intercept
             // We don't get the conflict on automatic conflict resolution
             // Since it's an automatic resolution, we don't need to get the local conflict row
             // So far we get the conflict only if an interceptor exists
             var arg = new ApplyChangesConflictOccuredArgs(scopeInfo, context, this, conflictRow, schemaChangesTable, resolution, senderScopeId, connection, transaction);
-            if (interceptors.Count > 0)
+            if (interceptors.Count > 0 && !skipInterceptors)
             {
                 // Interceptor
                 await this.InterceptAsync(arg, progress, cancellationToken).ConfigureAwait(false);
@@ -278,10 +283,37 @@ namespace Wormhole.Sync
                     }
                     else
                     {
-                        // ON SERVER: Server wins, so server already has the winning data
-                        // No matter what the conflict type is, we do nothing on the server
-                        applied = false;
-                        conflictResolved = true;
+                        // ON SERVER: Server wins behavior depends on whether conflict was pre-resolved
+                        if (specifiedResolution.HasValue)
+                        {
+                            // Pre-resolved conflict (from MarkAsResolvedConflict) - fetch and send server's data to client
+                            // This is needed because the row was rejected in validation, so client needs server's version
+                            (_, var serverRow) = await this.InternalGetConflictRowAsync(scopeInfo, context, schemaChangesTable,
+                                conflictRow, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                            if (serverRow != null)
+                            {
+                                // Update tracking table metadata to mark server's row for sending to client
+                                // This updates update_scope_id to NULL/zero, marking the row as changed without touching base table
+                                (_, var isUpdated, exception) = await this.InternalUpdateMetadatasAsync(scopeInfo, context,
+                                    serverRow, schemaChangesTable, null, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                                applied = isUpdated;
+                                conflictResolved = isUpdated && exception == null;
+                            }
+                            else
+                            {
+                                // Server row doesn't exist (deleted?) - nothing to send back
+                                applied = false;
+                                conflictResolved = true;
+                            }
+                        }
+                        else
+                        {
+                            // Normal policy-based ServerWins - server already has winning data, no action needed
+                            applied = false;
+                            conflictResolved = true;
+                        }
                     }
                     break;
                 case ConflictResolution.ClientWins:

@@ -114,6 +114,23 @@ namespace Wormhole.Sync
 
             foreach (var table in setup.Tables)
             {
+                // Register RowsChangesValidatingAsync interceptors (validation phase - runs BEFORE applying)
+                if (table.RowsChangesValidatingInterceptors != null && table.RowsChangesValidatingInterceptors.Count > 0)
+                {
+                    foreach (var action in table.RowsChangesValidatingInterceptors)
+                    {
+                        var id = this.OnRowsChangesValidating(async args =>
+                        {
+                            // Check BOTH scope name AND table name
+                            if (args.Context.ScopeName == scopeName &&
+                                args.SchemaTable.TableName == table.TableName &&
+                                args.SchemaTable.SchemaName == table.SchemaName)
+                                await action(args).ConfigureAwait(false);
+                        });
+                        interceptorIds.Add(id);
+                    }
+                }
+
                 // Register RowsChangesApplyingAsync interceptors
                 if (table.RowsChangesApplyingInterceptors != null && table.RowsChangesApplyingInterceptors.Count > 0)
                 {

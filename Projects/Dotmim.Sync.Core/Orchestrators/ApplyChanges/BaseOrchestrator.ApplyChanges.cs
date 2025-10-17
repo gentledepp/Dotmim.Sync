@@ -756,14 +756,38 @@ namespace Wormhole.Sync
             SyncRowState applyType, MessageApplyChanges message, DbCommandType dbCommandType, SetupTable setupTable,
             DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
+            // VALIDATION PHASE - runs BEFORE applying and is NOT called during conflict resolution
+            var validatingArgs = new RowsChangesValidatingArgs(context, message.Changes, [syncRow], schemaChangesTable, applyType, connection, transaction);
+            await this.InterceptAsync(validatingArgs, progress, cancellationToken).ConfigureAwait(false);
 
+            // Invoke table-scoped validating interceptors if any are registered
+            if (setupTable != null)
+            {
+                if (setupTable.RowsChangesValidatingInterceptors != null)
+                {
+                    foreach (var interceptor in setupTable.RowsChangesValidatingInterceptors)
+                    {
+                        if (interceptor != null)
+                            await interceptor.Invoke(validatingArgs).ConfigureAwait(false);
+                    }
+                }
+            }
+
+            // Check if validation was canceled
+            if (validatingArgs.Cancel)
+                return (-1, null, null);
+
+            // Check if the row was marked as rejected/conflict during validation - if so, skip DB execution and return as not applied
+            if (validatingArgs.RejectedRows.ContainsKey(syncRow))
+                return (0, validatingArgs.RejectedRows[syncRow], null);
+
+            // APPLYING PHASE - only reached if row was not rejected during validation
             var batchArgs = new RowsChangesApplyingArgs(context, message.Changes, [syncRow], schemaChangesTable, applyType, command, connection, transaction);
             await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
 
-            // Invoke table-scoped interceptors if any are registered
+            // Invoke table-scoped applying interceptors if any are registered
             if (setupTable != null)
             {
-                // Invoke asynchronous interceptors
                 if (setupTable.RowsChangesApplyingInterceptors != null)
                 {
                     foreach (var interceptor in setupTable.RowsChangesApplyingInterceptors)
@@ -776,10 +800,6 @@ namespace Wormhole.Sync
 
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
                 return (-1, null, null);
-
-            // Check if the row was marked as rejected/conflict - if so, skip DB execution and return as not applied
-            if (batchArgs.RejectedRows.ContainsKey(syncRow))
-                return (0, batchArgs.RejectedRows[syncRow], null);
 
             Exception errorException = null;
             var rowAppliedCount = 0;
@@ -832,13 +852,48 @@ namespace Wormhole.Sync
         {
             var conflictRowsTable = schemaChangesTable.Schema.Clone().Tables[schemaChangesTable.TableName, schemaChangesTable.SchemaName];
 
-            var batchArgs = new RowsChangesApplyingArgs(context, message.Changes, batchRows, schemaChangesTable, applyType, command, connection, transaction);
-            await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
+            // VALIDATION PHASE - runs BEFORE applying and is NOT called during conflict resolution
+            var validatingArgs = new RowsChangesValidatingArgs(context, message.Changes, batchRows, schemaChangesTable, applyType, connection, transaction);
+            await this.InterceptAsync(validatingArgs, progress, cancellationToken).ConfigureAwait(false);
 
-            // Invoke table-scoped interceptors if any are registered
+            // Invoke table-scoped validating interceptors if any are registered
             if (setupTable != null)
             {
-                // Invoke asynchronous interceptors
+                if (setupTable.RowsChangesValidatingInterceptors != null)
+                {
+                    foreach (var interceptor in setupTable.RowsChangesValidatingInterceptors)
+                    {
+                        if (interceptor != null)
+                            await interceptor.Invoke(validatingArgs).ConfigureAwait(false);
+                    }
+                }
+            }
+
+            // Check if validation was canceled
+            if (validatingArgs.Cancel)
+                return (-1, null, null, null);
+
+            // Filter out rejected rows before applying phase
+            var rejectedRows = validatingArgs.RejectedRows.Keys.ToList();
+            var rowsToApply = batchRows.Where(r => !validatingArgs.RejectedRows.ContainsKey(r)).ToList();
+
+            // If all rows were rejected during validation, return with conflicts
+            if (rowsToApply.Count == 0)
+            {
+                // Add all rejected rows to conflicts table
+                foreach (var rejectedRow in rejectedRows)
+                    conflictRowsTable.Rows.Add(rejectedRow);
+
+                return (0, conflictRowsTable.Rows, validatingArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), null);
+            }
+
+            // APPLYING PHASE - only reached with non-rejected rows
+            var batchArgs = new RowsChangesApplyingArgs(context, message.Changes, rowsToApply, schemaChangesTable, applyType, command, connection, transaction);
+            await this.InterceptAsync(batchArgs, progress, cancellationToken).ConfigureAwait(false);
+
+            // Invoke table-scoped applying interceptors if any are registered
+            if (setupTable != null)
+            {
                 if (setupTable.RowsChangesApplyingInterceptors != null)
                 {
                     foreach (var interceptor in setupTable.RowsChangesApplyingInterceptors)
@@ -851,20 +906,6 @@ namespace Wormhole.Sync
 
             if (batchArgs.Cancel || batchArgs.Command == null || batchArgs.SyncRows == null || batchArgs.SyncRows.Count <= 0)
                 return (-1, null, null, null);
-
-            // Filter out rejected rows before executing batch command
-            var rejectedRows = batchArgs.RejectedRows.Keys.ToList();
-            var rowsToApply = batchArgs.SyncRows.Where(r => !batchArgs.RejectedRows.ContainsKey(r)).ToList();
-
-            // If all rows were rejected, return with conflicts
-            if (rowsToApply.Count == 0)
-            {
-                // Add all rejected rows to conflicts table
-                foreach (var rejectedRow in rejectedRows)
-                    conflictRowsTable.Rows.Add(rejectedRow);
-
-                return (0, conflictRowsTable.Rows, batchArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), null);
-            }
 
             // get the correct pointer to the command from the interceptor in case user change the whole instance
             command = batchArgs.Command;
@@ -893,7 +934,7 @@ namespace Wormhole.Sync
             var rowAppliedArgs = new RowsChangesAppliedArgs(context, message.Changes, batchRows, schemaChangesTable, applyType, rowAppliedCount, errorException, connection, transaction);
             await this.InterceptAsync(rowAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
 
-            return (rowAppliedCount, conflictRowsTable.Rows, batchArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), errorException);
+            return (rowAppliedCount, conflictRowsTable.Rows, validatingArgs.RejectedRows.ToDictionary(kvp => kvp.Key, kvp => kvp.Value), errorException);
         }
 
         /// <summary>
