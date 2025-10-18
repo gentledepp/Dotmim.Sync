@@ -1,6 +1,7 @@
 ﻿using Wormhole.Sync.DatabaseStringParsers;
 using Wormhole.Sync.PostgreSql.Builders;
 using Npgsql;
+using System;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
@@ -20,22 +21,20 @@ namespace Wormhole.Sync.PostgreSql
         {
             var stringBuilder = new StringBuilder();
             stringBuilder.AppendLine("SELECT ");
-            var stringBuilderWhere = new StringBuilder();
-            string empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
-            {
-                var columnParser = new ObjectParser(pkColumn.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
-                var columnName = columnParser.QuotedShortName;
-                var parameterName = columnParser.NormalizedShortName;
-
-                stringBuilderWhere.Append($@"{empty}base.{columnName} = @{parameterName}");
-                empty = " AND ";
-            }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
-                stringBuilder.AppendLine($"\tbase.{columnParser.QuotedShortName}, ");
+
+                // For primary key columns, use COALESCE to get value from either table
+                // This ensures we get the PK even if one side is missing (deleted row or cleaned up tracking)
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\tCOALESCE(side.{columnParser.QuotedShortName}, base.{columnParser.QuotedShortName}) as {columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\tbase.{columnParser.QuotedShortName}, ");
             }
 
             // Use COALESCE (PostgreSQL standard) to provide default values when tracking table has no row
@@ -44,7 +43,7 @@ namespace Wormhole.Sync.PostgreSql
             stringBuilder.AppendLine($"\tCOALESCE(side.\"sync_row_is_tombstone\", 0) as sync_row_is_tombstone, ");
             stringBuilder.AppendLine($"\tCOALESCE(side.\"update_scope_id\", '00000000-0000-0000-0000-000000000000') as sync_update_scope_id");
             stringBuilder.AppendLine($"FROM {this.NpgsqlObjectNames.TableQuotedFullName} base");
-            stringBuilder.AppendLine($"LEFT JOIN {this.NpgsqlObjectNames.TrackingTableQuotedFullName} side ON");
+            stringBuilder.AppendLine($"FULL OUTER JOIN {this.NpgsqlObjectNames.TrackingTableQuotedFullName} side ON");
 
             string str2 = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
@@ -54,7 +53,21 @@ namespace Wormhole.Sync.PostgreSql
                 str2 = " AND ";
             }
 
-            // stringBuilder.AppendLine();
+            stringBuilder.AppendLine();
+
+            // Build WHERE clause using COALESCE for primary keys to match rows from either side
+            var stringBuilderWhere = new StringBuilder();
+            string empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
+            {
+                var columnParser = new ObjectParser(pkColumn.ColumnName, NpgsqlObjectNames.LeftQuote, NpgsqlObjectNames.RightQuote);
+                var columnName = columnParser.QuotedShortName;
+                var parameterName = columnParser.NormalizedShortName;
+
+                stringBuilderWhere.Append($@"{empty}COALESCE(side.{columnName}, base.{columnName}) = @{parameterName}");
+                empty = " AND ";
+            }
+
             stringBuilder.Append(string.Concat("WHERE ", stringBuilderWhere.ToString(), ";"));
 
             var sqlCommand = new NpgsqlCommand

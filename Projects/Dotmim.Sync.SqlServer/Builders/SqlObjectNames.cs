@@ -395,20 +395,20 @@ namespace Wormhole.Sync.SqlServer.Builders
         {
             var stringBuilder = new StringBuilder("SELECT ");
             stringBuilder.AppendLine();
-            var stringBuilderWhere = new StringBuilder();
-            string empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
-            {
-                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
-
-                stringBuilderWhere.Append($"{empty}[base].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
-                empty = " AND ";
-            }
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
-                stringBuilder.AppendLine($"\t[base].{columnParser.QuotedShortName}, ");
+
+                // For primary key columns, use COALESCE to get value from either table
+                // This ensures we get the PK even if one side is missing (deleted row or cleaned up tracking)
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\tCOALESCE([side].{columnParser.QuotedShortName}, [base].{columnParser.QuotedShortName}) as {columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\t[base].{columnParser.QuotedShortName}, ");
             }
 
             // Use ISNULL to provide default values when tracking table has no row
@@ -418,7 +418,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine($"\tISNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
 
             stringBuilder.AppendLine($"FROM {this.TableQuotedFullName} [base]");
-            stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedFullName} [side] ON");
+            stringBuilder.AppendLine($"FULL OUTER JOIN {this.TrackingTableQuotedFullName} [side] ON");
 
             string str = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
@@ -429,6 +429,17 @@ namespace Wormhole.Sync.SqlServer.Builders
             }
 
             stringBuilder.AppendLine();
+
+            // Build WHERE clause using COALESCE for primary keys to match rows from either side
+            var stringBuilderWhere = new StringBuilder();
+            string empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
+            {
+                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
+                stringBuilderWhere.Append($"{empty}COALESCE([side].{columnParser.QuotedShortName}, [base].{columnParser.QuotedShortName}) = @{columnParser.NormalizedShortName}");
+                empty = " AND ";
+            }
+
             stringBuilder.Append(string.Concat("WHERE ", stringBuilderWhere.ToString()));
             return stringBuilder.ToString();
         }

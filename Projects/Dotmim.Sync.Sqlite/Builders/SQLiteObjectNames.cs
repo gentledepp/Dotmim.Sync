@@ -499,31 +499,29 @@ namespace Wormhole.Sync.Sqlite
 
         private string CreateSelectRowCommandText()
         {
-            StringBuilder stringBuilder = new StringBuilder("SELECT ");
-            stringBuilder.AppendLine();
-            StringBuilder stringBuilderWhere = new StringBuilder();
-            string empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
-            {
-                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
-                stringBuilderWhere.Append($"{empty}[base].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
-                empty = " AND ";
-            }
+            var stringBuilder = new StringBuilder();
+
+            // First part: LEFT JOIN - gets rows where base exists (tracking may or may not exist)
+            stringBuilder.AppendLine("SELECT ");
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
-                var nonPkColumnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
-                stringBuilder.AppendLine($"\t[base].{nonPkColumnParser.QuotedShortName}, ");
+                var columnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
+
+                // For primary key columns, use IFNULL to prefer side (tracking) PK if base is somehow NULL
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\tIFNULL([side].{columnParser.QuotedShortName}, [base].{columnParser.QuotedShortName}) as {columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\t[base].{columnParser.QuotedShortName}, ");
             }
 
-            // Use IFNULL (SQLite equivalent of ISNULL) to provide default values when tracking table has no row
-            // sync_row_is_tombstone defaults to 0 (not a tombstone)
-            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
             stringBuilder.AppendLine("\tIFNULL([side].[sync_row_is_tombstone], 0) as [sync_row_is_tombstone], ");
             stringBuilder.AppendLine("\tIFNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
-
-            stringBuilder.AppendLine($"FROM {this.TableQuotedShortName} [base] ");
-            stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON ");
+            stringBuilder.AppendLine($"FROM {this.TableQuotedShortName} [base]");
+            stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON");
 
             string str = string.Empty;
             foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
@@ -534,9 +532,65 @@ namespace Wormhole.Sync.Sqlite
             }
 
             stringBuilder.AppendLine();
-            stringBuilder.Append(string.Concat("WHERE ", stringBuilderWhere.ToString()));
-            stringBuilder.Append(";");
+            stringBuilder.Append("WHERE ");
 
+            // Build WHERE clause for LEFT JOIN part
+            string empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
+            {
+                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
+                stringBuilder.Append($"{empty}[base].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                empty = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("UNION");
+
+            // Second part: Get rows where only tracking exists (base row deleted)
+            stringBuilder.AppendLine("SELECT ");
+
+            foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
+            {
+                var columnParser = new ObjectParser(mutableColumn.ColumnName, LeftQuote, RightQuote);
+
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\t[side].{columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\tNULL as {columnParser.QuotedShortName}, ");
+            }
+
+            stringBuilder.AppendLine("\t[side].[sync_row_is_tombstone], ");
+            stringBuilder.AppendLine("\t[side].[update_scope_id] as [sync_update_scope_id]");
+            stringBuilder.AppendLine($"FROM {this.TrackingTableQuotedShortName} [side]");
+            stringBuilder.AppendLine($"WHERE NOT EXISTS (");
+            stringBuilder.AppendLine($"\tSELECT 1 FROM {this.TableQuotedShortName} [base]");
+            stringBuilder.Append($"\tWHERE ");
+
+            str = string.Empty;
+            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
+            {
+                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
+                stringBuilder.Append($"{str}[base].{columnParser.QuotedShortName} = [side].{columnParser.QuotedShortName}");
+                str = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine(")");
+            stringBuilder.Append("AND ");
+
+            // Build WHERE clause for tracking-only part
+            empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.GetPrimaryKeysColumns())
+            {
+                var columnParser = new ObjectParser(pkColumn.ColumnName, LeftQuote, RightQuote);
+                stringBuilder.Append($"{empty}[side].{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                empty = " AND ";
+            }
+
+            stringBuilder.Append(";");
             return stringBuilder.ToString();
         }
 

@@ -1,4 +1,5 @@
-﻿using Wormhole.Sync.DatabaseStringParsers;
+﻿using System;
+using Wormhole.Sync.DatabaseStringParsers;
 #if MARIADB
 using Wormhole.Sync.MariaDB.Builders;
 #elif MYSQL
@@ -387,30 +388,29 @@ namespace Wormhole.Sync.MySql
 
         /// <summary>
         /// Returns a command text to select a row.
+        /// Uses UNION to emulate FULL OUTER JOIN for compatibility with older MySQL versions.
         /// </summary>
         public string CreateSelectRowCommand()
         {
+            var stringBuilder = new StringBuilder();
 
-            StringBuilder stringBuilder = new StringBuilder("SELECT ");
-            stringBuilder.AppendLine();
-            StringBuilder stringBuilderWhere = new StringBuilder();
-            string empty = string.Empty;
-            foreach (var pkColumn in this.TableDescription.PrimaryKeys)
-            {
-                var columnParser = new ObjectParser(pkColumn, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
-                stringBuilderWhere.Append($"{empty}`base`.{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
-                empty = " AND ";
-            }
+            // First part: LEFT JOIN - gets rows where base exists (tracking may or may not exist)
+            stringBuilder.AppendLine("SELECT ");
 
             foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
             {
                 var columnParser = new ObjectParser(mutableColumn.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
-                stringBuilder.AppendLine($"\t`base`.{columnParser.QuotedShortName}, ");
+
+                // For primary key columns, use IFNULL to prefer side (tracking) PK if base is somehow NULL
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\tIFNULL(`side`.{columnParser.QuotedShortName}, `base`.{columnParser.QuotedShortName}) as {columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\t`base`.{columnParser.QuotedShortName}, ");
             }
 
-            // Use IFNULL (MySQL equivalent of ISNULL) to provide default values when tracking table has no row
-            // sync_row_is_tombstone defaults to 0 (not a tombstone)
-            // sync_update_scope_id defaults to '00000000-0000-0000-0000-000000000000' (indicates server/no scope)
             stringBuilder.AppendLine("\tIFNULL(`side`.`sync_row_is_tombstone`, 0) as `sync_row_is_tombstone`, ");
             stringBuilder.AppendLine("\tIFNULL(`side`.`update_scope_id`, '00000000-0000-0000-0000-000000000000') as `sync_update_scope_id`");
             stringBuilder.AppendLine($"FROM {this.MySqlObjectNames.TableQuotedShortName} `base`");
@@ -426,7 +426,63 @@ namespace Wormhole.Sync.MySql
 
             stringBuilder.AppendLine();
             stringBuilder.Append("WHERE ");
-            stringBuilder.Append(stringBuilderWhere);
+
+            // Build WHERE clause for LEFT JOIN part
+            string empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.PrimaryKeys)
+            {
+                var columnParser = new ObjectParser(pkColumn, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                stringBuilder.Append($"{empty}`base`.{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                empty = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("UNION");
+
+            // Second part: Get rows where only tracking exists (base row deleted)
+            stringBuilder.AppendLine("SELECT ");
+
+            foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false, true))
+            {
+                var columnParser = new ObjectParser(mutableColumn.ColumnName, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+
+                var isPrimaryKey = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumn.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPrimaryKey)
+                    stringBuilder.AppendLine($"\t`side`.{columnParser.QuotedShortName}, ");
+                else
+                    stringBuilder.AppendLine($"\tNULL as {columnParser.QuotedShortName}, ");
+            }
+
+            stringBuilder.AppendLine("\t`side`.`sync_row_is_tombstone`, ");
+            stringBuilder.AppendLine("\t`side`.`update_scope_id` as `sync_update_scope_id`");
+            stringBuilder.AppendLine($"FROM {this.MySqlObjectNames.TrackingTableQuotedShortName} `side`");
+            stringBuilder.AppendLine($"WHERE NOT EXISTS (");
+            stringBuilder.AppendLine($"\tSELECT 1 FROM {this.MySqlObjectNames.TableQuotedShortName} `base`");
+            stringBuilder.Append($"\tWHERE ");
+
+            str = string.Empty;
+            foreach (var pkColumn in this.TableDescription.PrimaryKeys)
+            {
+                var columnParser = new ObjectParser(pkColumn, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                stringBuilder.Append($"{str}`base`.{columnParser.QuotedShortName} = `side`.{columnParser.QuotedShortName}");
+                str = " AND ";
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine(")");
+            stringBuilder.Append("AND ");
+
+            // Build WHERE clause for tracking-only part
+            empty = string.Empty;
+            foreach (var pkColumn in this.TableDescription.PrimaryKeys)
+            {
+                var columnParser = new ObjectParser(pkColumn, MySqlObjectNames.LeftQuote, MySqlObjectNames.RightQuote);
+                stringBuilder.Append($"{empty}`side`.{columnParser.QuotedShortName} = @{columnParser.NormalizedShortName}");
+                empty = " AND ";
+            }
+
             stringBuilder.Append(";");
             return stringBuilder.ToString();
         }
