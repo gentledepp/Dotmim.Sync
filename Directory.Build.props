@@ -15,12 +15,15 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.6.6.0</Version>
+        <Version>1.6.7.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
-            # Version 1.6.6.0
+            # Version 1.6.7.0
+            - OnRowsChangesValidating interceptor with "MarkAsConflict" method
+            - fixed GetRow stored procedure using FULL OUTER JOIN (works if base row was deleted or if tracking row was cleaned up)
+	        # Version 1.6.6.0
             - tracked columns are indexed
             # Version 1.6.5.0
             - added soucelink debugging
