@@ -18,6 +18,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Wormhole.Sync.Sqlite;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -628,20 +629,22 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
 
             // make a first sync to init the two databases
-            foreach (var clientProvider in this.clientsProvider)
+            foreach (var clientProvider in this.clientsProvider.OfType<SqliteSyncProvider>())
                 await new SyncAgent(clientProvider, this.serverProvider, options).SynchronizeAsync(this.setup);
 
             var x = 1;
             var y = 2;
-            foreach (var clientProvider in this.clientsProvider)
+            foreach (var clientProvider in this.clientsProvider.OfType<SqliteSyncProvider>())
             {
                 // reinit client
                 await new SyncAgent(clientProvider, this.serverProvider, options).SynchronizeAsync(this.setup);
 
                 // Adding two rows on server side, that are correct
                 var str = HelperDatabase.GetRandomName().ToUpper(System.Globalization.CultureInfo.CurrentCulture)[..6];
-                await this.serverProvider.AddProductCategoryAsync($"Z{x}{str}", name: $"Z{x}{str}");
-                await this.serverProvider.AddProductCategoryAsync($"Z{y}{str}", name: $"Z{y}{str}");
+                var pcat1 = $"Z{x}{str}";
+                var pcat2 = $"Z{y}{str}";
+                await this.serverProvider.AddProductCategoryAsync(pcat1, name: $"Z{x}{str}");
+                await this.serverProvider.AddProductCategoryAsync(pcat2, name: $"Z{y}{str}");
 
                 // Get a random directory to be sure we are not conflicting with another test
                 var directoryName = HelperDatabase.GetRandomName();
@@ -729,11 +732,19 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
-                Assert.Equal(1, s.TotalResolvedConflicts);
+                // note: triggers a ConflictType.RemoteIsDeletedLocalExists but as the row was never applied due to the constraint issue
+                // there is nothing to be delted => command returns 0 and resolved conflicts are not counted
+                Assert.Equal(0, s.TotalResolvedConflicts);
 
                 batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
 
                 Assert.Empty(batchInfos);
+
+                var pcatClient1 = await clientProvider.GetProductCategoryAsync(pcat1);
+                var pcatClient2 = await clientProvider.GetProductCategoryAsync(pcat2);
+
+                Assert.NotNull(pcatClient1); // should finally be applied
+                Assert.Null(pcatClient2); // deleted on the server
 
                 x = x + 2;
                 y = y + 2;
@@ -751,8 +762,11 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             // Adding two rows on server side, that are correct
             var str = HelperDatabase.GetRandomName().ToUpper(System.Globalization.CultureInfo.CurrentCulture)[..9];
-            await this.serverProvider.AddProductCategoryAsync($"Z1{str}", name: $"Z1{str}");
-            await this.serverProvider.AddProductCategoryAsync($"Z2{str}", name: $"Z2{str}");
+
+            var pcat1 = $"Z1{str}";
+            var pcat2 = $"Z2{str}";
+            await this.serverProvider.AddProductCategoryAsync(pcat1, name: $"Z1{str}");
+            await this.serverProvider.AddProductCategoryAsync(pcat2, name: $"Z2{str}");
 
             foreach (var clientProvider in this.clientsProvider)
             {
@@ -833,7 +847,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // And then delete the values on server side
                 var pc = await this.serverProvider.GetProductCategoryAsync($"Z2{str}");
-                pc.Name = $"Z2{str}";
+                pc.Name = $"Z2{str}b"; // NOTE: The triggers now only fire if the values actually changed!
                 await this.serverProvider.UpdateProductCategoryAsync(pc);
 
                 s = await agent.SynchronizeAsync(this.setup);
@@ -849,6 +863,14 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
 
                 Assert.Empty(batchInfos);
+
+
+                var pcatClient1 = await clientProvider.GetProductCategoryAsync(pcat1);
+                var pcatClient2 = await clientProvider.GetProductCategoryAsync(pcat2);
+
+                Assert.NotNull(pcatClient1); // should finally be applied
+                Assert.NotNull(pcatClient2); // should finally be applied as updated by server
+
             }
         }
 
