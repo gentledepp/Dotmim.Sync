@@ -101,6 +101,11 @@ namespace Wormhole.Sync
                         .Where(dir =>
                         {
                             var directoryName = Path.GetFileName(dir);
+
+                            // Skip error batch directories - these are used for retry mechanism
+                            if (directoryName.Contains("_ERRORS", StringComparison.OrdinalIgnoreCase))
+                                return false;
+
                             // Directory must start with yyyyMMddHHmm format and be older than cutoff
                             return directoryName.Length >= 12 &&
                                    directoryName.Substring(0, 12).All(char.IsDigit) &&

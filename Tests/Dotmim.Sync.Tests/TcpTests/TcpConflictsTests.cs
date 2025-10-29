@@ -1225,6 +1225,204 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             }
         }
 
+        [Fact]
+        public virtual async Task ErrorForeignKeyOnSameTableRetryOneMoreTime_ClientUpload()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+            var clientNumber = 0;
+
+            // make a first sync to init the two databases
+            foreach (var clientProvider in this.clientsProvider)
+            {
+                clientNumber++;
+                await new SyncAgent(clientProvider, this.serverProvider, options).SynchronizeAsync(this.setup);
+
+                // Client creates two categories with FK relationship
+                await clientProvider.AddProductCategoryAsync($"ZZZZ{clientNumber}");
+                await clientProvider.AddProductCategoryAsync($"AAAA{clientNumber}", $"ZZZZ{clientNumber}");
+           
+                // Get a random directory to be sure we are not conflicting with another test
+                var directoryName = HelperDatabase.GetRandomName();
+                options.BatchDirectory = Path.Combine(SyncOptions.GetDefaultUserBatchDirectory(), directoryName);
+
+                // enablig constraints check
+                options.DisableConstraintsOnApplyChanges = false;
+
+                // set error policy
+                options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
+
+                // Disable bulk operations to have the same results for SQL as others providers
+                this.serverProvider.UseBulkOperations = false;
+
+                var agent = new SyncAgent(clientProvider, this.serverProvider, options);
+
+                // As OnRowsChangesApplying will be called 2 times, we only apply tricky change one time
+                var rowChanged = false;
+
+                // Generate the foreignkey error on server side during upload
+                agent.RemoteOrchestrator.OnRowsChangesApplying(args =>
+                {
+                    if (args.SyncRows == null || args.SyncRows.Count <= 0)
+                        return;
+
+                    var row = args.SyncRows[0];
+
+                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == $"ZZZZ{clientNumber}")
+                    {
+                        // We need to change the row only one time
+                        if (rowChanged)
+                            return;
+
+                        row["ParentProductCategoryId"] = $"BBBBB{clientNumber}";
+                        rowChanged = true;
+                    }
+                });
+
+                // Once error has been raised, we change back the row to the initial value
+                // to let a chance to apply again at the end
+                agent.RemoteOrchestrator.OnRowsChangesApplied(args =>
+                {
+                    if (args.SyncRows == null || args.SyncRows.Count <= 0)
+                        return;
+
+                    var row = args.SyncRows[0];
+
+                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == $"BBBBB{clientNumber}")
+                    {
+                        row["ParentProductCategoryId"] = $"ZZZZ{clientNumber}";
+                        rowChanged = true;
+                    }
+                });
+
+                agent.RemoteOrchestrator.OnApplyChangesErrorOccured(args =>
+                {
+                    // Retry one more time and throw on error
+                    args.Resolution = ErrorResolution.RetryOneMoreTimeAndThrowOnError;
+                    Assert.NotNull(args.Exception);
+                    Assert.NotNull(args.ErrorRow);
+                    Assert.NotNull(args.SchemaTable);
+                    Assert.Equal(SyncRowState.Modified, args.ApplyType);
+                });
+
+                var s = await agent.SynchronizeAsync(this.setup);
+
+                // Upload 2 rows
+                // Both applied successfully after retry
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(2, s.TotalChangesUploadedToServer);
+                Assert.Equal(2, s.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+
+                // No error batches should exist on server
+                var batchInfos = agent.RemoteOrchestrator.LoadBatchInfos();
+
+                Assert.Empty(batchInfos);
+            }
+        }
+
+
+        [Fact]
+        public virtual async Task ErrorForeignKeyOnSameTableRetryOnNextSync_ClientUpload()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+            var clientNumber = 0;
+
+            // make a first sync to init the two databases
+            foreach (var clientProvider in this.clientsProvider)
+            {
+                clientNumber++;
+                await new SyncAgent(clientProvider, this.serverProvider, options).SynchronizeAsync(this.setup);
+
+                // Client creates two categories with FK relationship
+                await clientProvider.AddProductCategoryAsync($"ZZZZ{clientNumber}");
+                await clientProvider.AddProductCategoryAsync($"AAAA{clientNumber}", $"ZZZZ{clientNumber}");
+
+                // Get a random directory to be sure we are not conflicting with another test
+                var directoryName = HelperDatabase.GetRandomName();
+                options.BatchDirectory = Path.Combine(SyncOptions.GetDefaultUserBatchDirectory(), directoryName);
+
+                // enablig constraints check
+                options.DisableConstraintsOnApplyChanges = false;
+
+                // set error policy
+                options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
+
+                // Disable bulk operations to have the same results for SQL as others providers
+                this.serverProvider.UseBulkOperations = false;
+
+                var agent = new SyncAgent(clientProvider, this.serverProvider, options);
+
+                // As OnRowsChangesApplying will be called 2 times, we only apply tricky change one time
+                var rowChanged = false;
+
+                // Generate the foreignkey error on server side during upload
+                agent.RemoteOrchestrator.OnRowsChangesApplying(args =>
+                {
+                    if (args.SyncRows == null || args.SyncRows.Count <= 0)
+                        return;
+
+                    var row = args.SyncRows[0];
+
+                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == $"ZZZZ{clientNumber}")
+                    {
+                        // We need to change the row only one time
+                        if (rowChanged)
+                            return;
+
+                        row["ParentProductCategoryId"] = $"BBBBB{clientNumber}";
+                        rowChanged = true;
+                    }
+                });
+
+                agent.RemoteOrchestrator.OnApplyChangesErrorOccured(args =>
+                {
+                    // Retry one more time and throw on error
+                    args.Resolution = ErrorResolution.RetryOneMoreTimeAndThrowOnError;
+                    Assert.NotNull(args.Exception);
+                    Assert.NotNull(args.ErrorRow);
+                    Assert.NotNull(args.SchemaTable);
+                    Assert.Equal(SyncRowState.Modified, args.ApplyType);
+                });
+
+
+                // NOTE: This test still throws an exception and does NOT work
+                var s = await agent.SynchronizeAsync(this.setup);
+
+
+                // Both applied successfully after retry
+                Assert.Equal(0, s.TotalChangesDownloadedFromServer);
+                Assert.Equal(2, s.TotalChangesUploadedToServer);
+                Assert.Equal(1, s.TotalChangesAppliedOnServer);
+                Assert.Equal(1, s.TotalChangesFailedToApplyOnServer);
+                Assert.Equal(0, s.TotalResolvedConflicts);
+
+                // Error batches should exist on server
+                var batchInfos = agent.RemoteOrchestrator.LoadBatchInfos();
+                Assert.NotEmpty(batchInfos);
+
+
+                // Now fix issue by adding a suitable row on the server
+                await serverProvider.AddProductCategoryAsync($"BBBBB{clientNumber}");
+
+
+                var s2 = await agent.SynchronizeAsync(this.setup);
+
+                // Upload 2 rows
+                // Both applied successfully after retry
+                Assert.Equal(0, s2.TotalChangesDownloadedFromServer);
+                Assert.Equal(1, s2.TotalChangesUploadedToServer);
+                Assert.Equal(1, s2.TotalChangesAppliedOnServer);
+                Assert.Equal(0, s2.TotalChangesFailedToApplyOnServer);
+                Assert.Equal(0, s2.TotalResolvedConflicts);
+
+                // No error batches should exist on server
+                var batchInfos2 = agent.RemoteOrchestrator.LoadBatchInfos();
+
+                Assert.Empty(batchInfos2);
+            }
+        }
+
         //// ------------------------------------------------------------------------
         //// Transient Errors
         //// ------------------------------------------------------------------------
