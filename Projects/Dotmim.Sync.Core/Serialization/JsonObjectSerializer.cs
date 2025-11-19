@@ -31,7 +31,11 @@ namespace Wormhole.Sync.Serialization
     {
         private static readonly JsonSerializerOptions Options = new()
         {
-            TypeInfoResolver = new DataContractResolver(),
+            // Use source generation context first for trim/AOT compatibility,
+            // fall back to DataContractResolver for other types
+            TypeInfoResolver = JsonTypeInfoResolver.Combine(
+                SyncJsonSerializerContext.Default,
+                new DataContractResolver()),
             Converters = { new ArrayJsonConverter(), new ObjectToInferredTypesConverter() },
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

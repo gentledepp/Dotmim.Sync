@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -41,24 +42,28 @@ namespace Wormhole.Sync
         /// Initializes a new instance of the <see cref="SyncContext"/> class.
         /// Used for serialization purpose.
         /// </summary>
+        [JsonConstructor]
         public SyncContext() => this.StartTime = DateTime.UtcNow;
 
         /// <summary>
         /// Gets or sets get or sets the current Session id, in progress.
         /// </summary>
         [DataMember(Name = "id", IsRequired = true, Order = 1)]
+        [JsonPropertyName("id")]
         public Guid SessionId { get; set; }
 
         /// <summary>
         /// Gets or sets current Scope Info Id, in progress.
         /// </summary>
         [DataMember(Name = "csid", IsRequired = true, Order = 2)]
+        [JsonPropertyName("csid")]
         public Guid? ClientId { get; set; }
 
         /// <summary>
         /// Gets or Sets the ScopeName for this sync session.
         /// </summary>
         [DataMember(Name = "sn", IsRequired = false, EmitDefaultValue = false, Order = 3)]
+        [JsonPropertyName("sn")]
         public string ScopeName { get; set; }
 
         /// <summary>
@@ -71,6 +76,7 @@ namespace Wormhole.Sync
         /// Gets or sets the sync type used during this session. Can be : Normal, Reinitialize, ReinitializeWithUpload.
         /// </summary>
         [DataMember(Name = "typ", IsRequired = false, EmitDefaultValue = false, Order = 4)]
+        [JsonPropertyName("typ")]
         public SyncType SyncType { get; set; }
 
         /// <summary>
@@ -80,18 +86,21 @@ namespace Wormhole.Sync
         /// this Property is used to check SyncDirection on each table.
         /// </summary>
         [DataMember(Name = "way", IsRequired = false, EmitDefaultValue = false, Order = 5)]
+        [JsonPropertyName("way")]
         public SyncRole SyncRole { get; set; }
 
         /// <summary>
         /// Gets or sets actual sync stage.
         /// </summary>
         [DataMember(Name = "stage", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        [JsonPropertyName("stage")]
         public SyncStage SyncStage { get; set; }
 
         /// <summary>
         /// Gets or sets get or Sets the Sync parameter to pass to Remote provider for filtering rows.
         /// </summary>
         [DataMember(Name = "ps", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        [JsonPropertyName("ps")]
         public SyncParameters Parameters { get; set; }
 
         /// <summary>
@@ -113,12 +122,14 @@ namespace Wormhole.Sync
         /// Gets or sets get or Sets additional properties you want to use.
         /// </summary>
         [DataMember(Name = "ap", IsRequired = false, EmitDefaultValue = false, Order = 8)]
+        [JsonPropertyName("ap")]
         public Dictionary<string, string> AdditionalProperties { get; set; }
 
         /// <summary>
         /// Gets or Sets the current percentage progress overall.
         /// </summary>
         [DataMember(Name = "pp", IsRequired = false, Order = 9)]
+        [JsonPropertyName("pp")]
         public double ProgressPercentage { get; set; }
 
         /// <summary>
@@ -126,6 +137,7 @@ namespace Wormhole.Sync
         /// When true, multiple tables are combined into a single batch file with operation type indicators.
         /// </summary>
         [DataMember(Name = "ub", IsRequired = false, EmitDefaultValue = false, Order = 10)]
+        [JsonPropertyName("ub")]
         public bool UseUnifiedBatching { get; set; }
 
         /// <summary>

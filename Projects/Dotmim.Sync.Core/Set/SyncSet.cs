@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -15,30 +16,35 @@ namespace Wormhole.Sync
         /// Gets or Sets the sync set tables.
         /// </summary>
         [DataMember(Name = "t", IsRequired = false, EmitDefaultValue = false, Order = 1)]
+        [JsonPropertyName("t")]
         public SyncTables Tables { get; set; }
 
         /// <summary>
         /// Gets or Sets an array of every SchemaRelation belong to this Schema.
         /// </summary>
         [DataMember(Name = "r", IsRequired = false, EmitDefaultValue = false, Order = 2)]
+        [JsonPropertyName("r")]
         public SyncRelations Relations { get; set; }
 
         /// <summary>
         /// Gets or sets filters applied on tables.
         /// </summary>
         [DataMember(Name = "f", IsRequired = false, EmitDefaultValue = false, Order = 3)]
+        [JsonPropertyName("f")]
         public SyncFilters Filters { get; set; }
 
         /// <summary>
         /// Gets or sets custom parameters definition for scope_info_client table.
         /// </summary>
         [DataMember(Name = "sicp", IsRequired = false, EmitDefaultValue = false, Order = 4)]
+        [JsonPropertyName("sicp")]
         public ScopeInfoClientParameters ScopeInfoClientParameters { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncSet"/> class.
         /// Create a new SyncSet, empty.
         /// </summary>
+        [JsonConstructor]
         public SyncSet()
         {
             this.Tables = new SyncTables(this);

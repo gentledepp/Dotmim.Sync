@@ -1,4 +1,6 @@
-﻿namespace Wormhole.Sync.Serialization
+﻿using System.Text.Json.Serialization;
+
+namespace Wormhole.Sync.Serialization
 {
 
     /// <summary>
@@ -10,6 +12,7 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="SerializerInfo"/> class.
         /// </summary>
+        [JsonConstructor]
         public SerializerInfo()
         {
         }

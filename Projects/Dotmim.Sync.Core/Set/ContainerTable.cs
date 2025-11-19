@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -15,29 +16,33 @@ namespace Wormhole.Sync
         /// Gets or sets the name of the table that the DmTableSurrogate object represents.
         /// </summary>
         [DataMember(Name = "n", IsRequired = true, Order = 1)]
+        [JsonPropertyName("n")]
         public string TableName { get; set; }
 
         /// <summary>
         /// Gets or sets get or Set the schema used for the DmTableSurrogate.
         /// </summary>
         [DataMember(Name = "s", IsRequired = false, EmitDefaultValue = false, Order = 2)]
+        [JsonPropertyName("s")]
         public string SchemaName { get; set; }
 
         /// <summary>
         /// Gets or sets get or Set the columns name used for the DmTableSurrogate.
         /// </summary>
         [DataMember(Name = "c", IsRequired = false, EmitDefaultValue = false, Order = 3)]
+        [JsonPropertyName("c")]
         public List<ContainerTableColum> Columns { get; set; }
 
         /// <summary>
         /// Gets or sets list of rows.
         /// </summary>
         [DataMember(Name = "r", IsRequired = false, Order = 4)]
-
+        [JsonPropertyName("r")]
         // [JsonConverter(typeof(ArrayJsonConverter))]
         public List<object[]> Rows { get; set; } = new List<object[]>();
 
         /// <inheritdoc cref="ContainerTable"/>
+        [JsonConstructor]
         public ContainerTable()
         {
         }
@@ -98,21 +103,25 @@ namespace Wormhole.Sync
         /// Gets or sets the name of the column.
         /// </summary>
         [DataMember(Name = "n", IsRequired = true, Order = 1)]
+        [JsonPropertyName("n")]
         public string ColumnName { get; set; }
 
         /// <summary>
         /// Gets or sets the type of the column.
         /// </summary>
         [DataMember(Name = "t", IsRequired = true, Order = 2)]
+        [JsonPropertyName("t")]
         public string TypeName { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the column is a primary key.
         /// </summary>
         [DataMember(Name = "p", IsRequired = false, Order = 3, EmitDefaultValue = false)]
+        [JsonPropertyName("p")]
         public byte? IsPrimaryKey { get; set; }
 
         /// <inheritdoc cref="ContainerTableColum"/>
+        [JsonConstructor]
         public ContainerTableColum()
         {
         }

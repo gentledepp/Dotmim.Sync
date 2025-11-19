@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -16,29 +17,34 @@ namespace Wormhole.Sync
         /// Gets or sets the name of the parameter (will be used as column name).
         /// </summary>
         [DataMember(Name = "n", IsRequired = true, Order = 1)]
+        [JsonPropertyName("n")]
         public string Name { get; set; }
 
         /// <summary>
         /// Gets or sets the database type for the parameter.
         /// </summary>
         [DataMember(Name = "dt", IsRequired = true, Order = 2)]
+        [JsonPropertyName("dt")]
         public DbType DbType { get; set; }
 
         /// <summary>
         /// Gets or sets the max length for string/binary types (-1 for MAX).
         /// </summary>
         [DataMember(Name = "ml", IsRequired = false, Order = 3)]
+        [JsonPropertyName("ml")]
         public int MaxLength { get; set; }
 
         /// <summary>
         /// Gets or sets whether this parameter column should be indexed in the database.
         /// </summary>
         [DataMember(Name = "idx", IsRequired = false, Order = 4)]
+        [JsonPropertyName("idx")]
         public bool IsIndexed { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScopeInfoClientParameter"/> class.
         /// </summary>
+        [JsonConstructor]
         public ScopeInfoClientParameter()
         {
             this.DbType = DbType.String;

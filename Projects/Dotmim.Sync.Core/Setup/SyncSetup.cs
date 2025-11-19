@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -18,48 +19,56 @@ namespace Wormhole.Sync
         /// Gets or Sets the tables involved in the sync.
         /// </summary>
         [DataMember(Name = "tbls", IsRequired = false, EmitDefaultValue = false, Order = 1)]
+        [JsonPropertyName("tbls")]
         public SetupTables Tables { get; set; }
 
         /// <summary>
         /// Gets or Sets the filters involved in the sync.
         /// </summary>
         [DataMember(Name = "fils", IsRequired = false, EmitDefaultValue = false, Order = 2)]
+        [JsonPropertyName("fils")]
         public SetupFilters Filters { get; set; }
 
         /// <summary>
         /// Gets or sets specify a prefix for naming stored procedure. Default is empty string.
         /// </summary>
         [DataMember(Name = "spp", IsRequired = false, EmitDefaultValue = false, Order = 3)]
+        [JsonPropertyName("spp")]
         public string StoredProceduresPrefix { get; set; }
 
         /// <summary>
         /// Gets or sets specify a suffix for naming stored procedures. Default is empty string.
         /// </summary>
         [DataMember(Name = "sps", IsRequired = false, EmitDefaultValue = false, Order = 4)]
+        [JsonPropertyName("sps")]
         public string StoredProceduresSuffix { get; set; }
 
         /// <summary>
         /// Gets or sets specify a prefix for naming stored procedure. Default is empty string.
         /// </summary>
         [DataMember(Name = "tf", IsRequired = false, EmitDefaultValue = false, Order = 5)]
+        [JsonPropertyName("tf")]
         public string TriggersPrefix { get; set; }
 
         /// <summary>
         /// Gets or sets specify a suffix for naming stored procedures. Default is empty string.
         /// </summary>
         [DataMember(Name = "ts", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        [JsonPropertyName("ts")]
         public string TriggersSuffix { get; set; }
 
         /// <summary>
         /// Gets or sets specify a prefix for naming tracking tables. Default is empty string.
         /// </summary>
         [DataMember(Name = "ttp", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        [JsonPropertyName("ttp")]
         public string TrackingTablesPrefix { get; set; }
 
         /// <summary>
         /// Gets or sets specify a suffix for naming tracking tables.
         /// </summary>
         [DataMember(Name = "tts", IsRequired = false, EmitDefaultValue = false, Order = 8)]
+        [JsonPropertyName("tts")]
         public string TrackingTablesSuffix { get; set; }
 
         /// <summary>
@@ -67,6 +76,7 @@ namespace Wormhole.Sync
         /// These parameters will be added as nullable columns on the server-side scope_info_client table.
         /// </summary>
         [DataMember(Name = "sicp", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        [JsonPropertyName("sicp")]
         public ScopeInfoClientParameters ScopeInfoClientParameters { get; set; }
 
         /// <summary>
@@ -87,6 +97,7 @@ namespace Wormhole.Sync
         /// Initializes a new instance of the <see cref="SyncSetup"/> class.
         /// ctor.
         /// </summary>
+        [JsonConstructor]
         public SyncSetup()
         {
             this.Tables = [];

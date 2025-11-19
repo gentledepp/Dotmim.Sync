@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync.Batch
 {
@@ -17,11 +18,12 @@ namespace Wormhole.Sync.Batch
     {
 
         /// <inheritdoc cref="BatchInfo"/>
+        [JsonConstructor]
         public BatchInfo()
         {
             this.BatchPartsInfo = [];
             this.DirectoryRoot = SyncOptions.GetDefaultUserBatchDirectory();
-            
+
             // Note: It is important for the folder to start with the date information yyyyMMddHHmm so the batch cleanup service can easily find expired batch data and clean it up!
             this.DirectoryName = string.Concat(DateTime.UtcNow.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture), Path.GetRandomFileName().Replace(".", string.Empty, SyncGlobalization.DataSourceStringComparison));
         }
@@ -65,36 +67,42 @@ namespace Wormhole.Sync.Batch
         /// Gets or Sets directory name.
         /// </summary>
         [DataMember(Name = "dirname", IsRequired = false, EmitDefaultValue = false, Order = 1)]
+        [JsonPropertyName("dirname")]
         public string DirectoryName { get; set; }
 
         /// <summary>
         /// Gets or sets directory root.
         /// </summary>
         [DataMember(Name = "dir", IsRequired = false, EmitDefaultValue = false, Order = 2)]
+        [JsonPropertyName("dir")]
         public string DirectoryRoot { get; set; }
 
         /// <summary>
         /// Gets or sets server timestamp.
         /// </summary>
         [DataMember(Name = "ts", IsRequired = false, Order = 3)]
+        [JsonPropertyName("ts")]
         public long Timestamp { get; set; }
 
         /// <summary>
         /// Gets or sets list of batch parts.
         /// </summary>
         [DataMember(Name = "parts", IsRequired = false, EmitDefaultValue = false, Order = 4)]
+        [JsonPropertyName("parts")]
         public IList<BatchPartInfo> BatchPartsInfo { get; set; }
 
         /// <summary>
         /// Gets or Sets the rows count contained in the batch info.
         /// </summary>
         [DataMember(Name = "count", IsRequired = true, Order = 5)]
+        [JsonPropertyName("count")]
         public int RowsCount { get; set; }
 
         /// <summary>
         /// Gets or Sets the Serialization Factory Key used to serialize this batch info.
         /// </summary>
         [DataMember(Name = "ser", IsRequired = false, EmitDefaultValue = false, Order = 6)]
+        [JsonPropertyName("ser")]
         public string SerializerFactoryKey { get; set; }
 
         /// <summary>

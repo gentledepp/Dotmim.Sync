@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -21,12 +22,14 @@ namespace Wormhole.Sync
         /// Gets or Sets the InnerCollection (Exposed as Public for serialization purpose).
         /// </summary>
         [DataMember(Name = "c", IsRequired = true)]
+        [JsonPropertyName("c")]
         public Collection<SyncParameter> InnerCollection { get; set; } = new Collection<SyncParameter>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncParameters"/> class.
         /// Create a default collection for SerializersFactory.
         /// </summary>
+        [JsonConstructor]
         public SyncParameters()
         {
         }

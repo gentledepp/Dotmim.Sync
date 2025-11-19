@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync.Batch
 {
@@ -16,42 +17,49 @@ namespace Wormhole.Sync.Batch
         /// Gets or sets batch part file name.
         /// </summary>
         [DataMember(Name = "file", IsRequired = true, Order = 1)]
+        [JsonPropertyName("file")]
         public string FileName { get; set; }
 
         /// <summary>
         /// Gets or sets ordered batch part file index.
         /// </summary>
         [DataMember(Name = "index", IsRequired = true, Order = 2)]
+        [JsonPropertyName("index")]
         public int Index { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether gets if the batch part file is the last one.
         /// </summary>
         [DataMember(Name = "last", IsRequired = true, Order = 3)]
+        [JsonPropertyName("last")]
         public bool IsLastBatch { get; set; }
 
         /// <summary>
         /// Gets or sets tables contained rows count.
         /// </summary>
         [DataMember(Name = "rc", IsRequired = false, Order = 5)]
+        [JsonPropertyName("rc")]
         public int RowsCount { get; set; }
 
         /// <summary>
         /// Gets or sets the name of the table that the DmTableSurrogate object represents.
         /// </summary>
         [DataMember(Name = "tn", IsRequired = true, Order = 6)]
+        [JsonPropertyName("tn")]
         public string TableName { get; set; }
 
         /// <summary>
         /// Gets or sets get or Set the schema used for the DmTableSurrogate.
         /// </summary>
         [DataMember(Name = "ts", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        [JsonPropertyName("ts")]
         public string SchemaName { get; set; }
 
         /// <summary>
         /// Gets or sets get or Set the schema used for the DmTableSurrogate.
         /// </summary>
         [DataMember(Name = "state", IsRequired = false, EmitDefaultValue = false, Order = 8)]
+        [JsonPropertyName("state")]
         public SyncRowState State { get; set; } = SyncRowState.None;
 
         /// <summary>
@@ -60,12 +68,14 @@ namespace Wormhole.Sync.Batch
         /// Only used when TableName = "UNIFIED".
         /// </summary>
         [DataMember(Name = "trc", IsRequired = false, EmitDefaultValue = false, Order = 9)]
+        [JsonPropertyName("trc")]
         public Dictionary<string, int> TableRowCounts { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BatchPartInfo"/> class.
         /// ctor for serialization purpose.
         /// </summary>
+        [JsonConstructor]
         public BatchPartInfo()
         {
         }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Wormhole.Sync
 {
@@ -14,17 +15,20 @@ namespace Wormhole.Sync
         /// Gets or sets the name of the column from the table involved in filter.
         /// </summary>
         [DataMember(Name = "pn", IsRequired = true, Order = 1)]
+        [JsonPropertyName("pn")]
         public string Name { get; set; }
 
         /// <summary>
         /// Gets or sets the value of the parameter.
         /// </summary>
         [DataMember(Name = "v", IsRequired = true, Order = 2)]
+        [JsonPropertyName("v")]
         public object Value { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncParameter"/> class by using default values.
         /// </summary>
+        [JsonConstructor]
         public SyncParameter()
         {
         }
