@@ -67,6 +67,17 @@ namespace System.Text.Json.Serialization.Metadata
 
             jsonTypeInfo.Properties.Clear();
 
+            // Check for [JsonConstructor] attribute to use the correct constructor
+            var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var jsonConstructor = constructors.FirstOrDefault(c => c.GetCustomAttribute<JsonConstructorAttribute>() != null);
+
+            if (jsonConstructor != null)
+            {
+                // Use the constructor marked with [JsonConstructor]
+                // Pass empty array instead of null for parameterless constructors (AOT-safe)
+                jsonTypeInfo.CreateObject = () => jsonConstructor.Invoke(Array.Empty<object>());
+            }
+
             var ti = GetTypeInfo(jsonTypeInfo, options);
 
             return ti;

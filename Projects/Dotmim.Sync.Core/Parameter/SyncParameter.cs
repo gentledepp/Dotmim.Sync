@@ -23,6 +23,7 @@ namespace Wormhole.Sync
         /// </summary>
         [DataMember(Name = "v", IsRequired = true, Order = 2)]
         [JsonPropertyName("v")]
+        [JsonConverter(typeof(Serialization.ObjectToInferredTypesConverter))]
         public object Value { get; set; }
 
         /// <summary>

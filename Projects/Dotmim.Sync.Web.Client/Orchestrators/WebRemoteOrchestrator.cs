@@ -1,5 +1,6 @@
 ﻿using Wormhole.Sync.Extensions;
 using Wormhole.Sync.Serialization;
+using Wormhole.Sync.Web.Client.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -331,7 +332,7 @@ namespace Wormhole.Sync.Web.Client
                 else
                 {
                     // Error are always json formatted
-                    var webSyncErrorSerializer = new JsonObjectSerializer();
+                    var webSyncErrorSerializer = new WebJsonObjectSerializer();
 
                     WebSyncException webError = null;
                     try
@@ -459,7 +460,7 @@ namespace Wormhole.Sync.Web.Client
             var serializerInfo = new SerializerInfo(this.SerializerFactory.Key, batchSize);
 
             // using json to serialize header
-            var jsonSerializer = new JsonObjectSerializer();
+            var jsonSerializer = new WebJsonObjectSerializer();
             var serializerInfoJsonBytes = await jsonSerializer.SerializeAsync(serializerInfo).ConfigureAwait(false);
 
             var requestUri = this.BuildUri(this.ServiceUri);
