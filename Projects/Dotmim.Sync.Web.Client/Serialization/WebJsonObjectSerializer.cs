@@ -8,14 +8,17 @@ using Wormhole.Sync.Serialization;
 namespace Wormhole.Sync.Web.Client.Serialization
 {
    /// <summary>
-   /// Web-specific JSON serializer that uses source generation for simple types and DataContract resolver for complex types.
+   /// Web-specific JSON serializer that uses source generation for AOT/trim compatibility.
+   /// Combines Core types (SyncJsonSerializerContext) and Web types (WebSyncJsonSerializerContext).
    /// </summary>
    public class WebJsonObjectSerializer : ISerializer
    {
       private static readonly JsonSerializerOptions Options = new()
       {
-         // Use source generation context for simple types, fall back to DataContract resolver for complex types
+         // Use source generation FIRST for AOT/trim compatibility
+         // Fall back to DataContractResolver for complex collection types
          TypeInfoResolver = JsonTypeInfoResolver.Combine(
+            WebSyncJsonSerializerContext.Default,
             SyncJsonSerializerContext.Default,
             new DataContractResolver()),
          Converters = { new ArrayJsonConverter(), new ObjectToInferredTypesConverter() },

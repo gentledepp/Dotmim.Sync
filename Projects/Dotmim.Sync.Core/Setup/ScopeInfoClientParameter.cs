@@ -47,7 +47,8 @@ namespace Wormhole.Sync
         [JsonConstructor]
         public ScopeInfoClientParameter()
         {
-            this.DbType = DbType.String;
+            // No initialization - all properties set via deserialization
+            // DbType defaults to DbType.Object (0) if not present in JSON
         }
 
         /// <summary>

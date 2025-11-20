@@ -31,8 +31,9 @@ namespace Wormhole.Sync.Serialization
     {
         private static readonly JsonSerializerOptions Options = new()
         {
-            // Use source generation context first for trim/AOT compatibility,
-            // fall back to DataContractResolver for other types
+            // Use source generation FIRST for AOT/trim compatibility
+            // Fall back to DataContractResolver for complex collection types that can't be source-generated
+            // (Collection types with custom indexers and [CollectionDataContract] attributes)
             TypeInfoResolver = JsonTypeInfoResolver.Combine(
                 SyncJsonSerializerContext.Default,
                 new DataContractResolver()),

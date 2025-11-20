@@ -123,8 +123,8 @@ private static readonly JsonSerializerOptions Options = new()
 };
 ```
 
-#### E. **Critical Fix: Updated DataContractResolver**
-This was the key fix that resolved the issue. Updated `Serialization/DataContractResolver.cs` to honor `[JsonConstructor]` attributes:
+#### E. **Critical Fix #1: Updated DataContractResolver Constructor Handling**
+Updated `Serialization/DataContractResolver.cs` to honor `[JsonConstructor]` attributes:
 
 ```csharp
 public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions options)
@@ -159,6 +159,78 @@ public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions option
 - System.Text.Json would try to infer the constructor, failing in AOT scenarios
 - Now it explicitly uses the constructor marked with `[JsonConstructor]`
 - **Important:** Using `Array.Empty<object>()` instead of `null` as the parameter is crucial for AOT - passing `null` was causing `ConstructorContainsNullParameterNames` errors because it's ambiguous (could mean "no arguments" or "one null argument")
+
+#### E2. **Critical Fix #2: DataContractResolver Property Name Handling**
+**The Most Important AOT Fix** - This resolves the `JsonPropertyRequiredAndNotDeserializable` errors:
+
+Modified the `CreateDataMembers` method in `DataContractResolver.cs` to use actual C# property names instead of serialized names when creating JsonPropertyInfo objects:
+
+```csharp
+string actualMemberName = null;
+
+if (memberInfo.MemberType == MemberTypes.Field && memberInfo is FieldInfo fieldInfo)
+{
+    actualMemberName = fieldInfo.Name;
+    propertyName = attr?.Name ?? fieldInfo.Name;
+    propertyName = options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName;
+    // ... rest of field handling
+}
+else if (memberInfo.MemberType == MemberTypes.Property && memberInfo is PropertyInfo propertyInfo)
+{
+    actualMemberName = propertyInfo.Name;
+    propertyName = attr?.Name ?? propertyInfo.Name;
+    propertyName = options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName;
+    // ... rest of property handling
+}
+
+// CRITICAL FIX for AOT: Use the actual C# member name when creating JsonPropertyInfo
+// This ensures System.Text.Json can properly link property metadata in AOT scenarios
+var jsonPropertyInfo = jsonTypeInfo.CreateJsonPropertyInfo(propertyType, actualMemberName);
+
+jsonPropertyInfo.Get = getValue;
+jsonPropertyInfo.Set = setValue;
+
+// Set the JSON serialization name (may differ from the C# property name)
+jsonPropertyInfo.Name = propertyName;
+```
+
+**Why this fix was critical:**
+- **Before:** DataContractResolver passed serialized names (e.g., "n") to `CreateJsonPropertyInfo`
+- **Problem:** In AOT scenarios, System.Text.Json couldn't properly link property metadata when the wrong name was used
+- **Result:** Required properties (`IsRequired = true`) would fail with `JsonPropertyRequiredAndNotDeserializable` errors
+- **After:** We use the actual C# property name ("Name") for creating the JsonPropertyInfo, then separately set the JSON serialization name
+- This ensures property setters are properly configured even for properties with custom DataMember names
+
+**This fix is essential for:**
+- All classes with `[DataMember(Name = "xyz")]` where "xyz" differs from the C# property name
+- Required properties in AOT scenarios
+- Proper property setter linkage in trimmed assemblies
+
+#### E3. **Constructor Initialization Removed**
+Removed property initialization from `[JsonConstructor]`-marked parameterless constructors to prevent deserialization conflicts:
+
+**Example Fix in ScopeInfoClientParameter:**
+```csharp
+// BEFORE:
+[JsonConstructor]
+public ScopeInfoClientParameter()
+{
+    this.DbType = DbType.String;  // ❌ Initialization interferes with deserialization
+}
+
+// AFTER:
+[JsonConstructor]
+public ScopeInfoClientParameter()
+{
+    // No initialization - all properties set via deserialization
+    // DbType defaults to DbType.Object (0) if not present in JSON
+}
+```
+
+**Why this matters:**
+- Constructor initialization can interfere with property deserialization order in AOT
+- Required properties must be set only through deserialization, not constructor initialization
+- Default values should be handled after deserialization if needed, not in the constructor
 
 #### F. **Fix for Object-Type Properties in Source Generation**
 Added explicit converter attribute to `SyncParameter.Value` property to support source generation with `System.Object` type:
@@ -309,13 +381,82 @@ Potential enhancements for future versions:
 - `SyncContext.cs` - Added JsonConstructor and JsonPropertyName
 - `Set/ContainerTable.cs` - Added JsonConstructor and JsonPropertyName (both ContainerTable and ContainerTableColumn)
 - `Messages/TableChangesSelected.cs` - Added JsonConstructor and JsonPropertyName
-- `Setup/ScopeInfoClientParameter.cs` - Added JsonConstructor and JsonPropertyName
+- `Setup/ScopeInfoClientParameter.cs` - Added JsonConstructor, JsonPropertyName, and removed constructor initialization
 - `Serialization/SyncJsonSerializerContext.cs` - **NEW FILE** - Source generation context
 - `Serialization/JsonObjectSerializer.cs` - Updated to use source generation context
-- `Serialization/DataContractResolver.cs` - **CRITICAL FIX** - Added JsonConstructor support using Array.Empty<object>() for parameterless constructor invocation (AOT-safe)
+- `Serialization/DataContractResolver.cs` - **CRITICAL FIXES**:
+  1. Added JsonConstructor support using Array.Empty<object>() for parameterless constructor invocation
+  2. **Fixed property name handling** - Now uses actual C# property names when creating JsonPropertyInfo, then sets JSON name separately (essential for AOT)
 
 ### Web.Client Project
 - `HttpMessage.cs` - Added JsonConstructor and JsonPropertyName to all 17+ HttpMessage classes
+
+## AOT Compatibility Rules and Best Practices
+
+When adding new serializable classes or modifying existing ones, follow these rules to maintain AOT/trim compatibility:
+
+### ✅ Required Attributes
+
+1. **[JsonConstructor]** - Mark the parameterless constructor
+   ```csharp
+   [JsonConstructor]
+   public MyClass() { }
+   ```
+
+2. **[JsonPropertyName]** - Add to ALL properties with `[DataMember]` attributes
+   ```csharp
+   [DataMember(Name = "n", IsRequired = true, Order = 1)]
+   [JsonPropertyName("n")]  // ← Must match DataMember Name
+   public string Name { get; set; }
+   ```
+
+3. **[JsonConverter]** - Required for `object`-typed properties
+   ```csharp
+   [DataMember(Name = "v", IsRequired = true, Order = 2)]
+   [JsonPropertyName("v")]
+   [JsonConverter(typeof(ObjectToInferredTypesConverter))]  // ← Required for object type
+   public object Value { get; set; }
+   ```
+
+### ❌ Avoid These Patterns
+
+1. **NO initialization in [JsonConstructor] constructors**
+   ```csharp
+   [JsonConstructor]
+   public MyClass()
+   {
+       // ❌ DON'T DO THIS
+       this.SomeProperty = defaultValue;
+   }
+   ```
+
+2. **NO init-only properties with required attributes**
+   ```csharp
+   // ❌ DON'T DO THIS
+   [DataMember(Name = "n", IsRequired = true)]
+   public string Name { get; init; }  // init-only won't work with IsRequired in AOT
+   ```
+
+3. **NO reflection-based serialization without attributes**
+   - All serializable classes must have `[JsonConstructor]` and `[JsonPropertyName]` attributes
+   - Don't rely on automatic serialization in AOT scenarios
+
+### 🔍 DataContractResolver Compatibility
+
+The `DataContractResolver` has been fixed for AOT, but it relies on:
+- Actual C# property names (not serialized names) for property linking
+- Public getters and setters on all serialized properties
+- Parameterless constructors marked with `[JsonConstructor]`
+
+### 📝 Testing Checklist
+
+Before committing changes to serializable classes:
+1. ✅ Build succeeds
+2. ✅ All properties have `[JsonPropertyName]` matching `[DataMember(Name="...")]`
+3. ✅ Parameterless constructor has `[JsonConstructor]`
+4. ✅ No initialization in parameterless constructor
+5. ✅ Object-typed properties have `[JsonConverter]`
+6. ✅ Test in AOT/trimmed scenario if possible
 
 ## References
 
@@ -323,3 +464,4 @@ Potential enhancements for future versions:
 - [Prepare .NET libraries for trimming](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/prepare-libraries-for-trimming)
 - [JsonConstructorAttribute](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.serialization.jsonconstructorattribute)
 - [Native AOT deployment](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
+- [AOT and trimming errors](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/fixing-warnings)

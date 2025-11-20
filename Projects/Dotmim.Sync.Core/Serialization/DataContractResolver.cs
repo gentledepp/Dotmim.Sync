@@ -136,8 +136,11 @@ namespace System.Text.Json.Serialization.Metadata
                 Type propertyType = null;
                 string propertyName = null;
 
+                string actualMemberName = null;
+
                 if (memberInfo.MemberType == MemberTypes.Field && memberInfo is FieldInfo fieldInfo)
                 {
+                    actualMemberName = fieldInfo.Name;
                     propertyName = attr?.Name ?? fieldInfo.Name;
                     propertyName = options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName;
                     propertyType = fieldInfo.FieldType;
@@ -147,6 +150,7 @@ namespace System.Text.Json.Serialization.Metadata
                 else
                 if (memberInfo.MemberType == MemberTypes.Property && memberInfo is PropertyInfo propertyInfo)
                 {
+                    actualMemberName = propertyInfo.Name;
                     propertyName = attr?.Name ?? propertyInfo.Name;
                     propertyName = options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName;
                     propertyType = propertyInfo.PropertyType;
@@ -165,7 +169,10 @@ namespace System.Text.Json.Serialization.Metadata
                     continue;
                 }
 
-                var jsonPropertyInfo = jsonTypeInfo.CreateJsonPropertyInfo(propertyType, propertyName);
+                // CRITICAL FIX for AOT: Use the actual C# member name when creating JsonPropertyInfo
+                // This ensures System.Text.Json can properly link property metadata in AOT scenarios
+                // The JSON serialization name will be set below via jsonPropertyInfo.Name
+                var jsonPropertyInfo = jsonTypeInfo.CreateJsonPropertyInfo(propertyType, actualMemberName);
                 if (jsonPropertyInfo == null)
                 {
                     continue;
@@ -173,6 +180,9 @@ namespace System.Text.Json.Serialization.Metadata
 
                 jsonPropertyInfo.Get = getValue;
                 jsonPropertyInfo.Set = setValue;
+
+                // Set the JSON serialization name (may differ from the C# property name)
+                jsonPropertyInfo.Name = propertyName;
 
                 if (attr != null)
                 {
