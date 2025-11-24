@@ -58,12 +58,12 @@ namespace Wormhole.Sync.SqlServer.Builders
 
                         // Get the default value
                         // var columnType = schemaColumn.GetDataType();
-                        dynamic defaultValue = schemaColumn.GetDefaultValue();
+                        object defaultValue = schemaColumn.GetDefaultValue();
 
                         // metadatas don't have readonly values, so get from sqlMetadataIndex
                         var sqlMetadataType = metadatas[sqlMetadataIndex].SqlDbType;
 
-                        dynamic rowValue = SetRowValue(row, i, sqlMetadataType);
+                        object rowValue = SetRowValue(row, i, sqlMetadataType);
 
                         record.SetValue(sqlMetadataIndex, rowValue);
                         sqlMetadataIndex++;
@@ -138,9 +138,9 @@ namespace Wormhole.Sync.SqlServer.Builders
             }
         }
 
-        private static dynamic SetRowValue(SyncRow row, int i, SqlDbType sqlMetadataType)
+        private static object SetRowValue(SyncRow row, int i, SqlDbType sqlMetadataType)
         {
-            dynamic rowValue = row[i];
+            object rowValue = row[i];
 
             if (rowValue != null)
             {
@@ -154,24 +154,25 @@ namespace Wormhole.Sync.SqlServer.Builders
                         break;
                     case SqlDbType.Date:
 #if NET6_0_OR_GREATER
-                        rowValue = SyncTypeConverter.TryConvertTo<DateOnly>(rowValue);
+                        var rowValue3 = SyncTypeConverter.TryConvertTo<DateOnly>(rowValue);
 
-                        if (rowValue < DateOnly.FromDateTime(sqlDateMin))
-                            rowValue = DateOnly.FromDateTime(sqlDateMin);
+                        if (rowValue3 < DateOnly.FromDateTime(sqlDateMin))
+                            rowValue3 = DateOnly.FromDateTime(sqlDateMin);
 
                         // Even if sqlmetadata is Date (and it's a perfect match for DateOnly)
                         // We still need to convert it to DateTime, since SqlDataRecord doesn't support DateOnly
-                        rowValue = ((DateOnly)rowValue).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+                        rowValue = ((DateOnly)rowValue3).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
                         break;
 #endif
                     case SqlDbType.DateTime:
                     case SqlDbType.DateTime2:
                     case SqlDbType.SmallDateTime:
-                        rowValue = SyncTypeConverter.TryConvertTo<DateTime>(rowValue);
-                        if (sqlMetadataType == SqlDbType.DateTime && rowValue < sqlDateMin)
-                            rowValue = sqlDateMin;
-                        else if (sqlMetadataType == SqlDbType.SmallDateTime && rowValue < sqlSmallDateMin)
-                            rowValue = sqlSmallDateMin;
+                        var rowValue2 = SyncTypeConverter.TryConvertTo<DateTime>(rowValue);
+                        if (sqlMetadataType == SqlDbType.DateTime && rowValue2 < sqlDateMin)
+                            rowValue2 = sqlDateMin;
+                        else if (sqlMetadataType == SqlDbType.SmallDateTime && rowValue2 < sqlSmallDateMin)
+                            rowValue2 = sqlSmallDateMin;
+                        rowValue = rowValue2;
                         break;
                     case SqlDbType.DateTimeOffset:
                         rowValue = SyncTypeConverter.TryConvertTo<DateTimeOffset>(rowValue);

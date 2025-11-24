@@ -14,7 +14,7 @@ namespace Wormhole.Sync
         /// <summary>
         /// Try to convert a value to another type.
         /// </summary>
-        public static T TryConvertTo<T>(dynamic value, CultureInfo provider = default)
+        public static T TryConvertTo<T>(object value, CultureInfo provider = default)
         {
             if (value == null)
                 return default;
@@ -31,27 +31,27 @@ namespace Wormhole.Sync
 
             if (typeOfT == typeof(short))
             {
-                return Convert.ToInt16(value, provider);
+                return (T)(object)Convert.ToInt16(value, provider);
             }
             else if (typeOfT == typeof(int))
             {
-                return Convert.ToInt32(value);
+                return (T)(object)Convert.ToInt32(value);
             }
             else if (typeOfT == typeof(long))
             {
-                return Convert.ToInt64(value);
+                return (T)(object)Convert.ToInt64(value);
             }
             else if (typeOfT == typeof(ushort))
             {
-                return Convert.ToUInt16(value);
+                return (T)(object)Convert.ToUInt16(value);
             }
             else if (typeOfT == typeof(uint))
             {
-                return Convert.ToUInt32(value);
+                return (T)(object)Convert.ToUInt32(value);
             }
             else if (typeOfT == typeof(ulong))
             {
-                return Convert.ToUInt64(value);
+                return (T)(object)Convert.ToUInt64(value);
             }
 #if NET6_0_OR_GREATER
             else if (typeOfT == typeof(DateOnly))
@@ -63,7 +63,7 @@ namespace Wormhole.Sync
                 if (DateOnly.TryParse(valueStr, provider, DateTimeStyles.None, out DateOnly dateOnly))
                     return (T)Convert.ChangeType(dateOnly, typeOfT, provider);
                 else if (typeOfU == typeof(long))
-                    return (T)Convert.ChangeType(DateOnly.FromDateTime(new DateTime(value)), typeOfT, provider);
+                    return (T)Convert.ChangeType(DateOnly.FromDateTime(new DateTime((long)value)), typeOfT, provider);
                 else
                     return (T)Convert.ChangeType(DateOnly.FromDateTime(Convert.ToDateTime(value)), typeOfT, provider);
             }
@@ -78,9 +78,9 @@ namespace Wormhole.Sync
                 if (DateTime.TryParse(valueStr, provider, DateTimeStyles.None, out DateTime dateTime))
                     return (T)Convert.ChangeType(dateTime, typeOfT, provider);
                 else if (typeOfU == typeof(long))
-                    return (T)Convert.ChangeType(new DateTime(value), typeOfT, provider);
+                    return (T)Convert.ChangeType(new DateTime((long)value), typeOfT, provider);
                 else
-                    return Convert.ToDateTime(value);
+                    return (T)(object)Convert.ToDateTime(value);
             }
             else if (typeOfT == typeof(DateTimeOffset))
             {
@@ -89,17 +89,17 @@ namespace Wormhole.Sync
                 else if (DateTimeOffset.TryParse(value.ToString(), provider, DateTimeStyles.None, out DateTimeOffset dateTimeOffset))
                     return (T)Convert.ChangeType(dateTimeOffset, typeOfT, provider);
                 else if (typeOfU == typeof(long))
-                    return (T)Convert.ChangeType(new DateTimeOffset(new DateTime(value)), typeOfT, provider);
+                    return (T)Convert.ChangeType(new DateTimeOffset(new DateTime((long)value)), typeOfT, provider);
                 else
-                    return Convert.ToDateTime(value);
+                    return (T)(object)Convert.ToDateTime(value);
             }
             else if (typeOfT == typeof(string))
             {
-                return value.ToString();
+                return (T)(object)value.ToString();
             }
             else if (typeOfT == typeof(byte))
             {
-                return Convert.ToByte(value);
+                return (T)(object)Convert.ToByte(value);
             }
             else if (typeOfT == typeof(bool))
             {
@@ -126,29 +126,29 @@ namespace Wormhole.Sync
             }
             else if (typeOfT == typeof(char))
             {
-                return Convert.ToChar(value);
+                return (T)(object)Convert.ToChar(value);
             }
             else if (typeOfT == typeof(decimal))
             {
-                return Convert.ToDecimal(value, provider);
+                return (T)(object)Convert.ToDecimal(value, provider);
             }
             else if (typeOfT == typeof(double))
             {
-                return Convert.ToDouble(value, provider.NumberFormat);
+                return (T)(object)Convert.ToDouble(value, provider.NumberFormat);
             }
             else if (typeOfT == typeof(float))
             {
-                return Convert.ToSingle(value, provider.NumberFormat);
+                return (T)(object)Convert.ToSingle(value, provider.NumberFormat);
             }
             else if (typeOfT == typeof(sbyte))
             {
-                return Convert.ToSByte(value);
+                return (T)(object)Convert.ToSByte(value);
             }
             else if (typeOfT == typeof(TimeSpan))
             {
                 if (typeOfU == typeof(short) || typeOfU == typeof(int) || typeOfU == typeof(long)
                    || typeOfU == typeof(ushort) || typeOfU == typeof(uint) || typeOfU == typeof(ulong))
-                    return (T)Convert.ChangeType(TimeSpan.FromTicks(value), typeOfT, provider);
+                    return (T)Convert.ChangeType(TimeSpan.FromTicks(Convert.ToInt64(value)), typeOfT, provider);
                 if (TimeSpan.TryParse(value.ToString(), provider, out TimeSpan q))
                     return (T)Convert.ChangeType(q, typeOfT, provider);
             }
@@ -156,8 +156,30 @@ namespace Wormhole.Sync
             {
                 if (typeOfU == typeof(string))
                     return (T)Convert.ChangeType(Convert.FromBase64String((string)value), typeOfT, provider);
+                else if (typeOfU == typeof(short))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((short)value), typeOfT, provider);
+                else if (typeOfU == typeof(int))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((int)value), typeOfT, provider);
+                else if (typeOfU == typeof(long))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((long)value), typeOfT, provider);
+                else if (typeOfU == typeof(ushort))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((ushort)value), typeOfT, provider);
+                else if (typeOfU == typeof(uint))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((uint)value), typeOfT, provider);
+                else if (typeOfU == typeof(ulong))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((ulong)value), typeOfT, provider);
+                else if (typeOfU == typeof(float))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((float)value), typeOfT, provider);
+                else if (typeOfU == typeof(double))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((double)value), typeOfT, provider);
+                else if (typeOfU == typeof(char))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((char)value), typeOfT, provider);
+                else if (typeOfU == typeof(bool))
+                    return (T)Convert.ChangeType(BitConverter.GetBytes((bool)value), typeOfT, provider);
+                else if (typeOfU == typeof(byte[]))
+                    return (T)value;
                 else
-                    return (T)Convert.ChangeType(BitConverter.GetBytes((dynamic)value), typeOfT, provider);
+                    throw new FormatException($"Cannot convert type '{typeOfU}' to byte array using BitConverter.");
             }
             else if (typeConverter.CanConvertFrom(typeOfT))
             {

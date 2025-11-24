@@ -378,7 +378,7 @@ namespace Wormhole.Sync
         /// <summary>
         /// Gets or Sets the default value.
         /// </summary>
-        public dynamic GetDefaultValue()
+        public object GetDefaultValue()
         {
             var type = this.GetDataType();
 
