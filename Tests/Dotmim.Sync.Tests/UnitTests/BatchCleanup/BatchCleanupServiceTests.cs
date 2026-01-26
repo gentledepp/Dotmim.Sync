@@ -196,7 +196,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             using var cts = new CancellationTokenSource();
             cts.Cancel();
 
-            await Assert.ThrowsAsync<TaskCanceledException>(
+            await Assert.ThrowsAsync<OperationCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));
         }
 
@@ -455,7 +455,7 @@ namespace Wormhole.Sync.Tests.UnitTests
 
             await Task.Delay(2);
 
-            await Assert.ThrowsAsync<TaskCanceledException>(
+            await Assert.ThrowsAsync<OperationCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));
         }
 

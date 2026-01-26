@@ -74,14 +74,17 @@
 
 	<ItemGroup>
 		<PackageReference Include="MessagePack" Version="2.5.168" />
-		<PackageReference Include="xunit" Version="2.8.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="Verify.Xunit" Version="30.19.1" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
 		<PackageReference Include="JetBrains.Profiler.Api" Version="1.4.10" />
-		<PackageReference Include="xunit.analyzers" Version="1.14.0">
+		<PackageReference Include="xunit.analyzers" Version="1.18.0">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
+		<PackageReference Include="Moq" Version="4.20.70" />
+		<PackageReference Include="Hangfire.Core" Version="1.8.*" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetCore)'">
@@ -105,7 +108,7 @@
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.31" />
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="6.0.3" />
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="6.0.29" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
@@ -118,7 +121,7 @@
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.6" />
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
@@ -132,7 +135,9 @@
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Sqlite\Dotmim.Sync.Sqlite.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.SqlServer.ChangeTracking\Dotmim.Sync.SqlServer.ChangeTracking.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.SqlServer\Dotmim.Sync.SqlServer.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Azure\Dotmim.Sync.Web.Azure.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Hangfire\Dotmim.Sync.Web.Hangfire.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Server\Dotmim.Sync.Web.Server.csproj" />
 	</ItemGroup>
 	<ItemGroup>

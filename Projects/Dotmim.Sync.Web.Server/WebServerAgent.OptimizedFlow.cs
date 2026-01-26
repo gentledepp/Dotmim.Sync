@@ -290,7 +290,7 @@ namespace Wormhole.Sync.Web.Server
                         cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken);
                     
                     if (cleanFolder)
-                        sessionCache.ClientBatchInfo.TryRemoveDirectory();
+                        await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
                     
                     // we do not need client batch info now
                     // sessionCache.ClientBatchInfo = null;

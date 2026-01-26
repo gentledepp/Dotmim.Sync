@@ -1,3 +1,4 @@
+using Wormhole.Sync.Async;
 using Wormhole.Sync.Batch;
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Extensions;
@@ -38,7 +39,8 @@ namespace Wormhole.Sync.Web.Server
         public WebServerAgent(CoreProvider provider, SyncSetup setup, SyncOptions options = null, WebServerOptions webServerOptions = null,
             string scopeName = null,
             string identifier = null,
-            IBatchCleanupService cleanupService = null)
+            IBatchCleanupService cleanupService = null,
+            IBatchCreationJobService batchCreationJobService = null)
         {
             this.Setup = setup;
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
@@ -46,26 +48,29 @@ namespace Wormhole.Sync.Web.Server
             this.ScopeName = string.IsNullOrEmpty(scopeName) ? SyncOptions.DefaultScopeName : scopeName;
             this.RemoteOrchestrator = new RemoteOrchestrator(this.Provider, options ?? new SyncOptions())
             {
-                BatchCleanupService = cleanupService??new BatchCleanupService()
+                BatchCleanupService = cleanupService ?? new BatchCleanupService(),
             };
             this.Identifier = identifier;
+            this.BatchCreationJobService = batchCreationJobService;
         }
 
         /// <inheritdoc cref="WebServerAgent"/>
         public WebServerAgent(CoreProvider provider, string[] tables, SyncOptions options = null, WebServerOptions webServerOptions = null,
             string scopeName = null,
             string identifier = null,
-            IBatchCleanupService cleanupService = null)
+            IBatchCleanupService cleanupService = null,
+            IBatchCreationJobService batchCreationJobService = null)
         {
             this.Setup = new SyncSetup(tables);
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
             this.Provider = provider;
             this.RemoteOrchestrator = new RemoteOrchestrator(this.Provider, options ?? new SyncOptions())
             {
-                BatchCleanupService = cleanupService??new BatchCleanupService()
+                BatchCleanupService = cleanupService ?? new BatchCleanupService(),
             };
             this.ScopeName = string.IsNullOrEmpty(scopeName) ? SyncOptions.DefaultScopeName : scopeName;
             this.Identifier = identifier;
+            this.BatchCreationJobService = batchCreationJobService;
         }
 
         /// <summary>
@@ -143,6 +148,13 @@ namespace Wormhole.Sync.Web.Server
         /// Gets the RemoteOrchestrator used in this webServerAgent.
         /// </summary>
         public RemoteOrchestrator RemoteOrchestrator { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the batch creation job service for async batch creation.
+        /// When set together with <see cref="WebServerOptions.EnableAsyncBatchCreation"/>,
+        /// batch creation for initial syncs is performed in the background.
+        /// </summary>
+        public IBatchCreationJobService BatchCreationJobService { get; set; }
 
         /// <summary>
         /// Get Scope Name sent by the client.
@@ -1238,12 +1250,275 @@ namespace Wormhole.Sync.Web.Server
                 return new HttpMessageSummaryResponse(httpMessage.SyncContext) { Step = HttpStep.SendChangesInProgress };
 
             // ------------------------------------------------------------
-            // SECOND STEP : apply then return server changes
+            // ASYNC BATCH CREATION : Check if we should use async processing
+            // ------------------------------------------------------------
+            var isInitialSync = httpMessage.ScopeInfoClient?.IsNewScope == true ||
+                               context.SyncType == Enumerations.SyncType.Reinitialize ||
+                               context.SyncType == Enumerations.SyncType.ReinitializeWithUpload;
+
+            if (this.WebServerOptions.EnableAsyncBatchCreation &&
+                isInitialSync &&
+                this.BatchCreationJobService != null)
+            {
+                // Generate deterministic job ID based on session and client scope
+                var jobId = $"{context.SessionId}_{httpMessage.ScopeInfoClient?.Id ?? Guid.Empty}";
+
+                // Check for existing job (retry scenario)
+                var existingStatus = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+
+                if (existingStatus != null)
+                {
+                    switch (existingStatus.State)
+                    {
+                        case BatchCreationJobState.Completed:
+                            // Job completed - return results from status
+                            sessionCache.RemoteClientTimestamp = existingStatus.RemoteClientTimestamp ?? 0;
+                            sessionCache.ServerBatchInfo = existingStatus.BatchInfo;
+                            sessionCache.ServerChangesSelected = existingStatus.ChangesSelected;
+                            sessionCache.ClientChangesApplied = existingStatus.ChangesApplied;
+                            sessionCache.AppliedBatchesSuccessfully = true;
+
+                            // Clean up client batch
+                            var cleanFolderCompleted = this.Options.CleanFolder;
+                            if (cleanFolderCompleted)
+                                cleanFolderCompleted = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(
+                                    context.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
+                            if (cleanFolderCompleted)
+                                await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
+
+                            return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                            {
+                                BatchInfo = sessionCache.ServerBatchInfo,
+                                Step = HttpStep.GetSummary,
+                                RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                                ClientChangesApplied = sessionCache.ClientChangesApplied,
+                                ServerChangesSelected = sessionCache.ServerChangesSelected,
+                                ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                            };
+
+                        case BatchCreationJobState.Failed:
+                            // Job failed - throw exception with details
+                            throw new SyncException(existingStatus.ErrorMessage ?? "Async batch creation failed");
+
+                        case BatchCreationJobState.FirstBatchReady:
+                            // Progressive streaming: return available batches while more are being created
+                            if (existingStatus.AvailableBatchParts != null && existingStatus.AvailableBatchParts.Count > 0)
+                            {
+                                var partialBatchInfo = new BatchInfo
+                                {
+                                    DirectoryRoot = existingStatus.BatchInfo?.DirectoryRoot ?? this.Options.BatchDirectory,
+                                    DirectoryName = existingStatus.BatchInfo?.DirectoryName,
+                                };
+                                partialBatchInfo.BatchPartsInfo = new List<BatchPartInfo>(existingStatus.AvailableBatchParts);
+
+                                // Get last batch index
+                                var lastIndex = existingStatus.AvailableBatchParts.Max(bpi => bpi.Index);
+
+                                return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                                {
+                                    BatchInfo = partialBatchInfo,
+                                    Step = HttpStep.GetSummary,
+                                    RemoteClientTimestamp = existingStatus.RemoteClientTimestamp ?? 0,
+                                    ClientChangesApplied = existingStatus.ChangesApplied,
+                                    ServerChangesSelected = existingStatus.ChangesSelected,
+                                    ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                                    MoreBatchesPending = true,
+                                    LastBatchIndex = lastIndex,
+                                    AsyncProgress = existingStatus.ProgressPercentage,
+                                };
+                            }
+
+                            // FirstBatchReady but no batches yet - fall through to polling
+                            goto case BatchCreationJobState.Queued;
+
+                        case BatchCreationJobState.Queued:
+                        case BatchCreationJobState.Processing:
+                            // Job still processing - poll with timeout
+                            var timeout = this.WebServerOptions.AsyncBatchTimeout;
+                            var pollingInterval = this.WebServerOptions.AsyncBatchPollingInterval;
+                            var startTime = DateTime.UtcNow;
+
+                            while (DateTime.UtcNow - startTime < timeout)
+                            {
+                                await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
+                                existingStatus = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+
+                                if (existingStatus?.State == BatchCreationJobState.Completed)
+                                {
+                                    // Completed during polling - return results
+                                    sessionCache.RemoteClientTimestamp = existingStatus.RemoteClientTimestamp ?? 0;
+                                    sessionCache.ServerBatchInfo = existingStatus.BatchInfo;
+                                    sessionCache.ServerChangesSelected = existingStatus.ChangesSelected;
+                                    sessionCache.ClientChangesApplied = existingStatus.ChangesApplied;
+                                    sessionCache.AppliedBatchesSuccessfully = true;
+
+                                    var cleanFolderPoll = this.Options.CleanFolder;
+                                    if (cleanFolderPoll)
+                                        cleanFolderPoll = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(
+                                            context.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
+                                    if (cleanFolderPoll)
+                                        await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
+
+                                    return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                                    {
+                                        BatchInfo = sessionCache.ServerBatchInfo,
+                                        Step = HttpStep.GetSummary,
+                                        RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                                        ClientChangesApplied = sessionCache.ClientChangesApplied,
+                                        ServerChangesSelected = sessionCache.ServerChangesSelected,
+                                        ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                                    };
+                                }
+
+                                // Check for FirstBatchReady with available batches for progressive streaming
+                                if (existingStatus?.State == BatchCreationJobState.FirstBatchReady &&
+                                    existingStatus.AvailableBatchParts != null &&
+                                    existingStatus.AvailableBatchParts.Count > 0)
+                                {
+                                    var partialBatchInfo = new BatchInfo
+                                    {
+                                        DirectoryRoot = existingStatus.BatchInfo?.DirectoryRoot ?? this.Options.BatchDirectory,
+                                        DirectoryName = existingStatus.BatchInfo?.DirectoryName,
+                                    };
+                                    partialBatchInfo.BatchPartsInfo = new List<BatchPartInfo>(existingStatus.AvailableBatchParts);
+
+                                    var lastIndex = existingStatus.AvailableBatchParts.Max(bpi => bpi.Index);
+
+                                    return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                                    {
+                                        BatchInfo = partialBatchInfo,
+                                        Step = HttpStep.GetSummary,
+                                        RemoteClientTimestamp = existingStatus.RemoteClientTimestamp ?? 0,
+                                        ClientChangesApplied = existingStatus.ChangesApplied,
+                                        ServerChangesSelected = existingStatus.ChangesSelected,
+                                        ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                                        MoreBatchesPending = true,
+                                        LastBatchIndex = lastIndex,
+                                        AsyncProgress = existingStatus.ProgressPercentage,
+                                    };
+                                }
+
+                                if (existingStatus?.State == BatchCreationJobState.Failed)
+                                    throw new SyncException(existingStatus.ErrorMessage ?? "Async batch creation failed");
+                            }
+
+                            // Timeout - return InProgress response for client retry
+                            return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                            {
+                                Step = HttpStep.SendChangesInProgress,
+                                InProgress = true,
+                                AsyncProgress = existingStatus?.ProgressPercentage ?? 0,
+                                RetryAfterSeconds = (int)pollingInterval.TotalSeconds + 1,
+                            };
+                    }
+                }
+                else
+                {
+                    // No existing job - enqueue a new one
+                    var jobParameters = new BatchCreationJobParameters
+                    {
+                        ScopeName = context.ScopeName,
+                        ServerScopeInfo = sScopeInfo,
+                        ClientScopeInfoClient = httpMessage.ScopeInfoClient,
+                        Context = context,
+                        ClientBatchInfo = sessionCache.ClientBatchInfo,
+                        BatchDirectory = this.Options.BatchDirectory,
+                        BatchSize = this.Options.BatchSize,
+                        UseUnifiedBatching = context.UseUnifiedBatching,
+                        ProviderTypeName = this.Provider.GetType().AssemblyQualifiedName,
+                        ConnectionString = this.Provider.ConnectionString,
+                        BatchStorageTypeName = this.Options.BatchStorage?.GetType().AssemblyQualifiedName,
+                    };
+
+                    await this.BatchCreationJobService.EnqueueBatchCreationAsync(jobId, jobParameters, cancellationToken).ConfigureAwait(false);
+
+                    // Poll with timeout
+                    var timeout = this.WebServerOptions.AsyncBatchTimeout;
+                    var pollingInterval = this.WebServerOptions.AsyncBatchPollingInterval;
+                    var startTime = DateTime.UtcNow;
+
+                    while (DateTime.UtcNow - startTime < timeout)
+                    {
+                        await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
+                        var status = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+
+                        if (status?.State == BatchCreationJobState.Completed)
+                        {
+                            sessionCache.RemoteClientTimestamp = status.RemoteClientTimestamp ?? 0;
+                            sessionCache.ServerBatchInfo = status.BatchInfo;
+                            sessionCache.ServerChangesSelected = status.ChangesSelected;
+                            sessionCache.ClientChangesApplied = status.ChangesApplied;
+                            sessionCache.AppliedBatchesSuccessfully = true;
+
+                            var cleanFolderNew = this.Options.CleanFolder;
+                            if (cleanFolderNew)
+                                cleanFolderNew = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(
+                                    context.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
+                            if (cleanFolderNew)
+                                await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
+
+                            return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                            {
+                                BatchInfo = sessionCache.ServerBatchInfo,
+                                Step = HttpStep.GetSummary,
+                                RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                                ClientChangesApplied = sessionCache.ClientChangesApplied,
+                                ServerChangesSelected = sessionCache.ServerChangesSelected,
+                                ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                            };
+                        }
+
+                        // Check for FirstBatchReady with available batches for progressive streaming
+                        if (status?.State == BatchCreationJobState.FirstBatchReady &&
+                            status.AvailableBatchParts != null &&
+                            status.AvailableBatchParts.Count > 0)
+                        {
+                            var partialBatchInfo = new BatchInfo
+                            {
+                                DirectoryRoot = status.BatchInfo?.DirectoryRoot ?? this.Options.BatchDirectory,
+                                DirectoryName = status.BatchInfo?.DirectoryName,
+                            };
+                            partialBatchInfo.BatchPartsInfo = new List<BatchPartInfo>(status.AvailableBatchParts);
+
+                            var lastIndex = status.AvailableBatchParts.Max(bpi => bpi.Index);
+
+                            return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                            {
+                                BatchInfo = partialBatchInfo,
+                                Step = HttpStep.GetSummary,
+                                RemoteClientTimestamp = status.RemoteClientTimestamp ?? 0,
+                                ClientChangesApplied = status.ChangesApplied,
+                                ServerChangesSelected = status.ChangesSelected,
+                                ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                                MoreBatchesPending = true,
+                                LastBatchIndex = lastIndex,
+                                AsyncProgress = status.ProgressPercentage,
+                            };
+                        }
+
+                        if (status?.State == BatchCreationJobState.Failed)
+                            throw new SyncException(status.ErrorMessage ?? "Async batch creation failed");
+                    }
+
+                    // Timeout - return InProgress for client retry
+                    var currentStatus = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+                    return new HttpMessageSummaryResponse(httpMessage.SyncContext)
+                    {
+                        Step = HttpStep.SendChangesInProgress,
+                        InProgress = true,
+                        AsyncProgress = currentStatus?.ProgressPercentage ?? 0,
+                        RetryAfterSeconds = (int)pollingInterval.TotalSeconds + 1,
+                    };
+                }
+            }
+
+            // ------------------------------------------------------------
+            // SECOND STEP : apply then return server changes (synchronous)
             // ------------------------------------------------------------
             ServerSyncChanges serverSyncChanges;
             context = httpMessage.SyncContext;
             var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
-            
+
             // get changes
             (context, serverSyncChanges, _) = await this.RemoteOrchestrator.InternalApplyThenGetChangesAsync(
                                                httpMessage.ScopeInfoClient,
@@ -1261,12 +1536,12 @@ namespace Wormhole.Sync.Web.Server
 
             // delete the folder (not the BatchPartInfo, because we have a reference on it)
             var cleanFolder = this.Options.CleanFolder;
-            
+
             if (cleanFolder)
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
-            
+
             if (cleanFolder)
-                sessionCache.ClientBatchInfo.TryRemoveDirectory();
+                await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
 
             // Retro compatiblité to version < 0.9.3
             if (serverSyncChanges.ServerBatchInfo.BatchPartsInfo == null)
@@ -1470,7 +1745,7 @@ namespace Wormhole.Sync.Web.Server
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, httpMessage.SyncContext.Parameters, sessionCache.ServerBatchInfo, default, cancellationToken).ConfigureAwait(false);
 
             if (cleanFolder)
-                sessionCache.ServerBatchInfo.TryRemoveDirectory();
+                await sessionCache.ServerBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
 
             // Update the response to indicate this was the end download step
             response.ServerStep = HttpStep.SendEndDownloadChanges;

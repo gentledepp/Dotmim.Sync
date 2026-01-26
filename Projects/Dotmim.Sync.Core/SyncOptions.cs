@@ -1,4 +1,5 @@
 ﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Storage;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
@@ -137,7 +138,14 @@ namespace Wormhole.Sync
         /// Default is false for backward compatibility.
         /// </summary>
         public bool UseUnifiedBatching { get; set; } = true;
-        
+
+        /// <summary>
+        /// Gets or sets the batch storage implementation.
+        /// Defaults to <see cref="LocalFileSystemBatchStorage"/>.
+        /// Can be replaced with Azure Blob, S3, or other storage implementations for scale-out deployments.
+        /// </summary>
+        public IBatchStorage BatchStorage { get; set; }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.
         /// Create a new instance of options with default values.
@@ -156,6 +164,7 @@ namespace Wormhole.Sync
             this.ProgressLevel = SyncProgressLevel.Information;
             this.TransactionMode = TransactionMode.AllOrNothing;
             this.BatchRetentionPeriod = TimeSpan.FromHours(1);
+            this.BatchStorage = new LocalFileSystemBatchStorage();
         }
 
         /// <summary>

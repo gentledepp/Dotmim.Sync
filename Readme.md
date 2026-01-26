@@ -80,6 +80,134 @@ Synchronization done.
 
 Yes it's blazing fast !
 
+## Scale-Out Packages
+
+For production deployments with multiple server instances (load-balanced, containerized, etc.), DMS provides additional packages that enable distributed batch storage and job processing.
+
+### Dotmim.Sync.Web.Azure
+
+[![NuGet](https://img.shields.io/nuget/v/Dotmim.Sync.Web.Azure.svg)](https://www.nuget.org/packages/Dotmim.Sync.Web.Azure/)
+
+Azure Blob Storage implementation for batch file storage. Use this when running multiple server instances that need to share batch files.
+
+**When to use:**
+- Multiple API server instances behind a load balancer
+- Kubernetes/container deployments where local disk is ephemeral
+- When clients may hit different server instances between requests
+
+**Installation:**
+```bash
+dotnet add package Dotmim.Sync.Web.Azure
+```
+
+**Configuration:**
+```csharp
+// In Startup.cs / Program.cs
+services.AddDotmimSyncAzure(
+    connectionString: "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;",
+    containerName: "sync-batches");
+
+// Or with options
+services.AddDotmimSyncAzure(options => {
+    options.ConnectionString = Configuration["Azure:StorageConnectionString"];
+    options.ContainerName = "sync-batches";
+});
+```
+
+The `IBatchStorage` will be automatically injected and used for all batch operations.
+
+---
+
+### Dotmim.Sync.Web.Hangfire
+
+[![NuGet](https://img.shields.io/nuget/v/Dotmim.Sync.Web.Hangfire.svg)](https://www.nuget.org/packages/Dotmim.Sync.Web.Hangfire/)
+
+Hangfire-based distributed batch job processing for async batch creation. Use this when you need reliable, distributed background job processing with automatic retries.
+
+**When to use:**
+- Async batch creation where the client polls for completion
+- Scale-out deployments where any server instance should be able to process jobs
+- When you need job persistence, retries, and monitoring via Hangfire Dashboard
+
+**Installation:**
+```bash
+dotnet add package Dotmim.Sync.Web.Hangfire
+```
+
+**Configuration:**
+```csharp
+// In Startup.cs / Program.cs
+
+// 1. Configure a distributed cache (required for job state storage)
+//    Choose one: Redis, SQL Server, or any IDistributedCache implementation
+services.AddStackExchangeRedisCache(options => {
+    options.Configuration = "localhost:6379";
+});
+
+// Or use SQL Server distributed cache
+// services.AddDistributedSqlServerCache(options => {
+//     options.ConnectionString = connectionString;
+//     options.SchemaName = "dbo";
+//     options.TableName = "SyncJobCache";
+// });
+
+// 2. Configure Hangfire with persistent storage
+services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(connectionString)); // Or UseRedisStorage, etc.
+
+services.AddHangfireServer();
+
+// 3. Register Wormhole.Sync Hangfire services
+services.AddDotmimSyncHangfire(
+    jobStoreOptions => {
+        jobStoreOptions.KeyPrefix = "myapp:sync:jobs";
+        jobStoreOptions.SlidingExpiration = TimeSpan.FromHours(2);
+        jobStoreOptions.AbsoluteExpiration = TimeSpan.FromHours(24);
+    },
+    jobServiceOptions => {
+        jobServiceOptions.QueueName = "sync-batches";
+    });
+
+// 4. Register the batch creation executor
+services.AddTransient<IBatchCreationExecutor, BatchCreationExecutor>();
+```
+
+**What gets registered:**
+- `IBatchJobStore` - Distributed job state storage using `IDistributedCache`
+- `IBatchCreationJobService` - Service for enqueueing and tracking batch creation jobs
+- `HangfireBatchCreationJob` - The actual Hangfire job with automatic retry (3 attempts)
+
+**Using both Azure and Hangfire together:**
+
+For a fully distributed setup, combine both packages:
+
+```csharp
+// Distributed batch FILE storage (Azure Blob)
+services.AddDotmimSyncAzure(
+    Configuration["Azure:StorageConnectionString"],
+    "sync-batches");
+
+// Distributed batch JOB processing (Hangfire + Redis)
+services.AddStackExchangeRedisCache(options => {
+    options.Configuration = Configuration["Redis:ConnectionString"];
+});
+
+services.AddHangfire(config => config
+    .UseSqlServerStorage(Configuration["Hangfire:ConnectionString"]));
+services.AddHangfireServer();
+
+services.AddDotmimSyncHangfire();
+services.AddTransient<IBatchCreationExecutor, BatchCreationExecutor>();
+```
+
+This setup ensures:
+- Batch files are stored in Azure Blob Storage (accessible by all server instances)
+- Job state is stored in Redis (shared across all server instances)
+- Jobs are processed by Hangfire (any server can pick up and process jobs)
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Mimetis/Dotmim.Sync&type=Date)](https://star-history.com/#Mimetis/Dotmim.Sync&Date)

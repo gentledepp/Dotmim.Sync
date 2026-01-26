@@ -277,7 +277,7 @@ namespace Wormhole.Sync
                     if (cleanFolder)
                     {
                         this.Logger.LogInformation("[InternalApplyChangesAsync]. Cleaning directory {DirectoryName}.", message.Changes.DirectoryName);
-                        message.Changes.TryRemoveDirectory();
+                        await message.Changes.TryRemoveDirectoryAsync().ConfigureAwait(false);
                     }
                 }
 
