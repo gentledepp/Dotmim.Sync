@@ -20,6 +20,9 @@ namespace Wormhole.Sync
         /// </summary>
         public virtual async Task<bool> NeedsToUpgradeAsync(SyncContext context)
         {
+            if (!this.Options.AutoUpgrade)
+                return false;
+
             try
             {
                 using var runner = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.Migrating).ConfigureAwait(false);

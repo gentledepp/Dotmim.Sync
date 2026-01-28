@@ -2,6 +2,7 @@ using Wormhole.Sync.Batch;
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,14 +14,20 @@ namespace Wormhole.Sync.Serialization
     /// </summary>
     public class UnifiedBatchSerializer : IDisposable, IAsyncDisposable
     {
-        private static readonly ISerializer Serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
         private readonly SemaphoreSlim writerLock = new(1, 1);
         private StreamWriter sw;
         private Utf8JsonWriter writer;
         private int isOpen;
         private bool disposedValue;
         private string currentTableKey; // Track the currently open table (format: "schemaName.tableName")
-        private long bytesWritten; // Track bytes written to the stream
+
+        /// <summary>
+        /// JsonSerializerOptions with ObjectToInferredTypesConverter for direct value writing.
+        /// </summary>
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            Converters = { new ObjectToInferredTypesConverter() },
+        };
 
         /// <summary>
         /// Gets the file extension.
@@ -64,7 +71,6 @@ namespace Wormhole.Sync.Serialization
             await this.ResetWriterAsync().ConfigureAwait(false);
 
             this.IsOpen = true;
-            this.bytesWritten = 0;
             this.currentTableKey = null;
 
             var fi = new FileInfo(path);
@@ -85,7 +91,6 @@ namespace Wormhole.Sync.Serialization
                 this.writer.WriteStartArray();
 
                 await this.writer.FlushAsync().ConfigureAwait(false);
-                this.bytesWritten = this.sw.BaseStream.Position;
             }
             finally
             {
@@ -135,7 +140,6 @@ namespace Wormhole.Sync.Serialization
                 this.writer.WriteStartArray("r");
 
                 await this.writer.FlushAsync().ConfigureAwait(false);
-                this.bytesWritten = this.sw.BaseStream.Position;
 
                 this.currentTableKey = tableKey;
             }
@@ -161,7 +165,6 @@ namespace Wormhole.Sync.Serialization
                 this.writer.WriteEndObject(); // End ContainerTable object
 
                 await this.writer.FlushAsync().ConfigureAwait(false);
-                this.bytesWritten = this.sw.BaseStream.Position;
 
                 this.currentTableKey = null;
             }
@@ -192,15 +195,16 @@ namespace Wormhole.Sync.Serialization
 
                 // Write all values including state at position 0
                 // Format: [state, col1, col2, ..., colN]
+                // Use direct value writing instead of double serialization via Serializer.Serialize()
                 for (var i = 0; i < innerRow.Length; i++)
-                    this.writer.WriteRawValue(Serializer.Serialize(innerRow[i]));
+                    ObjectToInferredTypesConverter.WriteValue(this.writer, innerRow[i], JsonOptions);
 
                 this.writer.WriteEndArray(); // End row array
 
-                await this.writer.FlushAsync().ConfigureAwait(false);
-                this.bytesWritten = this.sw.BaseStream.Position;
-
-                return this.bytesWritten; // Return bytes
+                // No flushing needed here - use BytesPending to get accurate size without I/O
+                // BytesCommitted = bytes already written to stream
+                // BytesPending = bytes buffered in writer, not yet written
+                return this.writer.BytesCommitted + this.writer.BytesPending;
             }
             finally
             {
@@ -253,11 +257,16 @@ namespace Wormhole.Sync.Serialization
         }
 
         /// <summary>
-        /// Gets the current file size in bytes.
+        /// Gets the current file size in bytes (including buffered data not yet flushed).
         /// </summary>
         public long GetCurrentFileSizeInBytes()
         {
-            return this.bytesWritten;
+            if (this.writer == null)
+                return 0;
+
+            // BytesCommitted = bytes already written to stream
+            // BytesPending = bytes buffered in writer, not yet written
+            return this.writer.BytesCommitted + this.writer.BytesPending;
         }
 
         /// <summary>

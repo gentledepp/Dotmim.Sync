@@ -137,6 +137,11 @@ namespace Wormhole.Sync
         /// Default is false for backward compatibility.
         /// </summary>
         public bool UseUnifiedBatching { get; set; } = true;
+
+        /// <summary>
+        /// Automatically re-provisions scopes and all whenever a new version of the sync library is used the first time
+        /// </summary>
+        public bool AutoUpgrade { get; set; } = true;
         
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncOptions"/> class.

@@ -142,6 +142,7 @@ GO
 CREATE PROCEDURE [dbo].[ProductCategory_bulkdelete]
 	@sync_min_timestamp bigint,
 	@sync_scope_id uniqueidentifier,
+	@sync_force_write int,
 	@changeTable [dbo].[ProductCategory_BulkType] READONLY
 AS
 BEGIN
@@ -159,7 +160,7 @@ OUTPUT DELETED.[ProductCategoryID]
 INTO @dms_changed 
 FROM [ProductCategory] [base]
 JOIN [changes] ON [changes].[ProductCategoryID] = [base].[ProductCategoryID]
-WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id;
+WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1;
 
 -- Since the delete trigger is passed, we update the tracking table to reflect the real scope deleter
 UPDATE [side] SET
@@ -185,6 +186,7 @@ GO
 CREATE PROCEDURE [dbo].[ProductCategory_bulkupdate]
 	@sync_min_timestamp bigint,
 	@sync_scope_id uniqueidentifier,
+	@sync_force_write int,
 	@changeTable [dbo].[ProductCategory_BulkType] READONLY
 AS
 BEGIN
@@ -199,12 +201,12 @@ declare @dms_changed TABLE ([ProductCategoryID] uniqueidentifier,  PRIMARY KEY (
 	[p].[ProductCategoryID] = [side].[ProductCategoryID]	)
 MERGE [ProductCategory] AS [base]
 USING [changes] on [changes].[ProductCategoryID] = [base].[ProductCategoryID]
-WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id) THEN
+WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1) THEN
 
 	UPDATE SET
 	[Name] = [changes].[Name]
 	, [ModifiedDate] = [changes].[ModifiedDate]
-WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL) THEN
+WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR @sync_force_write = 1) THEN
 
 	INSERT
 	([ProductCategoryID], [Name], [ModifiedDate])

@@ -396,7 +396,7 @@ namespace Wormhole.Sync.Sqlite
             stringBuilder.AppendLine($"FROM (SELECT {stringBuilderParametersValues}) as [c]");
             stringBuilder.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} AS [side] ON {str1}");
             stringBuilder.AppendLine($"LEFT JOIN {this.TableQuotedShortName} AS [base] ON {str2}");
-            stringBuilder.AppendLine($"WHERE ([side].[timestamp] < @sync_min_timestamp OR [side].[update_scope_id] = @sync_scope_id) ");
+            stringBuilder.AppendLine($"WHERE ([side].[timestamp] < @sync_min_timestamp OR IFNULL([side].[update_scope_id], '') = @sync_scope_id) ");
             stringBuilder.Append($"OR ({SqliteManagementUtils.WhereColumnIsNull(this.TableDescription.PrimaryKeys, "[base]")} ");
             stringBuilder.AppendLine($"AND ([side].[timestamp] < @sync_min_timestamp OR [side].[timestamp] IS NULL)) ");
             stringBuilder.Append($"OR @sync_force_write = 1");
@@ -479,7 +479,7 @@ namespace Wormhole.Sync.Sqlite
             stringBuilder.AppendLine($"AND (EXISTS (");
             stringBuilder.AppendLine($"     SELECT * FROM [c] ");
             stringBuilder.AppendLine($"     WHERE {SqliteManagementUtils.WhereColumnAndParameters(this.TableDescription.PrimaryKeys, "[c]")}");
-            stringBuilder.AppendLine($"     AND ([sync_timestamp] < @sync_min_timestamp OR [sync_timestamp] IS NULL OR [sync_update_scope_id] = @sync_scope_id))");
+            stringBuilder.AppendLine($"     AND ([sync_timestamp] < @sync_min_timestamp OR [sync_timestamp] IS NULL OR IFNULL([sync_update_scope_id], '') = @sync_scope_id))");
             stringBuilder.AppendLine($"  OR @sync_force_write = 1");
             stringBuilder.AppendLine($" );");
             stringBuilder.AppendLine();
@@ -880,6 +880,372 @@ namespace Wormhole.Sync.Sqlite
             stringBuilder.AppendLine($"WHERE {str4})");
 
             return stringBuilder.ToString();
+        }
+
+        // ──────────────────────────────────────────────
+        //  Batch SQL Commands
+        // ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Creates a batch SELECT SQL for fetching conflict rows using CTE + UNION pattern.
+        /// </summary>
+        /// <param name="rowCount">Number of rows (for parameter naming).</param>
+        /// <param name="quotedPkNames">Pre-computed quoted PK column names.</param>
+        /// <param name="quotedMutableNames">Pre-computed quoted mutable column names.</param>
+        public string CreateBatchSelectConflictRowsCommand(int rowCount, string[] quotedPkNames, string[] quotedMutableNames)
+        {
+            var primaryKeyColumns = this.TableDescription.GetPrimaryKeysColumns().ToArray();
+            var mutableColumns = this.TableDescription.GetMutableColumns(false, true).ToArray();
+            int pkCount = primaryKeyColumns.Length;
+
+            var sb = new StringBuilder();
+
+            // Build CTE with incoming PKs
+            sb.Append($"WITH incoming({string.Join(", ", quotedPkNames)}) AS (VALUES ");
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int k = 0; k < pkCount; k++)
+                {
+                    if (k > 0)
+                        sb.Append(", ");
+                    sb.Append($"@ipk{r}_{k}");
+                }
+
+                sb.Append(')');
+            }
+
+            sb.AppendLine(")");
+
+            // Part 1: base row exists (may or may not have tracking)
+            sb.AppendLine("SELECT ");
+            for (int c = 0; c < mutableColumns.Length; c++)
+            {
+                var isPk = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumns[c].ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPk)
+                    sb.AppendLine($"\tIFNULL([side].{quotedMutableNames[c]}, [base].{quotedMutableNames[c]}) as {quotedMutableNames[c]}, ");
+                else
+                    sb.AppendLine($"\t[base].{quotedMutableNames[c]}, ");
+            }
+
+            sb.AppendLine("\tIFNULL([side].[sync_row_is_tombstone], 0) as [sync_row_is_tombstone], ");
+            sb.AppendLine("\tIFNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
+            sb.AppendLine($"FROM incoming i");
+            sb.AppendLine($"INNER JOIN {this.TableQuotedShortName} [base] ON {BuildJoinClause(quotedPkNames, "[base]", "i")}");
+            sb.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON {BuildJoinClause(quotedPkNames, "[base]", "[side]")}");
+
+            sb.AppendLine("UNION ALL");
+
+            // Part 2: only tracking exists (deleted rows)
+            sb.AppendLine("SELECT ");
+            for (int c = 0; c < mutableColumns.Length; c++)
+            {
+                var isPk = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, mutableColumns[c].ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (isPk)
+                    sb.AppendLine($"\t[side].{quotedMutableNames[c]}, ");
+                else
+                    sb.AppendLine($"\tNULL as {quotedMutableNames[c]}, ");
+            }
+
+            sb.AppendLine("\t[side].[sync_row_is_tombstone], ");
+            sb.AppendLine("\t[side].[update_scope_id] as [sync_update_scope_id]");
+            sb.AppendLine($"FROM incoming i");
+            sb.AppendLine($"INNER JOIN {this.TrackingTableQuotedShortName} [side] ON {BuildJoinClause(quotedPkNames, "[side]", "i")}");
+            sb.AppendLine($"WHERE NOT EXISTS (");
+            sb.AppendLine($"\tSELECT 1 FROM {this.TableQuotedShortName} [base]");
+            sb.AppendLine($"\tWHERE {BuildJoinClause(quotedPkNames, "[base]", "[side]")}");
+            sb.AppendLine(")");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates a multi-row INSERT OR REPLACE command.
+        /// </summary>
+        public string CreateMultiRowInsertCommand(int rowCount, string[] quotedColumnNames)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"INSERT OR REPLACE INTO {this.TableQuotedShortName} (");
+            sb.Append(string.Join(", ", quotedColumnNames));
+            sb.AppendLine(") VALUES ");
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int c = 0; c < quotedColumnNames.Length; c++)
+                {
+                    if (c > 0)
+                        sb.Append(", ");
+                    sb.Append($"@p{r}_{c}");
+                }
+
+                sb.Append(')');
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates a multi-row INSERT ... ON CONFLICT DO UPDATE (UPSERT) command.
+        /// If quotedUpdateColumns is empty, uses ON CONFLICT DO NOTHING.
+        /// </summary>
+        public string CreateMultiRowUpsertCommand(int rowCount, string[] quotedColumnNames, string[] quotedPkNames, string[] quotedUpdateColumns)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"INSERT INTO {this.TableQuotedShortName} (");
+            sb.Append(string.Join(", ", quotedColumnNames));
+            sb.AppendLine(") VALUES ");
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int c = 0; c < quotedColumnNames.Length; c++)
+                {
+                    if (c > 0)
+                        sb.Append(", ");
+                    sb.Append($"@p{r}_{c}");
+                }
+
+                sb.Append(')');
+            }
+
+            sb.AppendLine();
+            if (quotedUpdateColumns.Length > 0)
+            {
+                sb.Append($"ON CONFLICT ({string.Join(", ", quotedPkNames)}) DO UPDATE SET ");
+                for (int i = 0; i < quotedUpdateColumns.Length; i++)
+                {
+                    if (i > 0)
+                        sb.Append(", ");
+                    sb.Append($"{quotedUpdateColumns[i]} = excluded.{quotedUpdateColumns[i]}");
+                }
+            }
+            else
+            {
+                sb.Append($"ON CONFLICT ({string.Join(", ", quotedPkNames)}) DO NOTHING");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates a multi-row DELETE command.
+        /// </summary>
+        public string CreateMultiRowDeleteCommand(int rowCount, string[] quotedPkNames)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"DELETE FROM {this.TableQuotedShortName} WHERE ");
+
+            if (quotedPkNames.Length == 1)
+            {
+                sb.Append($"{quotedPkNames[0]} IN (");
+                for (int r = 0; r < rowCount; r++)
+                {
+                    if (r > 0)
+                        sb.Append(", ");
+                    sb.Append($"@pk{r}_0");
+                }
+
+                sb.Append(')');
+            }
+            else
+            {
+                sb.Append($"({string.Join(", ", quotedPkNames)}) IN (VALUES ");
+                for (int r = 0; r < rowCount; r++)
+                {
+                    if (r > 0)
+                        sb.Append(", ");
+                    sb.Append('(');
+                    for (int k = 0; k < quotedPkNames.Length; k++)
+                    {
+                        if (k > 0)
+                            sb.Append(", ");
+                        sb.Append($"@pk{r}_{k}");
+                    }
+
+                    sb.Append(')');
+                }
+
+                sb.Append(')');
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates a multi-row tracking table INSERT OR REPLACE command.
+        /// </summary>
+        public string CreateMultiRowTrackingInsertCommand(int rowCount, string[] quotedPkNames, string[] quotedTrackedNames, bool isTombstone)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"INSERT OR REPLACE INTO {this.TrackingTableQuotedShortName} (");
+
+            // PK columns
+            sb.Append(string.Join(", ", quotedPkNames));
+
+            // Tracked columns
+            if (quotedTrackedNames.Length > 0)
+            {
+                sb.Append(", ");
+                sb.Append(string.Join(", ", quotedTrackedNames));
+            }
+
+            // System columns
+            sb.AppendLine(", [update_scope_id], [sync_row_is_tombstone], [timestamp], [last_change_datetime], [is_dirty], [sync_session_id])");
+            sb.AppendLine("VALUES ");
+
+            int tombstoneValue = isTombstone ? 1 : 0;
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+
+                // PK params
+                for (int k = 0; k < quotedPkNames.Length; k++)
+                {
+                    if (k > 0)
+                        sb.Append(", ");
+                    sb.Append($"@tpk{r}_{k}");
+                }
+
+                // Tracked column params
+                for (int t = 0; t < quotedTrackedNames.Length; t++)
+                {
+                    sb.Append($", @ttc{r}_{t}");
+                }
+
+                // System values
+                sb.Append($", @scope, {tombstoneValue}, {TimestampValue}, datetime('now'), 0, NULL");
+                sb.Append(')');
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates SQL to find update conflicts using CTE.
+        /// Only PKs are needed for conflict detection.
+        /// </summary>
+        public string CreateFindUpdateConflictsCommand(int rowCount, string[] quotedPkNames)
+        {
+            var sb = new StringBuilder();
+
+            // Build incoming CTE with just PKs
+            sb.Append($"WITH incoming({string.Join(", ", quotedPkNames)}) AS (VALUES ");
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int k = 0; k < quotedPkNames.Length; k++)
+                {
+                    if (k > 0)
+                        sb.Append(", ");
+                    sb.Append($"@pk{r}_{k}");
+                }
+
+                sb.Append(')');
+            }
+
+            sb.AppendLine(")");
+
+            // Select PKs where conflict exists
+            // Note: We must handle NULL update_scope_id carefully. In SQLite, NULL = value returns NULL, not FALSE.
+            // Using IFNULL to convert NULL scope to empty string ensures proper comparison.
+            sb.AppendLine($"SELECT {string.Join(", ", quotedPkNames.Select(pk => $"i.{pk}"))}");
+            sb.AppendLine("FROM incoming i");
+            sb.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON {BuildJoinClause(quotedPkNames, "[side]", "i")}");
+            sb.AppendLine($"LEFT JOIN {this.TableQuotedShortName} [base] ON {BuildJoinClause(quotedPkNames, "[base]", "i")}");
+            sb.AppendLine("WHERE NOT (");
+            sb.AppendLine("    ([side].[timestamp] < @sync_min_timestamp OR IFNULL([side].[update_scope_id], '') = @sync_scope_id)");
+            sb.AppendLine($"    OR ({BuildIsNullClause(quotedPkNames, "[base]")} AND ([side].[timestamp] < @sync_min_timestamp OR [side].[timestamp] IS NULL))");
+            sb.AppendLine(")");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Creates SQL to find delete conflicts using CTE.
+        /// </summary>
+        public string CreateFindDeleteConflictsCommand(int rowCount, string[] quotedPkNames)
+        {
+            var sb = new StringBuilder();
+
+            // Build incoming CTE with just PKs
+            sb.Append($"WITH incoming({string.Join(", ", quotedPkNames)}) AS (VALUES ");
+
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int k = 0; k < quotedPkNames.Length; k++)
+                {
+                    if (k > 0)
+                        sb.Append(", ");
+                    sb.Append($"@pk{r}_{k}");
+                }
+
+                sb.Append(')');
+            }
+
+            sb.AppendLine(")");
+
+            // Select PKs where conflict exists:
+            // 1. NULLC: No tracking entry exists (RemoteIsDeletedLocalNotExists)
+            // 2. Tracking exists with local changes (timestamp >= sync_min_timestamp and scope != sender)
+            // Note: We must handle NULL update_scope_id carefully. In SQLite, NULL = value returns NULL, not FALSE.
+            // Using IFNULL to convert NULL scope to empty string ensures proper comparison.
+            sb.AppendLine($"SELECT {string.Join(", ", quotedPkNames.Select(pk => $"i.{pk}"))}");
+            sb.AppendLine("FROM incoming i");
+            sb.AppendLine($"LEFT JOIN {this.TrackingTableQuotedShortName} [side] ON {BuildJoinClause(quotedPkNames, "[side]", "i")}");
+            sb.AppendLine("WHERE");
+            sb.AppendLine($"    {BuildIsNullClause(quotedPkNames, "[side]")}");  // NULLC: no tracking entry
+            sb.AppendLine("    OR NOT (");
+            sb.AppendLine("        [side].[timestamp] < @sync_min_timestamp OR [side].[timestamp] IS NULL OR IFNULL([side].[update_scope_id], '') = @sync_scope_id");
+            sb.AppendLine("    )");
+
+            return sb.ToString();
+        }
+
+        private static string BuildJoinClause(string[] quotedPkNames, string leftAlias, string rightAlias)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < quotedPkNames.Length; i++)
+            {
+                if (i > 0)
+                    sb.Append(" AND ");
+                sb.Append($"{leftAlias}.{quotedPkNames[i]} = {rightAlias}.{quotedPkNames[i]}");
+            }
+
+            return sb.ToString();
+        }
+
+        private static string BuildIsNullClause(string[] quotedPkNames, string alias)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < quotedPkNames.Length; i++)
+            {
+                if (i > 0)
+                    sb.Append(" AND ");
+                sb.Append($"{alias}.{quotedPkNames[i]} IS NULL");
+            }
+
+            return sb.ToString();
         }
     }
 }

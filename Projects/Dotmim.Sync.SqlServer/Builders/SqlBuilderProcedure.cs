@@ -321,6 +321,9 @@ namespace Wormhole.Sync.SqlServer.Builders
             var sqlParameter1 = new SqlParameter("@sync_scope_id", SqlDbType.UniqueIdentifier);
             sqlCommand.Parameters.Add(sqlParameter1);
 
+            var sqlParameterForceWrite = new SqlParameter("@sync_force_write", SqlDbType.Int);
+            sqlCommand.Parameters.Add(sqlParameterForceWrite);
+
             var sqlParameter2 = new SqlParameter("@changeTable", SqlDbType.Structured)
             {
                 TypeName = this.SqlObjectNames.GetStoredProcedureCommandName(DbStoredProcedureType.BulkTableType),
@@ -389,7 +392,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine($"INTO @dms_changed ");
             stringBuilder.AppendLine($"FROM {this.SqlObjectNames.TableQuotedFullName} [base]");
             stringBuilder.AppendLine($"JOIN [changes] ON {str5}");
-            stringBuilder.AppendLine("WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id;");
+            stringBuilder.AppendLine("WHERE [changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1;");
             stringBuilder.AppendLine();
             stringBuilder.AppendLine("-- Since the delete trigger is passed, we update the tracking table to reflect the real scope deleter");
             stringBuilder.AppendLine("UPDATE [side] SET");
@@ -433,6 +436,9 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             var sqlParameter1 = new SqlParameter("@sync_scope_id", SqlDbType.UniqueIdentifier);
             sqlCommand.Parameters.Add(sqlParameter1);
+
+            var sqlParameterForceWrite = new SqlParameter("@sync_force_write", SqlDbType.Int);
+            sqlCommand.Parameters.Add(sqlParameterForceWrite);
 
             var sqlParameter2 = new SqlParameter("@changeTable", SqlDbType.Structured)
             {
@@ -496,7 +502,7 @@ namespace Wormhole.Sync.SqlServer.Builders
             stringBuilder.AppendLine($"USING [changes] on {str5}");
             if (hasMutableColumns)
             {
-                stringBuilder.AppendLine("WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id) THEN");
+                stringBuilder.AppendLine("WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1) THEN");
                 foreach (var mutableColumn in this.TableDescription.Columns.Where(c => !c.IsReadOnly))
                 {
                     var columnParser = new ObjectParser(mutableColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
@@ -518,7 +524,7 @@ namespace Wormhole.Sync.SqlServer.Builders
                 }
             }
 
-            stringBuilder.AppendLine("WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL) THEN");
+            stringBuilder.AppendLine("WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR @sync_force_write = 1) THEN");
 
             stringBuilderArguments = new StringBuilder();
             stringBuilderParameters = new StringBuilder();

@@ -3,6 +3,7 @@ using Wormhole.Sync.Builders;
 using Wormhole.Sync.Enumerations;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
@@ -164,10 +165,11 @@ namespace Wormhole.Sync
         /// <summary>
         /// A conflict has occured, we try to ask for the solution to the user.
         /// </summary>
-        private async Task<(ConflictResolution ConflictResolution, ConflictType ConflictType, SyncRow FinalRow, Guid? FinalSenderScopeId)>
+        private async Task<(ConflictResolution ConflictResolution, ConflictType ConflictType, SyncRow FinalRow, Guid? FinalSenderScopeId, bool InterceptorWasCalled)>
             GetConflictResolutionAsync(ScopeInfo scopeInfo, SyncContext context, Guid localScopeId, SyncRow conflictRow,
             SyncTable schemaChangesTable, ConflictResolutionPolicy policy, ConflictResolution? specifiedResolution, Guid senderScopeId,
-            DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+            DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
+            Dictionary<string, SyncRow> conflictRowsCache = null)
         {
 
             // Use specified resolution if provided, otherwise use policy
@@ -178,20 +180,22 @@ namespace Wormhole.Sync
 
             SyncRow finalRow = null;
             Guid? finalSenderScopeId = senderScopeId;
-
-            // default conflict type
-            var conflictType = conflictRow.RowState == SyncRowState.Deleted ? ConflictType.RemoteIsDeletedLocalExists : ConflictType.RemoteExistsLocalExists;
+            var interceptorWasCalled = false;
 
             // Check if we have a pre-resolved conflict (from MarkAsResolvedConflict)
             // If resolution is pre-determined and NOT MergeRow, skip calling conflict interceptors
             // MergeRow requires interceptor to provide the merged row, so we still call it
             var skipInterceptors = specifiedResolution.HasValue && specifiedResolution.Value != ConflictResolution.MergeRow;
 
-            // if is not empty, get the conflict and intercept
-            // We don't get the conflict on automatic conflict resolution
-            // Since it's an automatic resolution, we don't need to get the local conflict row
-            // So far we get the conflict only if an interceptor exists
-            var arg = new ApplyChangesConflictOccuredArgs(scopeInfo, context, this, conflictRow, schemaChangesTable, resolution, senderScopeId, connection, transaction);
+            var arg = new ApplyChangesConflictOccuredArgs(scopeInfo, context, this, conflictRow, schemaChangesTable, resolution, senderScopeId, connection, transaction, conflictRowsCache);
+
+            // Always determine the correct conflict type by checking if local row exists
+            // This is critical for NULLC scenarios (remote deleted, local not exists) where the
+            // default assumption of "local exists" would cause incorrect behavior
+            // Uses cache when available (batch mode) for efficiency
+            var conflict = await arg.GetSyncConflictAsync().ConfigureAwait(false);
+            var conflictType = conflict?.Type ?? (conflictRow.RowState == SyncRowState.Deleted ? ConflictType.RemoteIsDeletedLocalExists : ConflictType.RemoteExistsLocalExists);
+
             if (interceptors.Count > 0 && !skipInterceptors)
             {
                 // Interceptor
@@ -200,8 +204,7 @@ namespace Wormhole.Sync
                 resolution = arg.Resolution;
                 finalRow = arg.Resolution == ConflictResolution.MergeRow ? arg.FinalRow : null;
                 finalSenderScopeId = arg.SenderScopeId;
-                var conflict = await arg.GetSyncConflictAsync().ConfigureAwait(false);
-                conflictType = conflict != null ? conflict.Type : conflictType;
+                interceptorWasCalled = true;
             }
             else
             {
@@ -211,23 +214,26 @@ namespace Wormhole.Sync
             }
 
             // returning the action to take, and actually the finalRow if action is set to Merge
-            return (resolution, conflictType, finalRow, finalSenderScopeId);
+            return (resolution, conflictType, finalRow, finalSenderScopeId, interceptorWasCalled);
         }
 
         /// <summary>
         /// Handle a conflict
         /// The int returned is the conflict count I need.
+        /// When deferApply is true, the method returns the resolved action without executing it,
+        /// allowing the caller to batch-apply resolved conflicts.
         /// </summary>
-        private async Task<(bool IsApplied, bool IsConflictResolved, Exception Exception)> HandleConflictAsync(ScopeInfo scopeInfo, SyncContext context,
+        private async Task<(bool IsApplied, bool IsConflictResolved, Exception Exception, SyncRow DeferredRow, Guid? DeferredSenderScopeId, bool DeferredIsDelete)> HandleConflictAsync(ScopeInfo scopeInfo, SyncContext context,
                                 BatchInfo batchInfo, Guid localScopeId, Guid senderScopeId, SyncRow conflictRow,
                                 SyncTable schemaChangesTable,
                                 ConflictResolutionPolicy policy, ConflictResolution? specifiedResolution, long? lastTimestamp,
                                 DbConnection connection, DbTransaction transaction,
-                                IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+                                IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
+                                Dictionary<string, SyncRow> conflictRowsCache = null, bool deferApply = false)
         {
-            var (conflictResolution, conflictType, finalRow, nullableSenderScopeId) =
+            var (conflictResolution, conflictType, finalRow, nullableSenderScopeId, interceptorWasCalled) =
                  await this.GetConflictResolutionAsync(scopeInfo, context, localScopeId, conflictRow, schemaChangesTable,
-                policy, specifiedResolution, senderScopeId, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                policy, specifiedResolution, senderScopeId, connection, transaction, progress, cancellationToken, conflictRowsCache).ConfigureAwait(false);
 
             Exception exception = null;
             var applied = false;
@@ -249,6 +255,9 @@ namespace Wormhole.Sync
                             case ConflictType.RemoteExistsLocalNotExists:
                             case ConflictType.RemoteExistsLocalIsDeleted:
                             case ConflictType.UniqueKeyConstraint:
+                                if (deferApply)
+                                    return (false, true, null, conflictRow, nullableSenderScopeId, false);
+
                                 (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
                                     conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
@@ -263,6 +272,7 @@ namespace Wormhole.Sync
                                 break;
 
                             // Server deleted, client doesn't have it → Nothing to do
+                            // This is a valid conflict resolution - the conflict was handled with no action needed
                             case ConflictType.RemoteIsDeletedLocalNotExists:
                                 applied = false;
                                 conflictResolved = true;
@@ -270,6 +280,9 @@ namespace Wormhole.Sync
 
                             // Server deleted, client has it → Delete on client
                             case ConflictType.RemoteIsDeletedLocalExists:
+                                if (deferApply)
+                                    return (false, true, null, conflictRow, nullableSenderScopeId, true);
+
                                 (_, operationComplete, exception) = await this.InternalApplyDeleteAsync(scopeInfo, context, batchInfo,
                                     conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
@@ -336,6 +349,9 @@ namespace Wormhole.Sync
                             case ConflictType.RemoteExistsLocalNotExists:
                             case ConflictType.RemoteExistsLocalIsDeleted:
                             case ConflictType.UniqueKeyConstraint:
+                                if (deferApply)
+                                    return (false, true, null, conflictRow, nullableSenderScopeId, false);
+
                                 (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
                                     conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
@@ -350,6 +366,7 @@ namespace Wormhole.Sync
                                 break;
 
                             // Client deleted, server doesn't have it → Nothing to do
+                            // This is a valid conflict resolution - the conflict was handled with no action needed
                             case ConflictType.RemoteIsDeletedLocalNotExists:
                                 applied = false;
                                 conflictResolved = true;
@@ -357,6 +374,9 @@ namespace Wormhole.Sync
 
                             // Client deleted, server has it → Delete on server
                             case ConflictType.RemoteIsDeletedLocalExists:
+                                if (deferApply)
+                                    return (false, true, null, conflictRow, nullableSenderScopeId, true);
+
                                 (_, operationComplete, exception) = await this.InternalApplyDeleteAsync(scopeInfo, context, batchInfo,
                                     conflictRow, schemaChangesTable, lastTimestamp, nullableSenderScopeId, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
@@ -384,6 +404,9 @@ namespace Wormhole.Sync
                     // We don't update metadatas so the row is updated locally and is marked as updated by the trigger
                     // and will be returned back to client if occurs on server
                     // and will be returned to the server on next sync if occurs on client
+                    if (deferApply)
+                        return (false, true, null, finalRow, null, false);
+
                     (_, operationComplete, exception) = await this.InternalApplyUpdateAsync(scopeInfo, context, batchInfo,
                         finalRow, schemaChangesTable, lastTimestamp, null, true, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
@@ -398,7 +421,7 @@ namespace Wormhole.Sync
                     throw new RollbackException("Rollback action taken on conflict");
             }
 
-            return (applied, conflictResolved, exception);
+            return (applied, conflictResolved, exception, null, null, false);
         }
     }
 }
