@@ -1,5 +1,6 @@
 ﻿using Wormhole.Sync.Enumerations;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading.Tasks;
 
@@ -15,10 +16,12 @@ namespace Wormhole.Sync
         private BaseOrchestrator orchestrator;
         private SyncTable schemaChangesTable;
         private SyncConflict conflict;
+        private Dictionary<string, SyncRow> conflictRowsCache;
 
         /// <inheritdoc cref="ApplyChangesConflictOccuredArgs"/>
         public ApplyChangesConflictOccuredArgs(ScopeInfo scopeInfo, SyncContext context, BaseOrchestrator orchestrator,
-            SyncRow conflictRow, SyncTable schemaChangesTable, ConflictResolution action, Guid? senderScopeId, DbConnection connection, DbTransaction transaction)
+            SyncRow conflictRow, SyncTable schemaChangesTable, ConflictResolution action, Guid? senderScopeId, DbConnection connection, DbTransaction transaction,
+            Dictionary<string, SyncRow> conflictRowsCache = null)
             : base(context, connection, transaction)
         {
             Guard.ThrowIfNull(conflictRow);
@@ -29,6 +32,7 @@ namespace Wormhole.Sync
             this.schemaChangesTable = schemaChangesTable;
             this.Resolution = action;
             this.SenderScopeId = senderScopeId;
+            this.conflictRowsCache = conflictRowsCache;
 
             var finalRowArray = new object[conflictRow.ToArray().Length];
             conflictRow.ToArray().CopyTo(finalRowArray, 0);
@@ -62,8 +66,21 @@ namespace Wormhole.Sync
         /// </summary>
         public async Task<SyncConflict> GetSyncConflictAsync()
         {
-            var (_, localRow) = await this.orchestrator.InternalGetConflictRowAsync(this.scopeInfo, this.Context, this.schemaChangesTable, this.conflictRow,
-                this.Connection, this.Transaction, default, default).ConfigureAwait(false);
+            SyncRow localRow = null;
+
+            // Check pre-fetched cache first
+            if (this.conflictRowsCache != null)
+            {
+                var cacheKey = DbSyncAdapter.BuildConflictRowCacheKey(this.conflictRow, this.schemaChangesTable);
+                this.conflictRowsCache.TryGetValue(cacheKey, out localRow);
+            }
+            else
+            {
+                // Fall back to individual DB query
+                (_, localRow) = await this.orchestrator.InternalGetConflictRowAsync(this.scopeInfo, this.Context, this.schemaChangesTable, this.conflictRow,
+                    this.Connection, this.Transaction, default, default).ConfigureAwait(false);
+            }
+
             this.conflict = this.orchestrator.InternalGetConflict(this.Context, this.conflictRow, localRow);
             return this.conflict;
         }

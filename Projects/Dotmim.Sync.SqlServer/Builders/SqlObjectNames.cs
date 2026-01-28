@@ -470,5 +470,165 @@ namespace Wormhole.Sync.SqlServer.Builders
 
             return stringBuilder.ToString();
         }
+
+        /// <summary>
+        /// Creates the SQL command for batch selecting conflict rows using VALUES clause.
+        /// Uses UNION ALL to handle both existing rows and tombstones.
+        /// </summary>
+        /// <param name="rowCount">Number of rows to select.</param>
+        /// <param name="quotedPkNames">Quoted PK column names.</param>
+        public string CreateBatchSelectRowCommand(int rowCount, string[] quotedPkNames)
+        {
+            var mutableColumns = this.TableDescription.GetMutableColumns(false, true).ToList();
+            var primaryKeyColumns = this.TableDescription.GetPrimaryKeysColumns().ToList();
+
+            var sb = new StringBuilder();
+
+            // Build CTE with incoming PKs (SQL Server requires SELECT FROM VALUES syntax)
+            sb.Append($";WITH incoming AS (SELECT * FROM (VALUES ");
+            for (int r = 0; r < rowCount; r++)
+            {
+                if (r > 0)
+                    sb.Append(", ");
+                sb.Append('(');
+                for (int k = 0; k < quotedPkNames.Length; k++)
+                {
+                    if (k > 0)
+                        sb.Append(", ");
+                    sb.Append($"@pk{r}_{k}");
+                }
+
+                sb.Append(')');
+            }
+
+            sb.Append($") AS t({string.Join(", ", quotedPkNames)}))");
+
+            // Part 1: base row exists (may or may not have tracking)
+            sb.Append("SELECT ");
+            bool first = true;
+            foreach (var col in mutableColumns)
+            {
+                var columnParser = new ObjectParser(col.ColumnName, LeftQuote, RightQuote);
+                var isPk = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, col.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (!first)
+                    sb.Append(", ");
+                first = false;
+
+                if (isPk)
+                    sb.Append($"ISNULL([side].{columnParser.QuotedShortName}, [base].{columnParser.QuotedShortName}) as {columnParser.QuotedShortName}");
+                else
+                    sb.Append($"[base].{columnParser.QuotedShortName}");
+            }
+
+            sb.AppendLine(", ");
+            sb.AppendLine("\tISNULL([side].[sync_row_is_tombstone], 0) as [sync_row_is_tombstone], ");
+            sb.AppendLine("\tISNULL([side].[update_scope_id], '00000000-0000-0000-0000-000000000000') as [sync_update_scope_id]");
+            sb.AppendLine("FROM incoming i");
+            sb.Append($"INNER JOIN {this.TableQuotedFullName} [base] ON ");
+
+            string str = string.Empty;
+            foreach (var pkName in quotedPkNames)
+            {
+                sb.Append($"{str}[base].{pkName} = i.{pkName}");
+                str = " AND ";
+            }
+
+            sb.AppendLine();
+            sb.Append($"LEFT JOIN {this.TrackingTableQuotedFullName} [side] ON ");
+
+            str = string.Empty;
+            foreach (var pkName in quotedPkNames)
+            {
+                sb.Append($"{str}[base].{pkName} = [side].{pkName}");
+                str = " AND ";
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("UNION ALL");
+
+            // Part 2: only tracking exists (tombstone/deleted rows)
+            sb.Append("SELECT ");
+            first = true;
+            foreach (var col in mutableColumns)
+            {
+                var columnParser = new ObjectParser(col.ColumnName, LeftQuote, RightQuote);
+                var isPk = this.TableDescription.PrimaryKeys.Any(pk =>
+                    string.Equals(pk, col.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                if (!first)
+                    sb.Append(", ");
+                first = false;
+
+                if (isPk)
+                    sb.Append($"[side].{columnParser.QuotedShortName}");
+                else
+                    sb.Append($"NULL as {columnParser.QuotedShortName}");
+            }
+
+            sb.AppendLine(", ");
+            sb.AppendLine("\t[side].[sync_row_is_tombstone], ");
+            sb.AppendLine("\t[side].[update_scope_id] as [sync_update_scope_id]");
+            sb.AppendLine("FROM incoming i");
+            sb.Append($"INNER JOIN {this.TrackingTableQuotedFullName} [side] ON ");
+
+            str = string.Empty;
+            foreach (var pkName in quotedPkNames)
+            {
+                sb.Append($"{str}[side].{pkName} = i.{pkName}");
+                str = " AND ";
+            }
+
+            sb.AppendLine();
+            sb.AppendLine($"WHERE NOT EXISTS (");
+            sb.Append($"\tSELECT 1 FROM {this.TableQuotedFullName} [base] WHERE ");
+
+            str = string.Empty;
+            foreach (var pkName in quotedPkNames)
+            {
+                sb.Append($"{str}[base].{pkName} = [side].{pkName}");
+                str = " AND ";
+            }
+
+            sb.AppendLine(")");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Gets the SQL Server type name for a column.
+        /// </summary>
+        public static string GetSqlTypeName(SyncColumn column, System.Data.SqlDbType sqlDbType)
+        {
+            return sqlDbType switch
+            {
+                System.Data.SqlDbType.NVarChar => column.MaxLength <= 0 ? "NVARCHAR(MAX)" : $"NVARCHAR({Math.Min(column.MaxLength, 4000)})",
+                System.Data.SqlDbType.VarChar => column.MaxLength <= 0 ? "VARCHAR(MAX)" : $"VARCHAR({Math.Min(column.MaxLength, 8000)})",
+                System.Data.SqlDbType.VarBinary => column.MaxLength <= 0 ? "VARBINARY(MAX)" : $"VARBINARY({Math.Min(column.MaxLength, 8000)})",
+                System.Data.SqlDbType.NChar => $"NCHAR({(column.MaxLength <= 0 ? 4000 : column.MaxLength)})",
+                System.Data.SqlDbType.Char => $"CHAR({(column.MaxLength <= 0 ? 8000 : column.MaxLength)})",
+                System.Data.SqlDbType.Binary => $"BINARY({(column.MaxLength <= 0 ? 8000 : column.MaxLength)})",
+                System.Data.SqlDbType.Decimal => $"DECIMAL({column.Precision},{column.Scale})",
+                System.Data.SqlDbType.Int => "INT",
+                System.Data.SqlDbType.BigInt => "BIGINT",
+                System.Data.SqlDbType.SmallInt => "SMALLINT",
+                System.Data.SqlDbType.TinyInt => "TINYINT",
+                System.Data.SqlDbType.Bit => "BIT",
+                System.Data.SqlDbType.Float => "FLOAT",
+                System.Data.SqlDbType.Real => "REAL",
+                System.Data.SqlDbType.Money => "MONEY",
+                System.Data.SqlDbType.SmallMoney => "SMALLMONEY",
+                System.Data.SqlDbType.Date => "DATE",
+                System.Data.SqlDbType.DateTime => "DATETIME",
+                System.Data.SqlDbType.DateTime2 => "DATETIME2",
+                System.Data.SqlDbType.SmallDateTime => "SMALLDATETIME",
+                System.Data.SqlDbType.DateTimeOffset => "DATETIMEOFFSET",
+                System.Data.SqlDbType.Time => "TIME",
+                System.Data.SqlDbType.UniqueIdentifier => "UNIQUEIDENTIFIER",
+                System.Data.SqlDbType.Xml => "XML",
+                _ => "NVARCHAR(MAX)",
+            };
+        }
     }
 }

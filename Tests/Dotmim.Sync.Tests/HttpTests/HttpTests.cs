@@ -1,4 +1,5 @@
-﻿using Wormhole.Sync.Enumerations;
+﻿using JetBrains.Profiler.Api;
+using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.SampleConsole;
 using Wormhole.Sync.Serialization;
 using Wormhole.Sync.SqlServer;
@@ -565,6 +566,75 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
                 download += rowsCountToInsert;
             }
+        }
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task InsertTenThousandsRowsInTwoTablesOnServerSide(SyncOptions options)
+        {
+            // Execute a sync on all clients to initialize client and server schema 
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+            var rowsCountToInsert = 5000;
+
+            for (var i = 0; i < rowsCountToInsert; i++)
+            {
+                await serverProvider.AddProductCategoryAsync();
+                await serverProvider.AddProductAsync();
+            }
+
+            var download = 0;
+            // Execute a sync on all clients and check results
+            foreach (var clientProvider in clientsProvider.Take(1))
+            {
+                var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serviceUri), options);
+
+                MeasureProfiler.DropData();
+                MeasureProfiler.StartCollectingData();
+                // don' need to specify scope name (default will be used) nor setup, since it already exists
+                var s = await agent.SynchronizeAsync();
+
+                MeasureProfiler.SaveData();
+            }
+        }
+
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public async Task UpdateTenThousandsRowsInTwoTablesOnServerSide(SyncOptions options)
+        {
+            // Execute a sync on all clients to initialize client and server schema 
+            var clientProvider = clientsProvider.Single();
+
+            var agent = new SyncAgent(clientProvider, serverProvider, options);
+            await agent.SynchronizeAsync(setup);
+
+            var rowsCountToInsert = 10000;
+
+            for (var i = 0; i < rowsCountToInsert; i++)
+            {
+                await serverProvider.AddProductAsync();
+            }
+            // sync once
+            var _ = await agent.SynchronizeAsync();
+            // update all 
+            var products = await this.serverProvider.GetProductsAsync();
+            foreach (var a in products)
+            {
+                a.Name += "_c";
+                await this.serverProvider.UpdateProductAsync(a);
+            }
+
+            // Act (sync again to get all updates)
+            var httpAgent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serviceUri), options);
+
+            MeasureProfiler.DropData();
+            MeasureProfiler.StartCollectingData();
+            // don' need to specify scope name (default will be used) nor setup, since it already exists
+            var s = await httpAgent.SynchronizeAsync();
+
+            MeasureProfiler.SaveData();
         }
 
         [Theory]
@@ -3275,13 +3345,13 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var clientLastName = "ClientLast";
             using (var ctx = new AdventureWorksContext(sqliteClient))
             {
-                var customer = await ctx.Customer.FindAsync(customerId);
+                var customer = await ctx.Customer.FindAsync(customerId.ToCustomerId());
                 Assert.NotNull(customer);
                 customer.FirstName = clientFirstName;
                 customer.LastName = clientLastName;
                 await ctx.SaveChangesAsync();
             }
-            
+
             // Second sync - should trigger conflict and interceptor
             var s2 = await agent.SynchronizeAsync(setup);
 
@@ -3292,7 +3362,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             // Verify client has server's values (ServerWins)
             using (var ctx = new AdventureWorksContext(sqliteClient))
             {
-                var customer = await ctx.Customer.FindAsync(customerId);
+                var customer = await ctx.Customer.FindAsync(customerId.ToCustomerId());
                 Assert.NotNull(customer);
                 Assert.Equal(serverFirstName, customer.FirstName);
                 Assert.Equal(serverLastName, customer.LastName);

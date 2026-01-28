@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Wormhole.Sync
@@ -68,6 +69,49 @@ namespace Wormhole.Sync
         /// </summary>
         public abstract Task ExecuteBatchCommandAsync(SyncContext context, DbCommand cmd, Guid senderScopeId, IEnumerable<SyncRow> arrayItems, SyncTable schemaChangesTable,
                                                       SyncTable failedRows, long? lastTimestamp, DbConnection connection, DbTransaction transaction);
+
+        /// <summary>
+        /// Pre-fetch local conflict rows in batch. Returns a dictionary keyed by PK string, or null if not supported.
+        /// When null is returned, the orchestrator falls back to individual row fetches.
+        /// </summary>
+        public virtual Task<Dictionary<string, SyncRow>> GetConflictRowsBatchAsync(SyncContext context, List<SyncRow> conflictRows, SyncTable schemaChangesTable,
+                                                                                    DbConnection connection, DbTransaction transaction)
+        {
+            return Task.FromResult<Dictionary<string, SyncRow>>(null);
+        }
+
+        /// <summary>
+        /// Batch-apply resolved conflict rows (updates and deletes with force_write).
+        /// Returns the number of applied rows, or -1 if not supported (orchestrator falls back to per-row apply).
+        /// </summary>
+        public virtual Task<int> ApplyResolvedConflictsBatchAsync(SyncContext context,
+            List<(SyncRow Row, Guid? SenderScopeId, bool IsDelete)> resolvedRows,
+            SyncTable schemaChangesTable, long? lastTimestamp,
+            DbConnection connection, DbTransaction transaction)
+        {
+            return Task.FromResult(-1);
+        }
+
+        /// <summary>
+        /// Build a cache key string from a row's primary key values.
+        /// Used for conflict row caching.
+        /// </summary>
+        public static string BuildConflictRowCacheKey(SyncRow row, SyncTable schemaTable)
+        {
+            var pkColumns = schemaTable.GetPrimaryKeysColumns();
+            var sb = new StringBuilder();
+            var first = true;
+            foreach (var pkCol in pkColumns)
+            {
+                if (!first)
+                    sb.Append('|');
+                first = false;
+                var idx = schemaTable.Columns.IndexOf(pkCol);
+                sb.Append(Convert.ToString(row[idx]) ?? string.Empty);
+            }
+
+            return sb.ToString();
+        }
 
         /// <summary>
         /// Adding a parameter value to a command.

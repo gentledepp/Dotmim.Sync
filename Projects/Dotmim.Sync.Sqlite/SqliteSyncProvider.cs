@@ -195,6 +195,14 @@ namespace Wormhole.Sync.Sqlite
         }
 
         /// <inheritdoc/>
+        public override void OnConnectionOpened(DbConnection connection)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;";
+            cmd.ExecuteNonQuery();
+        }
+
+        /// <inheritdoc/>
         public override DbConnection CreateConnection()
         {
             if (!this.builder.ForeignKeys.HasValue && this.Orchestrator != null)
@@ -213,7 +221,7 @@ namespace Wormhole.Sync.Sqlite
 
         /// <inheritdoc/>
         public override DbSyncAdapter GetSyncAdapter(SyncTable tableDescription, ScopeInfo scopeInfo)
-            => new SqliteSyncAdapter(tableDescription, scopeInfo, this.DisableSqlFiltersGeneration);
+            => new SqliteSyncAdapter(tableDescription, scopeInfo, this.DisableSqlFiltersGeneration, this.UseBulkOperations);
 
         /// <inheritdoc/>
         public override DbDatabaseBuilder GetDatabaseBuilder() => new SQLiteDatabaseBuilder();
