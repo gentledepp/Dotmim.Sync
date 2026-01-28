@@ -64,9 +64,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // To generate a unique key constraint, will modify the batch part info on client just before load it.
@@ -119,9 +116,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -240,9 +234,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // To generate a unique key constraint, will modify the batch part info on client just before load it.
@@ -309,9 +300,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -399,9 +387,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -519,9 +504,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -653,9 +635,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // To generate a unique key constraint, will modify the batch part info on client just before load it.
@@ -732,9 +711,9 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
-                // note: triggers a ConflictType.RemoteIsDeletedLocalExists but as the row was never applied due to the constraint issue
-                // there is nothing to be delted => command returns 0 and resolved conflicts are not counted
-                Assert.Equal(0, s.TotalResolvedConflicts);
+                // note: triggers ConflictType.RemoteIsDeletedLocalNotExists because the row was never actually applied
+                // (it was in error batch due to constraint issue). RemoteIsDeletedLocalNotExists is now counted as resolved.
+                Assert.Equal(1, s.TotalResolvedConflicts);
 
                 batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
 
@@ -776,9 +755,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Enable constraints check
                 options.DisableConstraintsOnApplyChanges = false;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -845,9 +821,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // To resolve the issue, just clear the interceptor
                 agent.LocalOrchestrator.ClearInterceptors(interceptorId);
 
-                // And then delete the values on server side
+                // And then update the values on server side
+                // NOTE: Use a unique value per client to ensure trigger fires (triggers only fire if values actually changed)
                 var pc = await this.serverProvider.GetProductCategoryAsync($"Z2{str}");
-                pc.Name = $"Z2{str}b"; // NOTE: The triggers now only fire if the values actually changed!
+                pc.Name = $"Z2{str}_{HelperDatabase.GetRandomName()[..4]}";
                 await this.serverProvider.UpdateProductCategoryAsync(pc);
 
                 s = await agent.SynchronizeAsync(this.setup);
@@ -899,9 +876,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // enablig constraints check
                 options.DisableConstraintsOnApplyChanges = false;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // Generate the foreignkey error
@@ -909,9 +883,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     if (args.SyncRows == null || args.SyncRows.Count <= 0)
                         return;
-                    var row = args.SyncRows[0];
-                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
-                        row["ParentProductCategoryId"] = "BBBBB";
+                    // Check ALL rows, not just the first one (bulk operations may have multiple rows)
+                    foreach (var row in args.SyncRows)
+                    {
+                        if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
+                            row["ParentProductCategoryId"] = "BBBBB";
+                    }
                 });
 
                 var exc = await Assert.ThrowsAsync<SyncException>(() => agent.SynchronizeAsync(this.setup));
@@ -945,9 +922,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // enablig constraints check
                 options.DisableConstraintsOnApplyChanges = false;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // Generate error on foreign key on second row
@@ -955,9 +929,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     if (args.SyncRows == null || args.SyncRows.Count <= 0)
                         return;
-                    var row = args.SyncRows[0];
-                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
-                        row["ParentProductCategoryId"] = "BBBBB";
+                    // Check ALL rows, not just the first one (bulk operations may have multiple rows)
+                    foreach (var row in args.SyncRows)
+                    {
+                        if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
+                            row["ParentProductCategoryId"] = "BBBBB";
+                    }
                 });
 
                 agent.LocalOrchestrator.OnApplyChangesErrorOccured(args =>
@@ -1055,9 +1032,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // set error policy
                 options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // Generate error on foreign key on second row
@@ -1065,9 +1039,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     if (args.SyncRows == null || args.SyncRows.Count <= 0)
                         return;
-                    var row = args.SyncRows[0];
-                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
-                        row["ParentProductCategoryId"] = "BBBBB";
+                    // Check ALL rows, not just the first one (bulk operations may have multiple rows)
+                    foreach (var row in args.SyncRows)
+                    {
+                        if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == "ZZZZ")
+                            row["ParentProductCategoryId"] = "BBBBB";
+                    }
                 });
 
                 var s = await agent.SynchronizeAsync(this.setup);
@@ -1154,9 +1131,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // set error policy
                 options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -1250,9 +1224,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // set error policy
                 options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
-
-                // Disable bulk operations to have the same results for SQL as others providers
-                this.serverProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -1348,9 +1319,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // set error policy
                 options.ErrorResolutionPolicy = ErrorResolution.ContinueOnError;
 
-                // Disable bulk operations to have the same results for SQL as others providers
-                this.serverProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 // As OnRowsChangesApplying will be called 2 times, we only apply tricky change one time
@@ -1362,16 +1330,19 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.SyncRows == null || args.SyncRows.Count <= 0)
                         return;
 
-                    var row = args.SyncRows[0];
-
-                    if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == $"ZZZZ{clientNumber}")
+                    // Check ALL rows, not just the first one (bulk operations may have multiple rows)
+                    foreach (var row in args.SyncRows)
                     {
-                        // We need to change the row only one time
-                        if (rowChanged)
-                            return;
+                        if (row["ParentProductCategoryId"] != null && row["ParentProductCategoryId"].ToString() == $"ZZZZ{clientNumber}")
+                        {
+                            // We need to change the row only one time
+                            if (rowChanged)
+                                return;
 
-                        row["ParentProductCategoryId"] = $"BBBBB{clientNumber}";
-                        rowChanged = true;
+                            row["ParentProductCategoryId"] = $"BBBBB{clientNumber}";
+                            rowChanged = true;
+                            return;
+                        }
                     }
                 });
 
@@ -1680,9 +1651,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 var str = HelperDatabase.GetRandomName().ToUpper(System.Globalization.CultureInfo.CurrentCulture)[..9];
                 await clientProvider.AddProductCategoryAsync($"Z1{str}", name: $"Z1{str}");
 
-                // Disabling bulk operations
-                this.serverProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 var transientErrorHappened = false;
@@ -1727,6 +1695,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             if (serverProviderType != ProviderType.Sql)
                 return;
 
+            // Disable bulk operations on server to ensure line-by-line execution
+            // This test specifically tests the line-by-line transient error retry mechanism
+            this.serverProvider.UseBulkOperations = false;
+
             var options = new SyncOptions
             {
                 DisableConstraintsOnApplyChanges = true,
@@ -1754,9 +1726,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 await clientProvider.AddProductCategoryAsync();
                 await clientProvider.AddProductCategoryAsync();
 
-                // Disabling bulk operations
-                this.serverProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 var transientErrorHappened = false;
@@ -1774,7 +1743,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 {
                     applyingCount++;
 
-                    // simulate a transient error on the second apply
+                    // simulate a transient error on the second apply (line-by-line mode)
                     if (applyingCount == 2 && !transientErrorHappened)
                     {
                         commandText = args.Command.CommandText;
@@ -2003,9 +1972,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             {
                 var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
 
-                // disable bulk operation
-                clientProvider.UseBulkOperations = false;
-
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
                 var transientErrorHappened = false;
@@ -2067,9 +2033,6 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             foreach (var clientProvider in this.clientsProvider)
             {
                 var (clientProviderType, clientDatabaseName) = HelperDatabase.GetDatabaseType(clientProvider);
-
-                // disable bulk operation
-                clientProvider.UseBulkOperations = false;
 
                 var agent = new SyncAgent(clientProvider, this.serverProvider, options);
 
@@ -3878,7 +3841,9 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(download, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(0, s.TotalChangesUploadedToServer);
                 Assert.Equal(0, s.TotalChangesAppliedOnClient);
-                Assert.Equal(0, s.TotalResolvedConflicts);
+                // RemoteIsDeletedLocalNotExists is now counted as resolved (symmetric with DC_NULLS)
+                // Each downloaded delete for a non-existent local row counts as resolved
+                Assert.Equal(download, s.TotalResolvedConflicts);
 
                 // Verify the final state on both client and server
                 var pcClient = await clientProvider.GetProductCategoryAsync(productCategoryId);
