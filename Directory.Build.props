@@ -15,16 +15,18 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.6.9.0</Version>
+        <Version>1.6.9.1</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+	        # 1.6.9.1
+            - options.AutoUpgrade allows to disable the default dotmim upgrade procedure
 			# 1.6.9.0
 			- improved sync performance
-				Bulk-Insert/Update/Delete for SQLite
-				Bulk-conflict detection and resolution SQLITE/SqlServer
-				UnifiedBatchSerializer performance improvements (writing)
+			Bulk-Insert/Update/Delete for SQLite
+			Bulk-conflict detection and resolution SQLITE/SqlServer
+			UnifiedBatchSerializer performance improvements (writing)
 			# Version 1.6.8.0
 			- removed usage of 'dynamic' for iOS (Attempting to JIT compile method)
 			# Version 1.6.7.0
