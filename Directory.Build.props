@@ -15,31 +15,36 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.6.8.0</Version>
+        <Version>1.6.9.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
-            # Version 1.6.8.0
-            - removed usage of 'dynamic' for iOS (Attempting to JIT compile method)
-	        # Version 1.6.7.0
-            - OnRowsChangesValidating interceptor with "MarkAsConflict" method
-            - fixed GetRow stored procedure using FULL OUTER JOIN (works if base row was deleted or if tracking row was cleaned up)
-	        # Version 1.6.6.0
-            - tracked columns are indexed
-            # Version 1.6.5.0
-            - added soucelink debugging
-            - can add scopeinfoclientparameters to add custom columns to the server-side scope_info_client table
-	        # Version 1.6.3.0
-            - you can set a prefix/postfix for scope_info and scope_info_client tables in SyncOptions
-            # Version 1.6.2.0
-            - GetProvisioningSqlScriptsAsync now includes the scope_info and scope_info_client tables
-	        # Version 1.6.1.0
-            - can define custom script separator
-            - added cancellation support for all SyncAgent.SynchronizeAsync overloads
-            - Renamed SyncWay to SyncRole for clarity
-            - conflictresolutionpolicy is not reversed by the sync agent anymore (breaking change)
-        </PackageReleaseNotes>
+			# 1.6.9.0
+			- improved sync performance
+				Bulk-Insert/Update/Delete for SQLite
+				Bulk-conflict detection and resolution SQLITE/SqlServer
+				UnifiedBatchSerializer performance improvements (writing)
+			# Version 1.6.8.0
+			- removed usage of 'dynamic' for iOS (Attempting to JIT compile method)
+			# Version 1.6.7.0
+			- OnRowsChangesValidating interceptor with "MarkAsConflict" method
+			- fixed GetRow stored procedure using FULL OUTER JOIN (works if base row was deleted or if tracking row was cleaned up)
+			# Version 1.6.6.0
+			- tracked columns are indexed
+			# Version 1.6.5.0
+			- added soucelink debugging
+			- can add scopeinfoclientparameters to add custom columns to the server-side scope_info_client table
+			# Version 1.6.3.0
+			- you can set a prefix/postfix for scope_info and scope_info_client tables in SyncOptions
+			# Version 1.6.2.0
+			- GetProvisioningSqlScriptsAsync now includes the scope_info and scope_info_client tables
+			# Version 1.6.1.0
+			- can define custom script separator
+			- added cancellation support for all SyncAgent.SynchronizeAsync overloads
+			- Renamed SyncWay to SyncRole for clarity
+			- conflictresolutionpolicy is not reversed by the sync agent anymore (breaking change)
+		</PackageReleaseNotes>
 
         <PackageTags>Data, Database, Sync, Synchronization, Framework, Sql, MySql, MariaDB, PostgreSql, Sqlite, Wormhole.Sync, NetStandard, SyncFramework</PackageTags>
         <PackageProjectUrl>https://dotmimsync.readthedocs.io/</PackageProjectUrl>
