@@ -1,6 +1,7 @@
 using Wormhole.Sync.Batch;
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Serialization;
+using Wormhole.Sync.Storage;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,24 +11,22 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
     public class UnifiedBatchSerializerTests : IDisposable
     {
-        private ITest test;
         private Stopwatch stopwatch;
         public ITestOutputHelper Output { get; }
         private readonly string tempDirectory;
         private readonly ISerializer Serializer;
+        private readonly IBatchStorage batchStorage;
 
         public UnifiedBatchSerializerTests(ITestOutputHelper output)
         {
             this.Output = output;
             var type = output.GetType();
-            var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-            this.test = (ITest)testMember.GetValue(output);
             this.stopwatch = Stopwatch.StartNew();
 
             // Create temp directory for test files
@@ -35,15 +34,16 @@ namespace Wormhole.Sync.Tests.UnitTests
             Directory.CreateDirectory(this.tempDirectory);
 
             this.Serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+            this.batchStorage = new LocalFileSystemBatchStorage();
         }
 
         public void Dispose()
         {
             this.stopwatch.Stop();
 
-            var str = $"{test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
-            Console.WriteLine(str);
-            Debug.WriteLine(str);
+            //var str = $"{test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
+            //Console.WriteLine(str);
+            //Debug.WriteLine(str);
 
             // Clean up temp directory
             if (Directory.Exists(this.tempDirectory))
@@ -88,17 +88,18 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Arrange
             var table = CreateTestTable("Product");
             var row = CreateTestRow(table, 1);
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
+            var fileName = "test.json";
 
-            var serializer = new UnifiedBatchSerializer();
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
             await serializer.WriteRowAsync(row, table);
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             Assert.True(File.Exists(filePath));
 
             var json = await File.ReadAllTextAsync(filePath);
@@ -122,12 +123,12 @@ namespace Wormhole.Sync.Tests.UnitTests
             {
                 rows.Add(CreateTestRow(table, i));
             }
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
+            var fileName = "test.json";
 
-            var serializer = new UnifiedBatchSerializer();
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
 
             foreach (var row in rows)
@@ -138,6 +139,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);
 
@@ -154,11 +156,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             var table2 = CreateTestTable("Category");
             var table3 = CreateTestTable("Order");
 
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
 
             // Table 1: 3 rows
             await serializer.OpenTableAsync(table1);
@@ -186,6 +188,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);
 
@@ -207,11 +210,11 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("Product");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
 
             await serializer.WriteRowAsync(CreateTestRow(table, 1), table);
@@ -224,6 +227,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);
 
@@ -237,11 +241,11 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("Product", "dbo", 10); // More columns = larger rows
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             var sizeAfterOpen = serializer.GetCurrentFileSizeInBytes();
 
             await serializer.OpenTableAsync(table);
@@ -268,11 +272,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Arrange
             var table1 = CreateTestTable("Product", "Sales");
             var table2 = CreateTestTable("Category", "dbo");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act & Assert
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             Assert.Null(serializer.CurrentTableKey);
             Assert.False(serializer.HasCurrentTable);
 
@@ -297,11 +301,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Arrange
             var table1 = CreateTestTable("Product");
             var table2 = CreateTestTable("Category");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act & Assert
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table1);
 
             await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -318,11 +322,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Arrange
             var table = CreateTestTable("Product");
             var row = CreateTestRow(table, 1);
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act & Assert
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
 
             await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
@@ -337,11 +341,11 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("LargeProduct", "dbo", 20); // Many columns
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
 
             long previousSize = 0;
@@ -358,6 +362,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var fileInfo = new FileInfo(filePath);
             Assert.True(fileInfo.Length > 0);
 
@@ -370,11 +375,11 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("Product");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
 
             // First batch
             await serializer.OpenTableAsync(table);
@@ -389,6 +394,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);
 
@@ -405,16 +411,17 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("EmptyProduct");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
-            var serializer = new UnifiedBatchSerializer();
+            var fileName = "test.json";
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
 
             // Act
-            await serializer.OpenFileAsync(filePath);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
             // Don't write any rows
             await serializer.CloseFileAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);
 
@@ -429,11 +436,11 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             // Arrange
             var table = CreateTestTable("Product");
-            var filePath = Path.Combine(this.tempDirectory, "test.json");
+            var fileName = "test.json";
 
             // Act
-            var serializer = new UnifiedBatchSerializer();
-            await serializer.OpenFileAsync(filePath);
+            var serializer = new UnifiedBatchSerializer(this.batchStorage);
+            await serializer.OpenFileAsync(this.tempDirectory, fileName);
             await serializer.OpenTableAsync(table);
             await serializer.WriteRowAsync(CreateTestRow(table, 1), table);
 
@@ -441,6 +448,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             await serializer.DisposeAsync();
 
             // Assert
+            var filePath = Path.Combine(this.tempDirectory, fileName);
             Assert.True(File.Exists(filePath));
             var json = await File.ReadAllTextAsync(filePath);
             var containerSet = this.Serializer.Deserialize<ContainerSet>(json);

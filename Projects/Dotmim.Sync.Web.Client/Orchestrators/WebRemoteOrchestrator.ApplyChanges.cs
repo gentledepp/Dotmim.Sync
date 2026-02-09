@@ -2,6 +2,7 @@
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Serialization;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Globalization;
 using System.IO;
@@ -69,7 +70,7 @@ namespace Wormhole.Sync.Web.Client
                     // Foreach part, will have to send them to the remote
                     // once finished, return context
                     var initialPctProgress1 = context.ProgressPercentage;
-                    using var localSerializer = new LocalJsonSerializer(this, context);
+                    await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                     foreach (var bpi in clientChanges.ClientBatchInfo.BatchPartsInfo.OrderBy(bpi => bpi.Index))
                     {
@@ -142,6 +143,53 @@ namespace Wormhole.Sync.Web.Client
                         HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
                 }
 
+                // Handle async batch creation (InProgress response from server)
+                if (summaryResponseContent.InProgress)
+                {
+                    const int maxRetries = 120; // Max ~10 minutes with 5-second default intervals
+                    var retryCount = 0;
+
+                    while (summaryResponseContent.InProgress && retryCount < maxRetries)
+                    {
+                        var retryDelay = TimeSpan.FromSeconds(summaryResponseContent.RetryAfterSeconds ?? 5);
+
+                        // Notify progress
+                        await this.InterceptAsync(
+                            new HttpBatchCreationInProgressArgs(context, summaryResponseContent.AsyncProgress ?? 0, retryCount, this.GetServiceHost()),
+                            progress, cancellationToken).ConfigureAwait(false);
+
+                        await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+
+                        // Retry request - send empty changes to poll for completion
+                        response?.Dispose();
+                        var pollRequest = new HttpMessageSendChangesRequest(context, cScopeInfoClient)
+                        {
+                            ClientLastSyncTimestamp = clientChanges.ClientTimestamp,
+                            IsLastBatch = true,
+                            BatchIndex = 0,
+                            BatchCount = 0,
+                        };
+
+                        response = await this.ProcessRequestAsync(
+                            pollRequest, HttpStep.SendChangesInProgress, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
+
+#if NET6_0_OR_GREATER
+                        using var retryStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+                        using var retryStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
+                        var retrySerializer = this.SerializerFactory.GetSerializer();
+                        summaryResponseContent = await retrySerializer.DeserializeAsync<HttpMessageSummaryResponse>(retryStream).ConfigureAwait(false);
+                        context = summaryResponseContent.SyncContext;
+
+                        retryCount++;
+                    }
+
+                    if (summaryResponseContent.InProgress)
+                        throw new SyncException($"Server batch creation timeout after {retryCount} retries. Please try again later.");
+                }
+
+                // Set batch info properties from response
                 serverBatchInfo.RowsCount = summaryResponseContent.BatchInfo.RowsCount;
                 serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
 
@@ -151,8 +199,6 @@ namespace Wormhole.Sync.Web.Client
                         serverBatchInfo.BatchPartsInfo.Add(bpi);
                 }
 
-                // From here, we need to serialize everything on disk
-
                 // Generate the batch directory
                 var batchDirectoryRoot = this.Options.BatchDirectory;
                 var batchDirectoryName = string.Concat("WEB_REMOTE_GETCHANGES_", DateTime.UtcNow.ToString("yyyy_MM_dd_ss", CultureInfo.InvariantCulture),
@@ -161,7 +207,86 @@ namespace Wormhole.Sync.Web.Client
                 serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
                 serverBatchInfo.DirectoryName = batchDirectoryName;
 
+                // Download initial batches
                 await this.DownladBatchInfoAsync(context, schema, serverBatchInfo, summaryResponseContent, progress, cancellationToken).ConfigureAwait(false);
+
+                // Handle progressive batch streaming: poll for more batches while MoreBatchesPending is true
+                if (summaryResponseContent.MoreBatchesPending)
+                {
+                    var lastReceivedBatchIndex = summaryResponseContent.BatchInfo.BatchPartsInfo.Max(bpi => bpi.Index);
+                    const int maxProgressiveRetries = 600; // Max ~10 minutes with 1-second intervals
+                    var progressiveRetryCount = 0;
+
+                    while (summaryResponseContent.MoreBatchesPending && progressiveRetryCount < maxProgressiveRetries)
+                    {
+                        var retryDelay = TimeSpan.FromSeconds(1); // Poll every second for more batches
+
+                        // Notify progress
+                        await this.InterceptAsync(
+                            new HttpBatchCreationInProgressArgs(context, summaryResponseContent.AsyncProgress ?? 0, progressiveRetryCount, this.GetServiceHost()),
+                            progress, cancellationToken).ConfigureAwait(false);
+
+                        await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+
+                        // Request more batches from server
+                        response?.Dispose();
+                        var moreBatchesRequest = new HttpMessageSendChangesRequest(context, cScopeInfoClient)
+                        {
+                            ClientLastSyncTimestamp = clientChanges.ClientTimestamp,
+                            IsLastBatch = true,
+                            BatchIndex = 0,
+                            BatchCount = 0,
+                        };
+
+                        response = await this.ProcessRequestAsync(
+                            moreBatchesRequest, HttpStep.SendChangesInProgress, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
+
+#if NET6_0_OR_GREATER
+                        using var moreBatchesStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+                        using var moreBatchesStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
+                        var moreBatchesSerializer = this.SerializerFactory.GetSerializer();
+                        var moreBatchesResponse = await moreBatchesSerializer.DeserializeAsync<HttpMessageSummaryResponse>(moreBatchesStream).ConfigureAwait(false);
+                        context = moreBatchesResponse.SyncContext;
+
+                        // Add new batch parts that we haven't downloaded yet
+                        if (moreBatchesResponse.BatchInfo?.BatchPartsInfo != null)
+                        {
+                            var newBatchParts = moreBatchesResponse.BatchInfo.BatchPartsInfo
+                                .Where(bpi => bpi.Index > lastReceivedBatchIndex)
+                                .OrderBy(bpi => bpi.Index)
+                                .ToList();
+
+                            if (newBatchParts.Count > 0)
+                            {
+                                // Create a temporary batch info for downloading only new parts
+                                var tempBatchInfo = new BatchInfo
+                                {
+                                    DirectoryRoot = serverBatchInfo.DirectoryRoot,
+                                    DirectoryName = serverBatchInfo.DirectoryName,
+                                };
+                                foreach (var bpi in newBatchParts)
+                                {
+                                    tempBatchInfo.BatchPartsInfo.Add(bpi);
+                                    serverBatchInfo.BatchPartsInfo.Add(bpi);
+                                    lastReceivedBatchIndex = Math.Max(lastReceivedBatchIndex, bpi.Index);
+                                }
+
+                                // Download only the new batch parts
+                                await this.DownladBatchInfoAsync(context, schema, tempBatchInfo, moreBatchesResponse, progress, cancellationToken).ConfigureAwait(false);
+                            }
+                        }
+
+                        // Update status
+                        summaryResponseContent = moreBatchesResponse;
+                        serverBatchInfo.RowsCount = moreBatchesResponse.BatchInfo?.RowsCount ?? serverBatchInfo.RowsCount;
+                        progressiveRetryCount++;
+                    }
+
+                    if (summaryResponseContent.MoreBatchesPending)
+                        throw new SyncException($"Server batch creation timeout after {progressiveRetryCount} progressive retries. Please try again later.");
+                }
 
                 // generate the new scope item
                 this.CompleteTime = DateTime.UtcNow;

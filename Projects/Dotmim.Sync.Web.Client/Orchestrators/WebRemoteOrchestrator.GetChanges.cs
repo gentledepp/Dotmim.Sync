@@ -277,7 +277,7 @@ namespace Wormhole.Sync.Web.Client
                     else
                     {
                         // Handle traditional single-table batch
-                        using var localSerializer = new LocalJsonSerializer(this, context);
+                        await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                         // Should have only one table
                         var table = getMoreChanges.Changes.Tables[0];
@@ -291,7 +291,9 @@ namespace Wormhole.Sync.Web.Client
                         }
 
                         // open the file and write table header
-                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+                        var directoryPath = Path.GetDirectoryName(fullPath);
+                        var fileName = Path.GetFileName(fullPath);
+                        await localSerializer.OpenFileAsync(directoryPath, fileName, schemaTable, syncRowState).ConfigureAwait(false);
 
                         foreach (var row in table.Rows)
                         {
@@ -361,7 +363,7 @@ namespace Wormhole.Sync.Web.Client
                     else
                     {
                         // Handle traditional single-table batch
-                        using var localSerializer = new LocalJsonSerializer(this, context);
+                        await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                         // Should have only one table
                         var table = getMoreChanges.Changes.Tables[0];
@@ -375,7 +377,9 @@ namespace Wormhole.Sync.Web.Client
                         }
 
                         // open the file and write table header
-                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+                        var directoryPath2 = Path.GetDirectoryName(fullPath);
+                        var fileName2 = Path.GetFileName(fullPath);
+                        await localSerializer.OpenFileAsync(directoryPath2, fileName2, schemaTable, syncRowState).ConfigureAwait(false);
 
                         foreach (var row in table.Rows)
                         {

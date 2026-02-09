@@ -382,7 +382,7 @@ internal class Program
             var changes = await remoteOrchestrator.GetChangesAsync(scopeInfoClient);
 
             // load all the tables in memory
-            var tables = remoteOrchestrator.LoadTablesFromBatchInfo(changes.ServerBatchInfo);
+            var tables = await remoteOrchestrator.LoadTablesFromBatchInfoAsync(changes.ServerBatchInfo);
 
             // iterate
             foreach (var table in tables.ToList())

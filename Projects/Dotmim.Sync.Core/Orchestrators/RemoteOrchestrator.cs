@@ -95,7 +95,7 @@ namespace Wormhole.Sync
                     var cleanFolder = await this.InternalCanCleanFolderAsync(context.ScopeName, context.Parameters, serverSyncChanges.ServerBatchInfo, default, cancellationToken).ConfigureAwait(false);
 
                     if (cleanFolder)
-                        serverSyncChanges.ServerBatchInfo.TryRemoveDirectory();
+                        await serverSyncChanges.ServerBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
                 }
 
                 // Progress & interceptor

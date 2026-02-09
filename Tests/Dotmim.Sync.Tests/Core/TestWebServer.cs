@@ -1,12 +1,10 @@
-﻿using Wormhole.Sync.Tests.Core;
-using Wormhole.Sync.Web.Server;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Session;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
+using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +12,12 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Wormhole.Sync.Async;
+using Wormhole.Sync.Storage;
+using Wormhole.Sync.Tests.Core;
+using Wormhole.Sync.Web.Server;
 
 namespace Wormhole.Sync.Tests
 {
@@ -67,11 +70,21 @@ namespace Wormhole.Sync.Tests
         }
 
         public void AddSyncServer(CoreProvider provider, SyncSetup setup = null, SyncOptions options = null,
-            WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+            WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null,
+            IBatchStorage batchStorage = null,
+            IBatchCreationJobService batchJobService = null,
+            Action<IServiceCollection> register = null)
         {
             this.builder.ConfigureServices(services =>
             {
+                if (batchStorage != null)
+                    services.AddSingleton<IBatchStorage>(_ => batchStorage);
+                if (batchJobService != null)
+                    services.AddSingleton<IBatchCreationJobService>(_ => batchJobService);
+
                 services.AddSyncServer(provider, setup, options, webServerOptions, scopeName, identifier);
+
+                register?.Invoke(services);
             });
         }
 
@@ -121,6 +134,14 @@ namespace Wormhole.Sync.Tests
             var fiddler = useFiddler ? ".fiddler" : "";
 
             this.host = this.builder.Build();
+
+            // CRITICAL FIX: Manually start hosted services
+            var hostedServices = this.host.Services.GetServices<IHostedService>();
+            foreach (var hostedService in hostedServices)
+            {
+                hostedService.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+
             this.host.Start();
             string serviceUrl = $"http://localhost{fiddler}:{this.host.GetPort()}/";
 
@@ -137,6 +158,13 @@ namespace Wormhole.Sync.Tests
         {
             if (this.host != null)
             {
+                // Stop hosted services first
+                var hostedServices = this.host.Services.GetServices<IHostedService>();
+                foreach (var hostedService in hostedServices)
+                {
+                    await hostedService.StopAsync(CancellationToken.None);
+                }
+
                 await this.host.StopAsync();
                 this.host.Dispose();
                 this.host = null;
@@ -146,11 +174,21 @@ namespace Wormhole.Sync.Tests
 
         public async Task StopAsync()
         {
-            await this.host.StopAsync();
-            this.host.Dispose();
-            this.host = null;
-            this.builder = null;
-            this.initBuilder();
+            if (this.host != null)
+            {
+                // Stop hosted services first
+                var hostedServices = this.host.Services.GetServices<IHostedService>();
+                foreach (var hostedService in hostedServices)
+                {
+                    await hostedService.StopAsync(CancellationToken.None);
+                }
+
+                await this.host.StopAsync();
+                this.host.Dispose();
+                this.host = null;
+                this.builder = null;
+                this.initBuilder();
+            }
         }
     }
 

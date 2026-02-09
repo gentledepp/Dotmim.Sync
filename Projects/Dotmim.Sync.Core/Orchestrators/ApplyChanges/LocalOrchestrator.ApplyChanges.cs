@@ -5,6 +5,7 @@ using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -216,13 +217,14 @@ namespace Wormhole.Sync
                             if (!table.HasRows)
                                 continue;
 
-                            using var localSerializer = new LocalJsonSerializer(this, context);
+                            await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                             var (filePath, fileName) = errorsBatchInfo.GetNewBatchPartInfoPath(table, batchIndex, "json", info);
+                            var directoryPath = Path.GetDirectoryName(filePath);
                             var batchPartInfo = new BatchPartInfo(fileName, table.TableName, table.SchemaName, SyncRowState.None, table.Rows.Count, batchIndex);
                             errorsBatchInfo.BatchPartsInfo.Add(batchPartInfo);
 
-                            await localSerializer.OpenFileAsync(filePath, table, SyncRowState.None).ConfigureAwait(false);
+                            await localSerializer.OpenFileAsync(directoryPath, fileName, table, SyncRowState.None).ConfigureAwait(false);
 
                             foreach (var row in table.Rows)
                                 await localSerializer.WriteRowToFileAsync(row, table).ConfigureAwait(false);
@@ -252,6 +254,9 @@ namespace Wormhole.Sync
                     // Write scopes locally
                     using (var runnerScopeInfo = await this.GetConnectionAsync(context, SyncMode.NoTransaction, SyncStage.ScopeWriting, connection, transaction, progress, cancellationToken).ConfigureAwait(false))
                     {
+                        // re-apply parameters
+                        context.Parameters = cScopeInfoClient.Parameters;
+
                         (context, cScopeInfoClient) = await this.InternalSaveScopeInfoClientAsync(newCScopeInfoClient, context,
                             runnerScopeInfo.Connection, runnerScopeInfo.Transaction, runnerScopeInfo.Progress, runnerScopeInfo.CancellationToken).ConfigureAwait(false);
                     }

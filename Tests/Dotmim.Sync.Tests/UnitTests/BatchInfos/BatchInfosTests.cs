@@ -1,6 +1,7 @@
 ﻿using Wormhole.Sync.Batch;
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Serialization;
+using Wormhole.Sync.Storage;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -9,14 +10,13 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
     public class BatchInfosTests : IDisposable
     {
         // Current test running
-        private ITest test;
         private Stopwatch stopwatch;
 
         public ITestOutputHelper Output { get; }
@@ -27,8 +27,6 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Getting the test running
             this.Output = output;
             var type = output.GetType();
-            var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-            this.test = (ITest)testMember.GetValue(output);
             this.stopwatch = Stopwatch.StartNew();
         }
 
@@ -36,9 +34,9 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             this.stopwatch.Stop();
 
-            var str = $"{this.test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
-            Console.WriteLine(str);
-            Debug.WriteLine(str);
+            //var str = $"{this.test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
+            //Console.WriteLine(str);
+            //Debug.WriteLine(str);
         }
 
         public static SyncTable GetSimpleSyncTable(int rowsCount = 1)
@@ -104,6 +102,7 @@ namespace Wormhole.Sync.Tests.UnitTests
 
             // get a new filename and filepath
             var (filePath, fileName) = batchInfo.GetNewBatchPartInfoPath(tCustomer, 1, "json", string.Empty);
+            var directoryPath = Path.GetDirectoryName(filePath);
 
             // create a new part for this batch info
             var batchPartInfo = new BatchPartInfo(fileName, tCustomer.TableName, tCustomer.SchemaName,
@@ -112,10 +111,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             batchInfo.BatchPartsInfo.Add(batchPartInfo);
 
             // using a serializer to serialize the table data on disk
-            using var localSerializer = new LocalJsonSerializer();
+            var batchStorage = new LocalFileSystemBatchStorage();
+            await using var localSerializer = new LocalJsonSerializer(batchStorage);
 
             // open it
-            await localSerializer.OpenFileAsync(filePath, tCustomer, syncRowState);
+            await localSerializer.OpenFileAsync(directoryPath, fileName, tCustomer, syncRowState);
 
             foreach (var row in tCustomer.Rows)
                 await localSerializer.WriteRowToFileAsync(row, tCustomer);
@@ -210,9 +210,13 @@ namespace Wormhole.Sync.Tests.UnitTests
             var (bi, st) = await GenerateBatchInfoAsync(10, SyncRowState.ApplyModifiedFailed);
 
             var filePath = bi.GetBatchPartInfoFullPath(bi.BatchPartsInfo[0]);
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
 
+            var batchStorage = new LocalFileSystemBatchStorage();
+            await using var localSerializer = new LocalJsonSerializer(batchStorage);
             var (schemaTable, rowsCount, state) =
-                LocalJsonSerializer.GetSchemaTableFromFile(filePath);
+                await localSerializer.GetSchemaTableFromFileAsync(directoryPath, fileName);
 
             Assert.Equal(st.TableName, schemaTable.TableName);
             Assert.Equal(st.SchemaName, schemaTable.SchemaName);
@@ -226,13 +230,16 @@ namespace Wormhole.Sync.Tests.UnitTests
             var (bi, st) = await GenerateBatchInfoAsync(100000, SyncRowState.ApplyModifiedFailed);
 
             var filePath = bi.GetBatchPartInfoFullPath(bi.BatchPartsInfo[0]);
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
+
+            var batchStorage = new LocalFileSystemBatchStorage();
+            await using var localSerializer = new LocalJsonSerializer(batchStorage);
 
             var (schemaTable, rowsCount, state) =
-              LocalJsonSerializer.GetSchemaTableFromFile(filePath);
+              await localSerializer.GetSchemaTableFromFileAsync(directoryPath, fileName);
 
-            var localSerializer = new LocalJsonSerializer();
-
-            var rows = localSerializer.GetRowsFromFile(filePath, st).ToList();
+            var rows = (await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, st)).ToList();
 
             Assert.Equal(st.Rows.Count, rows.Count);
         }
@@ -263,10 +270,13 @@ namespace Wormhole.Sync.Tests.UnitTests
             var (bi, st) = await GenerateBatchInfoAsync(10);
 
             var filePath = bi.GetBatchPartInfoFullPath(bi.BatchPartsInfo[0]);
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
 
-            using var localSerializer = new LocalJsonSerializer();
+            var batchStorage = new LocalFileSystemBatchStorage();
+            await using var localSerializer = new LocalJsonSerializer(batchStorage);
 
-            var rows = localSerializer.GetRowsFromFile(filePath, st).ToList();
+            var rows = (await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, st)).ToList();
 
             Assert.Equal(st.Rows.Count, rows.Count);
 
@@ -289,9 +299,13 @@ namespace Wormhole.Sync.Tests.UnitTests
             var (bi, st) = await GenerateBatchInfoAsync(0, SyncRowState.Modified);
 
             var filePath = bi.GetBatchPartInfoFullPath(bi.BatchPartsInfo[0]);
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
 
+            var batchStorage = new LocalFileSystemBatchStorage();
+            await using var localSerializer = new LocalJsonSerializer(batchStorage);
             var (schemaTable, rowsCount, state) =
-                LocalJsonSerializer.GetSchemaTableFromFile(filePath);
+                await localSerializer.GetSchemaTableFromFileAsync(directoryPath, fileName);
 
             Assert.Equal(st.TableName, schemaTable.TableName);
             Assert.Equal(st.SchemaName, schemaTable.SchemaName);

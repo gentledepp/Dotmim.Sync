@@ -13,7 +13,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using Xunit;
-using Xunit.Abstractions;
 using Xunit.Sdk;
 using System.Threading.Tasks;
 using Wormhole.Sync.Tests.Models;
@@ -22,7 +21,7 @@ using System.Data;
 
 namespace Wormhole.Sync.Tests.Misc
 {
-    public abstract class DatabaseTest : IDisposable, IAsyncLifetime
+    public abstract class DatabaseTest : IAsyncLifetime
     {
         private Stopwatch preWorkStopwatch;
         private Stopwatch postWorkStopwatch;
@@ -143,7 +142,6 @@ namespace Wormhole.Sync.Tests.Misc
 
         public virtual DatabaseServerFixture Fixture { get; }
         public virtual ITestOutputHelper Output { get; }
-        public virtual XunitTest Test { get; }
         public virtual Stopwatch Stopwatch { get; private set; }
 
 #if NET48
@@ -166,9 +164,6 @@ namespace Wormhole.Sync.Tests.Misc
             this.Fixture = fixture;
             // Getting the test running
             this.Output = output;
-            var type = output.GetType();
-            var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-            this.Test = (XunitTest)testMember.GetValue(output);
 
 #if NET48
             this.Kestrel = new TestWebServer(this.UseFiddler);
@@ -178,7 +173,7 @@ namespace Wormhole.Sync.Tests.Misc
 #endif
         }
 
-        public async Task InitializeAsync()
+        public async ValueTask InitializeAsync()
         {
             preWorkStopwatch = Stopwatch.StartNew();
 
@@ -196,7 +191,6 @@ namespace Wormhole.Sync.Tests.Misc
             this.Stopwatch = Stopwatch.StartNew();
 
         }
-        public Task DisposeAsync() => Task.CompletedTask;
 
 
         //private void ResetClientsTables()
@@ -251,7 +245,6 @@ namespace Wormhole.Sync.Tests.Misc
             var preWorkEllapsedTime = $"[Pre :{this.preWorkStopwatch.Elapsed.Minutes}:{this.preWorkStopwatch.Elapsed.Seconds}.{this.preWorkStopwatch.Elapsed.Milliseconds}]";
             var postWorkEllapsedTime = $"[Post :{this.postWorkStopwatch.Elapsed.Minutes}:{this.postWorkStopwatch.Elapsed.Seconds}.{this.postWorkStopwatch.Elapsed.Milliseconds}]";
             var workEllapsedTime = $"[Test: {this.Stopwatch.Elapsed.Minutes}:{this.Stopwatch.Elapsed.Seconds}.{this.Stopwatch.Elapsed.Milliseconds}]";
-            var testClass = this.Test.TestCase.TestMethod.TestClass.Class as ReflectionTypeInfo;
 
             string clientsDbName = "";
             string comma = "";
@@ -264,13 +257,14 @@ namespace Wormhole.Sync.Tests.Misc
             var serverDbName = $"[Server {GetServerProvider().GetDatabaseName()}]";
             clientsDbName = $"[Clients {clientsDbName}]";
 
-            t = $"{testClass.Type.Name}.{this.Test.TestCase.Method.Name}{t}: {serverDbName}-{clientsDbName} - {preWorkEllapsedTime}-{postWorkEllapsedTime} - {workEllapsedTime}.";
+            // In xUnit v3, we don't have direct access to test metadata via reflection
+            t = $"{this.GetType().Name}{t}: {serverDbName}-{clientsDbName} - {preWorkEllapsedTime}-{postWorkEllapsedTime} - {workEllapsedTime}.";
             Console.WriteLine(t);
             Debug.WriteLine(t);
             this.Output.WriteLine(t);
         }
 
-        public void Dispose()
+        public virtual async ValueTask DisposeAsync()
         {
             this.Stopwatch?.Stop();
 
@@ -297,6 +291,8 @@ namespace Wormhole.Sync.Tests.Misc
             this.postWorkStopwatch.Stop();
 
             OutputCurrentState();
+
+            await Task.CompletedTask;
         }
 
     }

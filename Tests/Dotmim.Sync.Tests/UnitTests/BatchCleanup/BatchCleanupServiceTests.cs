@@ -8,13 +8,12 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
     public class BatchCleanupServiceTests : IDisposable
     {
-        private ITest test;
         private Stopwatch stopwatch;
         private readonly string tempDirectory;
         private readonly BatchCleanupService batchCleanupService;
@@ -25,8 +24,6 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             this.Output = output;
             var type = output.GetType();
-            var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-            this.test = (ITest)testMember.GetValue(output);
             this.stopwatch = Stopwatch.StartNew();
 
             this.tempDirectory = Path.Combine(Path.GetTempPath(), $"BatchCleanupTest_{Guid.NewGuid():N}");
@@ -196,7 +193,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             using var cts = new CancellationTokenSource();
             cts.Cancel();
 
-            await Assert.ThrowsAsync<TaskCanceledException>(
+            await Assert.ThrowsAsync<OperationCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));
         }
 
@@ -455,7 +452,7 @@ namespace Wormhole.Sync.Tests.UnitTests
 
             await Task.Delay(2);
 
-            await Assert.ThrowsAsync<TaskCanceledException>(
+            await Assert.ThrowsAsync<OperationCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));
         }
 
@@ -482,7 +479,7 @@ namespace Wormhole.Sync.Tests.UnitTests
                 }
             }
 
-            this.Output?.WriteLine($"Test {this.test?.DisplayName} took {this.stopwatch?.Elapsed.ToString() ?? "unknown time"}");
+            this.Output?.WriteLine($"Test took {this.stopwatch?.Elapsed.ToString() ?? "unknown time"}");
         }
     }
 }

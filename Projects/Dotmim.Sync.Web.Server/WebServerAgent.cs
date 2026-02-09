@@ -1,3 +1,4 @@
+using Wormhole.Sync.Async;
 using Wormhole.Sync.Batch;
 using Wormhole.Sync.Enumerations;
 using Wormhole.Sync.Extensions;
@@ -22,6 +23,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Wormhole.Sync.Storage;
 
 namespace Wormhole.Sync.Web.Server
 {
@@ -38,7 +40,10 @@ namespace Wormhole.Sync.Web.Server
         public WebServerAgent(CoreProvider provider, SyncSetup setup, SyncOptions options = null, WebServerOptions webServerOptions = null,
             string scopeName = null,
             string identifier = null,
-            IBatchCleanupService cleanupService = null)
+            IBatchCleanupService cleanupService = null,
+            IBatchCreationJobService batchCreationJobService = null,
+            IBatchStorage batchStore = null,
+            ISessionCacheStore sessionCacheStore = null)
         {
             this.Setup = setup;
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
@@ -46,26 +51,33 @@ namespace Wormhole.Sync.Web.Server
             this.ScopeName = string.IsNullOrEmpty(scopeName) ? SyncOptions.DefaultScopeName : scopeName;
             this.RemoteOrchestrator = new RemoteOrchestrator(this.Provider, options ?? new SyncOptions())
             {
-                BatchCleanupService = cleanupService??new BatchCleanupService()
+                BatchCleanupService = cleanupService ?? new BatchCleanupService(),
+                BatchStorage = batchStore ?? new LocalFileSystemBatchStorage()
             };
             this.Identifier = identifier;
+            this.BatchCreationJobService = batchCreationJobService;
+            this.SessionCacheStore = sessionCacheStore;
         }
 
         /// <inheritdoc cref="WebServerAgent"/>
         public WebServerAgent(CoreProvider provider, string[] tables, SyncOptions options = null, WebServerOptions webServerOptions = null,
             string scopeName = null,
             string identifier = null,
-            IBatchCleanupService cleanupService = null)
+            IBatchCleanupService cleanupService = null,
+            IBatchCreationJobService batchCreationJobService = null,
+            ISessionCacheStore sessionCacheStore = null)
         {
             this.Setup = new SyncSetup(tables);
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
             this.Provider = provider;
             this.RemoteOrchestrator = new RemoteOrchestrator(this.Provider, options ?? new SyncOptions())
             {
-                BatchCleanupService = cleanupService??new BatchCleanupService()
+                BatchCleanupService = cleanupService ?? new BatchCleanupService(),
             };
             this.ScopeName = string.IsNullOrEmpty(scopeName) ? SyncOptions.DefaultScopeName : scopeName;
             this.Identifier = identifier;
+            this.BatchCreationJobService = batchCreationJobService;
+            this.SessionCacheStore = sessionCacheStore;
         }
 
         /// <summary>
@@ -140,9 +152,22 @@ namespace Wormhole.Sync.Web.Server
         public string ScopeName { get; private set; }
 
         /// <summary>
+        /// Gets the session cache store used for storing session data.
+        /// If null, falls back to direct ASP.NET Session access for backward compatibility.
+        /// </summary>
+        internal ISessionCacheStore SessionCacheStore { get; private set; }
+
+        /// <summary>
         /// Gets the RemoteOrchestrator used in this webServerAgent.
         /// </summary>
         public RemoteOrchestrator RemoteOrchestrator { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the batch creation job service for async batch creation.
+        /// When set together with <see cref="WebServerOptions.EnableAsyncBatchCreation"/>,
+        /// batch creation for initial syncs is performed in the background.
+        /// </summary>
+        public IBatchCreationJobService BatchCreationJobService { get; set; }
 
         /// <summary>
         /// Get Scope Name sent by the client.
@@ -437,18 +462,29 @@ namespace Wormhole.Sync.Web.Server
                 if (!string.Equals(scopeName, this.ScopeName, SyncGlobalization.DataSourceStringComparison))
                     throw new HttpScopeNameFromClientIsInvalidException(scopeName, this.ScopeName);
 
-#if NET48
-                // In NET48, session is accessed via System.Web.HttpContext.Current.Session
-                var session = httpContext.Session;
-                var sessionCache = session.Get<SessionCache>(sessionId);
-#else
-                // load session
-                await httpContext.Session.LoadAsync(cancellationToken).ConfigureAwait(false);
+                SessionCache sessionCache;
 
-                // Get schema and clients batch infos / summaries, from session
-                // var schema = httpContext.Session.Get<SyncSet>(scopeName);
-                var sessionCache = httpContext.Session.Get<SessionCache>(sessionId);
+                if (this.SessionCacheStore != null)
+                {
+                    // Use abstracted store
+                    sessionCache = await this.SessionCacheStore.GetAsync(sessionId, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Fall back to direct Session access (backward compatibility)
+#if NET48
+                    // In NET48, session is accessed via System.Web.HttpContext.Current.Session
+                    var session = httpContext.Session;
+                    sessionCache = session.Get<SessionCache>(sessionId);
+#else
+                    // load session
+                    await httpContext.Session.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+                    // Get schema and clients batch infos / summaries, from session
+                    // var schema = httpContext.Session.Get<SyncSet>(scopeName);
+                    sessionCache = httpContext.Session.Get<SessionCache>(sessionId);
 #endif
+                }
 
                 // HttpStep.EnsureSchema is the first call from client when client is new
                 // HttpStep.EnsureScopes is the first call from client when client is not new
@@ -457,13 +493,23 @@ namespace Wormhole.Sync.Web.Server
                     (step == HttpStep.EnsureSchema || step == HttpStep.EnsureScopes || step == HttpStep.GetRemoteClientTimestamp || step == HttpStep.SendChangesIncremental))
                 {
                     sessionCache = new SessionCache();
+
+                    if (this.SessionCacheStore != null)
+                    {
+                        await this.SessionCacheStore.SetAsync(sessionId, sessionCache, cancellationToken).ConfigureAwait(false);
+                        await this.SessionCacheStore.SetSessionIdAsync("session_id", sessionId, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
 #if NET48
-                    session.Set(sessionId, sessionCache);
-                    session.SetString("session_id", sessionId);
+                        var session = GetSession(httpContext);
+                        session.Set(sessionId, sessionCache);
+                        session.SetString("session_id", sessionId);
 #else
-                    httpContext.Session.Set(sessionId, sessionCache);
-                    httpContext.Session.SetString("session_id", sessionId);
+                        httpContext.Session.Set(sessionId, sessionCache);
+                        httpContext.Session.SetString("session_id", sessionId);
 #endif
+                    }
                 }
 
                 // if sessionCache is still null, then we are in a step where it should not be null.
@@ -472,11 +518,21 @@ namespace Wormhole.Sync.Web.Server
                     throw new HttpSessionLostException(sessionId);
 
                 // check session id
+                string tempSessionId;
+
+                if (this.SessionCacheStore != null)
+                {
+                    tempSessionId = await this.SessionCacheStore.GetSessionIdAsync("session_id", cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
 #if NET48
-                var tempSessionId = session.GetString("session_id");
+                    var session = GetSession(httpContext);
+                    tempSessionId = session.GetString("session_id");
 #else
-                var tempSessionId = httpContext.Session.GetString("session_id");
+                    tempSessionId = httpContext.Session.GetString("session_id");
 #endif
+                }
 
                 // check session
                 var requiresSession = step != HttpStep.SendSyncErrors;
@@ -621,13 +677,23 @@ namespace Wormhole.Sync.Web.Server
                         break;
                 }
 
+                if (this.SessionCacheStore != null)
+                {
+                    // Use abstracted store
+                    await this.SessionCacheStore.SetAsync(sessionId, sessionCache, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Fall back to direct Session access (backward compatibility)
 #if NET48
-                session.Set(sessionId, sessionCache);
-                // No need to commit in System.Web.SessionState - it's automatic
+                    var session = GetSession(httpContext);
+                    session.Set(sessionId, sessionCache);
+                    // No need to commit in System.Web.SessionState - it's automatic
 #else
-                httpContext.Session.Set(sessionId, sessionCache);
-                await httpContext.Session.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    httpContext.Session.Set(sessionId, sessionCache);
+                    await httpContext.Session.CommitAsync(cancellationToken).ConfigureAwait(false);
 #endif
+                }
 
                 if (messageResponse is HttpMessageSendChangesResponse httpMessageSendChangesResponse)
 #if NET48
@@ -847,7 +913,12 @@ namespace Wormhole.Sync.Web.Server
                 var clientSerializerFactory = this.WebServerOptions.SerializerFactories.FirstOrDefault(sf => sf.Key == serializerInfo.SerializerKey);
                 clientSerializerFactory ??= SerializersFactory.JsonSerializerFactory;
 
-                return (serializerInfo.ClientBatchSize, clientSerializerFactory);
+                var clientBatchSize = serializerInfo.ClientBatchSize;
+
+                if (clientBatchSize < 100)
+                    clientBatchSize = Math.Max(100, this.Options.BatchSize);
+
+                return (clientBatchSize, clientSerializerFactory);
             }
             catch
             {
@@ -1147,13 +1218,13 @@ namespace Wormhole.Sync.Web.Server
                             }
                         }
                     }
-                    var dn = Path.GetDirectoryName(fullPath);
-                    if(!Directory.Exists(dn))
-                        Directory.CreateDirectory(dn);
-                    using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                    var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                    var batchFileName = Path.GetFileName(fullPath);
+                    await this.RemoteOrchestrator.BatchStorage.EnsureDirectoryExistsAsync(batchDirectoryPath, cancellationToken).ConfigureAwait(false);
+                    var data = await serializer.SerializeAsync(httpMessage.Changes).ConfigureAwait(false);
+                    using (var dataStream = new MemoryStream(data))
                     {
-                        var data = await serializer.SerializeAsync(httpMessage.Changes).ConfigureAwait(false);
-                        await fileStream.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
+                        await this.RemoteOrchestrator.BatchStorage.WriteBatchPartAsync(batchDirectoryPath, batchFileName, dataStream, cancellationToken).ConfigureAwait(false);
                     }
 
                     // Create single BatchPartInfo for the unified batch
@@ -1181,7 +1252,7 @@ namespace Wormhole.Sync.Web.Server
                 else
                 {
                     // Traditional single-table batch
-                    using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
+                    await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
 
                     // we have only one table here
                     var containerTable = httpMessage.Changes.Tables[0];
@@ -1191,8 +1262,8 @@ namespace Wormhole.Sync.Web.Server
 
                 var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
 
-                var fileName = BatchInfo.GenerateNewFileName(httpMessage.BatchIndex.ToString(CultureInfo.InvariantCulture), tableName, LocalJsonSerializer.Extension, "CLICHANGES");
-                var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
+                var fileName = BatchInfo.GenerateNewFileName(httpMessage.BatchIndex.ToString(CultureInfo.InvariantCulture), tableName, localSerializer.FileExtension, "CLICHANGES");
+                var directoryPath = sessionCache.ClientBatchInfo.GetDirectoryFullPath();
 
                 SyncRowState syncRowState = SyncRowState.None;
                 if (containerTable.Rows != null && containerTable.Rows.Count > 0)
@@ -1202,7 +1273,7 @@ namespace Wormhole.Sync.Web.Server
                 }
 
                 // open the file and write table header
-                await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+                await localSerializer.OpenFileAsync(directoryPath, fileName, schemaTable, syncRowState).ConfigureAwait(false);
 
                 foreach (var row in containerTable.Rows)
                 {
@@ -1238,12 +1309,62 @@ namespace Wormhole.Sync.Web.Server
                 return new HttpMessageSummaryResponse(httpMessage.SyncContext) { Step = HttpStep.SendChangesInProgress };
 
             // ------------------------------------------------------------
-            // SECOND STEP : apply then return server changes
+            // ASYNC BATCH CREATION : Check if we should use async processing
+            // ------------------------------------------------------------
+            var isInitialSync = httpMessage.ScopeInfoClient?.IsNewScope == true ||
+                               context.SyncType == Enumerations.SyncType.Reinitialize ||
+                               context.SyncType == Enumerations.SyncType.ReinitializeWithUpload;
+
+            if (this.WebServerOptions.EnableAsyncBatchCreation &&
+                isInitialSync &&
+                this.BatchCreationJobService != null)
+            {
+                // Generate deterministic job ID based on session and client scope
+                var jobId = $"{context.SessionId}_{httpMessage.ScopeInfoClient?.Id ?? Guid.Empty}";
+                sessionCache.AsyncBatchJobId = jobId;
+
+                // Check for existing job (retry scenario)
+                var existingStatus = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+
+                if (existingStatus != null)
+                {
+                    // Try to handle immediately (Completed/FirstBatchReady/Failed)
+                    var response = await this.TryHandleBatchJobStatusAsync(httpContext, context, sessionCache, existingStatus, cancellationToken);
+                    if (response != null)
+                        return response;
+
+                    // Still processing — poll with timeout
+                    return await this.PollBatchCreationJobAsync(httpContext, context, sessionCache, jobId, cancellationToken);
+                }
+
+                // No existing job — enqueue a new one
+                var jobParameters = new BatchCreationJobParameters
+                {
+                    ScopeName = context.ScopeName,
+                    ServerScopeInfo = sScopeInfo,
+                    ClientScopeInfoClient = httpMessage.ScopeInfoClient,
+                    Context = context,
+                    ClientBatchInfo = sessionCache.ClientBatchInfo,
+                    BatchDirectory = this.Options.BatchDirectory,
+                    BatchSize = this.Options.BatchSize,
+                    UseUnifiedBatching = context.UseUnifiedBatching,
+                    ProviderTypeName = this.Provider.GetType().AssemblyQualifiedName,
+                    ConnectionString = this.Provider.ConnectionString
+                };
+
+                await this.BatchCreationJobService.EnqueueBatchCreationAsync(jobId, jobParameters, cancellationToken).ConfigureAwait(false);
+
+                // Poll for results
+                return await this.PollBatchCreationJobAsync(httpContext, context, sessionCache, jobId, cancellationToken);
+            }
+
+            // ------------------------------------------------------------
+            // SECOND STEP : apply then return server changes (synchronous)
             // ------------------------------------------------------------
             ServerSyncChanges serverSyncChanges;
             context = httpMessage.SyncContext;
             var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
-            
+
             // get changes
             (context, serverSyncChanges, _) = await this.RemoteOrchestrator.InternalApplyThenGetChangesAsync(
                                                httpMessage.ScopeInfoClient,
@@ -1261,12 +1382,12 @@ namespace Wormhole.Sync.Web.Server
 
             // delete the folder (not the BatchPartInfo, because we have a reference on it)
             var cleanFolder = this.Options.CleanFolder;
-            
+
             if (cleanFolder)
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
-            
+
             if (cleanFolder)
-                sessionCache.ClientBatchInfo.TryRemoveDirectory();
+                await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
 
             // Retro compatiblité to version < 0.9.3
             if (serverSyncChanges.ServerBatchInfo.BatchPartsInfo == null)
@@ -1286,12 +1407,166 @@ namespace Wormhole.Sync.Web.Server
             return summaryResponse;
         }
 
+        private async Task UpdateSession(HttpContext httpContext, SessionCache sessionCache,
+            CancellationToken cancellationToken, SyncContext context)
+        {
+            var sessionId = context.SessionId.ToString();
+
+            if (this.SessionCacheStore != null)
+            {
+                await this.SessionCacheStore.SetAsync(sessionId, sessionCache, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                var session = GetSession(httpContext);
+#if NET48
+                session.Set(sessionId, sessionCache);
+#else
+                session.Set(sessionId, sessionCache);
+                await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+#endif
+            }
+        }
+
+        /// <summary>
+        /// Handles a single <see cref="BatchCreationJobStatus"/> and returns a response for terminal states,
+        /// or null when polling should continue.
+        /// </summary>
+        private async Task<HttpMessageSummaryResponse> TryHandleBatchJobStatusAsync(
+           HttpContext httpContext, SyncContext context, SessionCache sessionCache,
+           BatchCreationJobStatus status, CancellationToken cancellationToken)
+        {
+            if (status == null)
+                return null;
+
+            switch (status.State)
+            {
+                case BatchCreationJobState.Completed:
+                    sessionCache.RemoteClientTimestamp = status.RemoteClientTimestamp ?? 0;
+                    sessionCache.ServerBatchInfo = status.BatchInfo;
+                    sessionCache.ServerChangesSelected = status.ChangesSelected;
+                    sessionCache.ClientChangesApplied = status.ChangesApplied;
+                    sessionCache.AppliedBatchesSuccessfully = true;
+
+                    await this.UpdateSession(httpContext, sessionCache, cancellationToken, context);
+
+                    var cleanFolder = this.Options.CleanFolder;
+                    if (cleanFolder)
+                        cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(
+                            context.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken).ConfigureAwait(false);
+                    if (cleanFolder)
+                        await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
+
+                    return new HttpMessageSummaryResponse(context)
+                    {
+                        BatchInfo = sessionCache.ServerBatchInfo,
+                        Step = HttpStep.GetSummary,
+                        RemoteClientTimestamp = sessionCache.RemoteClientTimestamp,
+                        ClientChangesApplied = sessionCache.ClientChangesApplied,
+                        ServerChangesSelected = sessionCache.ServerChangesSelected,
+                        ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                    };
+
+                case BatchCreationJobState.Failed:
+                    throw new SyncException(status.ErrorMessage ?? "Async batch creation failed");
+
+                case BatchCreationJobState.FirstBatchReady:
+                    if (status.AvailableBatchParts != null && status.AvailableBatchParts.Count > 0)
+                    {
+                        var partialBatchInfo = new BatchInfo
+                        {
+                            DirectoryRoot = status.BatchInfo?.DirectoryRoot ?? this.Options.BatchDirectory,
+                            DirectoryName = status.BatchInfo?.DirectoryName,
+                        };
+                        partialBatchInfo.BatchPartsInfo = new List<BatchPartInfo>(status.AvailableBatchParts);
+
+                        sessionCache.RemoteClientTimestamp = status.RemoteClientTimestamp ?? 0;
+                        sessionCache.ServerBatchInfo = partialBatchInfo;
+                        sessionCache.ServerChangesSelected = status.ChangesSelected;
+                        sessionCache.ClientChangesApplied = status.ChangesApplied;
+
+                        await this.UpdateSession(httpContext, sessionCache, cancellationToken, context);
+
+                        var lastIndex = Math.Max(0, status.AvailableBatchParts.Max(bpi => bpi.Index));
+
+                        return new HttpMessageSummaryResponse(context)
+                        {
+                            BatchInfo = partialBatchInfo,
+                            Step = HttpStep.GetSummary,
+                            RemoteClientTimestamp = status.RemoteClientTimestamp ?? 0,
+                            ClientChangesApplied = status.ChangesApplied,
+                            ServerChangesSelected = status.ChangesSelected,
+                            ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                            MoreBatchesPending = true,
+                            LastBatchIndex = lastIndex,
+                            AsyncProgress = status.ProgressPercentage,
+                        };
+                    }
+
+                    // FirstBatchReady but no parts available yet — continue polling
+                    return null;
+
+                default:
+                    // Queued / Processing — continue polling
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Polls <see cref="IBatchCreationJobService"/> until a terminal response is available or timeout is reached.
+        /// </summary>
+        private async Task<HttpMessageSummaryResponse> PollBatchCreationJobAsync(
+           HttpContext httpContext, SyncContext context, SessionCache sessionCache,
+           string jobId, CancellationToken cancellationToken)
+        {
+            var timeout = this.WebServerOptions.AsyncBatchTimeout;
+            var pollingInterval = this.WebServerOptions.AsyncBatchPollingInterval;
+            var startTime = DateTime.UtcNow;
+
+            BatchCreationJobStatus lastStatus = null;
+
+            while (DateTime.UtcNow - startTime < timeout)
+            {
+                await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
+
+                lastStatus = await this.BatchCreationJobService.GetJobStatusAsync(jobId).ConfigureAwait(false);
+
+                var response = await this.TryHandleBatchJobStatusAsync(httpContext, context, sessionCache, lastStatus, cancellationToken);
+                if (response != null)
+                    return response;
+            }
+
+            // Timeout — return InProgress response for client retry
+            return new HttpMessageSummaryResponse(context)
+            {
+                Step = HttpStep.SendChangesInProgress,
+                InProgress = true,
+                AsyncProgress = lastStatus?.ProgressPercentage ?? 0,
+                RetryAfterSeconds = (int)pollingInterval.TotalSeconds + 1,
+            };
+        }
+
         /// <summary>
         /// Get batch changes.
         /// </summary>
         protected internal virtual async Task<HttpMessageSendChangesResponse> GetMoreChangesAsync(HttpContext httpContext, HttpMessageGetMoreChangesRequest httpMessage,
             SessionCache sessionCache, IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
         {
+            // Refresh sessionCache from async batch job if one is active
+            if (!string.IsNullOrEmpty(sessionCache.AsyncBatchJobId) && this.BatchCreationJobService != null)
+            {
+                try
+                {
+                    var status = await this.BatchCreationJobService.GetJobStatusAsync(sessionCache.AsyncBatchJobId).ConfigureAwait(false);
+                    if (status != null)
+                        await this.TryHandleBatchJobStatusAsync(httpContext, httpMessage.SyncContext, sessionCache, status, cancellationToken);
+                }
+                catch
+                {
+                    // Don't fail batch part downloads due to job check errors
+                }
+            }
+
             var response = await this.GetChangesResponseAsync(httpContext, httpMessage.SyncContext, sessionCache.RemoteClientTimestamp,
                 sessionCache.ServerBatchInfo, sessionCache.ClientChangesApplied,
                 sessionCache.ServerChangesSelected, httpMessage.BatchIndexRequested);
@@ -1370,9 +1645,11 @@ namespace Wormhole.Sync.Web.Server
             {
                 // Handle unified batch file - deserialize the entire ContainerSet
                 var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
-                using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read))
+                var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                var batchFileName = Path.GetFileName(fullPath);
+                using (var stream = await this.RemoteOrchestrator.BatchStorage.ReadBatchPartAsync(batchDirectoryPath, batchFileName).ConfigureAwait(false))
                 {
-                    containerSet = await serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false);
+                    containerSet = await serializer.DeserializeAsync<ContainerSet>(stream).ConfigureAwait(false);
                 }
 
                 // Apply converter if needed after deserialization
@@ -1405,8 +1682,10 @@ namespace Wormhole.Sync.Web.Server
                 containerSet.Tables.Add(containerTable);
 
                 // read rows from file
-                using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
-                foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
+                var directoryPath = Path.GetDirectoryName(fullPath);
+                var fileName = Path.GetFileName(fullPath);
+                await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
+                foreach (var row in await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, schemaTable))
                 {
                     if (row != null && row.Length > 0 && this.clientConverter != null)
                         this.clientConverter.BeforeSerialize(row, schemaTable);
@@ -1470,7 +1749,7 @@ namespace Wormhole.Sync.Web.Server
                 cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, httpMessage.SyncContext.Parameters, sessionCache.ServerBatchInfo, default, cancellationToken).ConfigureAwait(false);
 
             if (cleanFolder)
-                sessionCache.ServerBatchInfo.TryRemoveDirectory();
+                await sessionCache.ServerBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
 
             // Update the response to indicate this was the end download step
             response.ServerStep = HttpStep.SendEndDownloadChanges;

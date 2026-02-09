@@ -1,4 +1,5 @@
 ﻿using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Storage;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
@@ -38,12 +39,11 @@ namespace Wormhole.Sync
         /// <summary>
         /// Gets or Sets the size used (approximatively in kb, depending on the serializer) for each batch file, in batch mode.
         /// Default is 5000
-        /// Min value is 100.
         /// </summary>
         public int BatchSize
         {
             get => this.batchSize;
-            set => this.batchSize = Math.Max(value, 100);
+            set => this.batchSize = value;
         }
 
         /// <summary>
@@ -150,7 +150,7 @@ namespace Wormhole.Sync
         public SyncOptions()
         {
             this.BatchDirectory = GetDefaultUserBatchDirectory();
-            this.BatchSize = 2000;
+            this.BatchSize = 5000;
             this.CleanMetadatas = true;
             this.CleanFolder = true;
             this.UseVerboseErrors = true;

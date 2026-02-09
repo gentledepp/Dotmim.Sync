@@ -476,6 +476,42 @@ namespace Wormhole.Sync.Web.Client
         /// </summary>
         [DataMember(Name = "ssid", IsRequired = false, EmitDefaultValue = false, Order = 9)]
         public Guid ServerScopeId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether batch creation is still in progress (HTTP 202 scenario).
+        /// When true, the client should retry after the specified <see cref="RetryAfterSeconds"/> delay.
+        /// </summary>
+        [DataMember(Name = "ip", IsRequired = false, EmitDefaultValue = false, Order = 10)]
+        public bool InProgress { get; set; }
+
+        /// <summary>
+        /// Gets or sets the progress percentage for async batch creation (0-100).
+        /// Only meaningful when <see cref="InProgress"/> is true.
+        /// </summary>
+        [DataMember(Name = "prg", IsRequired = false, EmitDefaultValue = false, Order = 11)]
+        public int? AsyncProgress { get; set; }
+
+        /// <summary>
+        /// Gets or sets the suggested retry delay in seconds (for 202 InProgress responses).
+        /// The client should wait this amount of time before retrying the request.
+        /// </summary>
+        [DataMember(Name = "ra", IsRequired = false, EmitDefaultValue = false, Order = 12)]
+        public int? RetryAfterSeconds { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether more batch parts are being created and client should poll for additional batches.
+        /// Used with progressive batch streaming.
+        /// </summary>
+        [DataMember(Name = "mbp", IsRequired = false, EmitDefaultValue = false, Order = 13)]
+        public bool MoreBatchesPending { get; set; }
+
+        /// <summary>
+        /// Gets or sets the index of the last batch part in this response.
+        /// Client sends this back to get only new batches.
+        /// Used with progressive batch streaming.
+        /// </summary>
+        [DataMember(Name = "lbi", IsRequired = false, EmitDefaultValue = false, Order = 14)]
+        public int? LastBatchIndex { get; set; }
     }
 
     /// <summary>

@@ -24,9 +24,13 @@ namespace Wormhole.Sync
         /// Get all rows from a unified batch file for a specific table, regardless of operation type, with caching support.
         /// Used for error recovery scenarios.
         /// </summary>
-        internal virtual IEnumerable<SyncRow> GetAllRowsFromUnifiedBatchFile(string filePath, SyncTable schemaTable, Dictionary<string, ContainerSet> cache)
+        internal virtual async Task<IEnumerable<SyncRow>> GetAllRowsFromUnifiedBatchFileAsync(string filePath, SyncTable schemaTable, Dictionary<string, ContainerSet> cache, CancellationToken cancellationToken = default)
         {
-            if (!File.Exists(filePath))
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
+
+            var fileExists = await this.BatchStorage.FileExistsAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false);
+            if (!fileExists)
                 throw new FileNotFoundException($"Unified batch file not found: {filePath}");
 
             ContainerSet containerSet;
@@ -41,9 +45,9 @@ namespace Wormhole.Sync
                 // Deserialize the unified ContainerSet
                 var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
 
-                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                using (var stream = await this.BatchStorage.ReadBatchPartAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false))
                 {
-                    containerSet = serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false).GetAwaiter().GetResult();
+                    containerSet = await serializer.DeserializeAsync<ContainerSet>(stream).ConfigureAwait(false);
                 }
 
                 // Cache it if cache is provided
@@ -54,7 +58,7 @@ namespace Wormhole.Sync
             }
 
             if (containerSet?.Tables == null)
-                yield break;
+                return Enumerable.Empty<SyncRow>();
 
             // Find the table that matches our schema table
             var containerTable = containerSet.Tables.FirstOrDefault(t =>
@@ -62,7 +66,9 @@ namespace Wormhole.Sync
                 string.Equals(t.SchemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
 
             if (containerTable == null)
-                yield break;
+                return Enumerable.Empty<SyncRow>();
+
+            var result = new List<SyncRow>();
 
             // Return all rows for this table, converting to SyncRow
             for (int i = 0; i < containerTable.Rows.Count; i++)
@@ -81,16 +87,22 @@ namespace Wormhole.Sync
                     continue;
                 }
                 if(syncRow != null)
-                    yield return syncRow;
+                    result.Add(syncRow);
             }
+
+            return result;
         }
 
         /// <summary>
         /// Get rows from a unified batch file, filtered by table and operation type, with caching support.
         /// </summary>
-        internal virtual IEnumerable<SyncRow> GetRowsFromUnifiedBatchFile(string filePath, SyncTable schemaTable, SyncRowState applyType, Dictionary<string, ContainerSet> cache)
+        internal virtual async Task<IEnumerable<SyncRow>> GetRowsFromUnifiedBatchFileAsync(string filePath, SyncTable schemaTable, SyncRowState applyType, Dictionary<string, ContainerSet> cache, CancellationToken cancellationToken = default)
         {
-            if (!File.Exists(filePath))
+            var directoryPath = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
+
+            var fileExists = await this.BatchStorage.FileExistsAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false);
+            if (!fileExists)
                 throw new FileNotFoundException($"Unified batch file not found: {filePath}");
 
             ContainerSet containerSet;
@@ -105,9 +117,9 @@ namespace Wormhole.Sync
                 // Deserialize the unified ContainerSet
                 var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
 
-                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                using (var stream = await this.BatchStorage.ReadBatchPartAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false))
                 {
-                    containerSet = serializer.DeserializeAsync<ContainerSet>(fs).ConfigureAwait(false).GetAwaiter().GetResult();
+                    containerSet = await serializer.DeserializeAsync<ContainerSet>(stream).ConfigureAwait(false);
                 }
 
                 // Cache it if cache is provided
@@ -118,7 +130,7 @@ namespace Wormhole.Sync
             }
 
             if (containerSet?.Tables == null)
-                yield break;
+                return Enumerable.Empty<SyncRow>();
 
             // Find the table that matches our schema table
             var containerTable = containerSet.Tables.FirstOrDefault(t =>
@@ -126,7 +138,9 @@ namespace Wormhole.Sync
                 string.Equals(t.SchemaName, schemaTable.SchemaName, StringComparison.OrdinalIgnoreCase));
 
             if (containerTable == null)
-                yield break;
+                return Enumerable.Empty<SyncRow>();
+
+            var result = new List<SyncRow>();
 
             // Filter rows by state and convert to SyncRow
             for (int i = 0; i < containerTable.Rows.Count; i++)
@@ -162,8 +176,10 @@ namespace Wormhole.Sync
                     continue;
                 }
                 if(syncRow != null)
-                    yield return syncRow;
+                    result.Add(syncRow);
             }
+
+            return result;
         }
 
         /// <summary>
@@ -199,8 +215,8 @@ namespace Wormhole.Sync
                     var reverseSchemaTables = schemaTables.Reverse().ToArray();
 
                     // create local directory
-                    if (!string.IsNullOrEmpty(message.BatchDirectory) && !Directory.Exists(message.BatchDirectory))
-                        Directory.CreateDirectory(message.BatchDirectory);
+                    if (!string.IsNullOrEmpty(message.BatchDirectory))
+                        await this.BatchStorage.EnsureDirectoryExistsAsync(message.BatchDirectory, cancellationToken).ConfigureAwait(false);
 
                     // Disable check constraints
                     // Because Sqlite does not support "PRAGMA foreign_keys=OFF" Inside a transaction
@@ -277,7 +293,7 @@ namespace Wormhole.Sync
                     if (cleanFolder)
                     {
                         this.Logger.LogInformation("[InternalApplyChangesAsync]. Cleaning directory {DirectoryName}.", message.Changes.DirectoryName);
-                        message.Changes.TryRemoveDirectory();
+                        await message.Changes.TryRemoveDirectoryAsync().ConfigureAwait(false);
                     }
                 }
 
@@ -346,7 +362,7 @@ namespace Wormhole.Sync
 
             TableChangesApplied tableChangesApplied = null;
 
-            using var localSerializer = new LocalJsonSerializer(this, context);
+            await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
             // conflict resolved count
             var conflictsResolvedCount = 0;
@@ -467,13 +483,17 @@ namespace Wormhole.Sync
                             // Check if this is a unified batch file
                             if (context.UseUnifiedBatching && batchPartInfo.TableName == "UNIFIED")
                             {
-                                var rows = this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType,
-                                    unifiedBatchCache).ToList();
+                                var rows = (await this.GetRowsFromUnifiedBatchFileAsync(fullPath, schemaChangesTable, applyType,
+                                    unifiedBatchCache, runner.CancellationToken).ConfigureAwait(false)).ToList();
                                 rowsEnumerable = rows;
                                 expectedRowCount = rows.Count;
                             }
                             else
-                               rowsEnumerable = localSerializer.GetRowsFromFile(fullPath, schemaChangesTable);
+                            {
+                               var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                               var batchFileName = Path.GetFileName(fullPath);
+                               rowsEnumerable = await localSerializer.GetRowsFromFileAsync(batchDirectoryPath, batchFileName, schemaChangesTable, runner.CancellationToken).ConfigureAwait(false);
+                            }
 
                             foreach (var syncRow in rowsEnumerable)
                             {
@@ -598,9 +618,17 @@ namespace Wormhole.Sync
                             command.Transaction = runner.Transaction;
 
                             // Check if this is a unified batch file
-                            var rowsEnumerable = context.UseUnifiedBatching && batchPartInfo.TableName == "UNIFIED"
-                                ? this.GetRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, applyType, unifiedBatchCache)
-                                : localSerializer.GetRowsFromFile(fullPath, schemaChangesTable);
+                            IEnumerable<SyncRow> rowsEnumerable;
+                            if (context.UseUnifiedBatching && batchPartInfo.TableName == "UNIFIED")
+                            {
+                               rowsEnumerable = await this.GetRowsFromUnifiedBatchFileAsync(fullPath, schemaChangesTable, applyType, unifiedBatchCache, runner.CancellationToken).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                               var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                               var batchFileName = Path.GetFileName(fullPath);
+                               rowsEnumerable = await localSerializer.GetRowsFromFileAsync(batchDirectoryPath, batchFileName, schemaChangesTable, runner.CancellationToken).ConfigureAwait(false);
+                            }
 
                             foreach (var syncRow in rowsEnumerable)
                             {
@@ -1252,29 +1280,39 @@ namespace Wormhole.Sync
 
                     // Read already present lines
                     var lastSyncErrorsBpiFullPath = lastSyncErrorsBatchInfo.GetBatchPartInfoFullPath(tableBpis.ToList()[0]);
+                    var lastSyncErrorsDirectoryPath = Path.GetDirectoryName(lastSyncErrorsBpiFullPath);
+                    var lastSyncErrorsFileName = Path.GetFileName(lastSyncErrorsBpiFullPath);
 
-                    using (var localFailedRowsSerializerReader = new LocalJsonSerializer(this, context))
+                    await using (var localFailedRowsSerializerReader = new LocalJsonSerializer(this.BatchStorage, this, context))
                     {
-                        var syncRows = localFailedRowsSerializerReader.GetRowsFromFile(lastSyncErrorsBpiFullPath, schemaChangesTable);
+                        var syncRows = await localFailedRowsSerializerReader.GetRowsFromFileAsync(lastSyncErrorsDirectoryPath, lastSyncErrorsFileName, schemaChangesTable, cancellationToken).ConfigureAwait(false);
                         failedRows.AddRange(syncRows);
                     }
 
-                    localSerializerReader = new LocalJsonSerializer(this, context);
+                    localSerializerReader = new LocalJsonSerializer(this.BatchStorage, this, context);
 
-                    localSerializerWriter = new LocalJsonSerializer(this, context);
+                    localSerializerWriter = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                     // Open again the same file
-                    await localSerializerWriter.OpenFileAsync(lastSyncErrorsBpiFullPath, schemaChangesTable, SyncRowState.None).ConfigureAwait(false);
+                    await localSerializerWriter.OpenFileAsync(lastSyncErrorsDirectoryPath, lastSyncErrorsFileName, schemaChangesTable, SyncRowState.None).ConfigureAwait(false);
 
                     foreach (var batchPartInfo in bpiTables)
                     {
                         // Get full path of my batchpartinfo
                         var fullPath = message.Changes.GetBatchPartInfoFullPath(batchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
                         // Check if this is a unified batch file - for error recovery we need all operations
-                        var rowsEnumerable = batchPartInfo.TableName == "UNIFIED"
-                            ? this.GetAllRowsFromUnifiedBatchFile(fullPath, schemaChangesTable, unifiedBatchCache)
-                            : localSerializerReader.GetRowsFromFile(fullPath, schemaChangesTable);
+                        IEnumerable<SyncRow> rowsEnumerable;
+                        if (batchPartInfo.TableName == "UNIFIED")
+                        {
+                            rowsEnumerable = await this.GetAllRowsFromUnifiedBatchFileAsync(fullPath, schemaChangesTable, unifiedBatchCache, cancellationToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            rowsEnumerable = await localSerializerReader.GetRowsFromFileAsync(batchDirectoryPath, batchFileName, schemaChangesTable, cancellationToken).ConfigureAwait(false);
+                        }
 
                         foreach (var syncRow in rowsEnumerable)
                         {
@@ -1301,12 +1339,19 @@ namespace Wormhole.Sync
                     foreach (var row in failedRows)
                         await localSerializerWriter.WriteRowToFileAsync(row, schemaChangesTable).ConfigureAwait(false);
 
-                    if (failedRows.Count <= 0 && File.Exists(lastSyncErrorsBpiFullPath))
+                    if (failedRows.Count <= 0)
                     {
-                        if (localSerializerWriter.IsOpen)
-                            await localSerializerWriter.CloseFileAsync().ConfigureAwait(false);
+                        var directoryPath = Path.GetDirectoryName(lastSyncErrorsBpiFullPath);
+                        var fileName = Path.GetFileName(lastSyncErrorsBpiFullPath);
+                        var fileExists = await this.BatchStorage.FileExistsAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false);
 
-                        File.Delete(lastSyncErrorsBpiFullPath);
+                        if (fileExists)
+                        {
+                            if (localSerializerWriter.IsOpen)
+                                await localSerializerWriter.CloseFileAsync().ConfigureAwait(false);
+
+                            await this.BatchStorage.DeleteBatchPartAsync(directoryPath, fileName, cancellationToken).ConfigureAwait(false);
+                        }
                     }
 
                     this.Logger.LogInformation("[InternalApplyCleanErrorsAsync]. schemaTable {SchemaTableName} failedRows count {FailedRowsCount}", schemaTable.GetFullName(), failedRows.Count);

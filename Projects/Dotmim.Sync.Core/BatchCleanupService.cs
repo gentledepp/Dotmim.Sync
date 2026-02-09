@@ -5,21 +5,38 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Wormhole.Sync.Storage;
 
 namespace Wormhole.Sync
 {
     /// <summary>
     /// Default implementation of IBatchCleanupService for cleaning up orphaned batch directories.
+    /// Supports pluggable storage backends via IBatchStorage.
     /// </summary>
     public class BatchCleanupService : IBatchCleanupService
     {
+        private readonly IBatchStorage storage;
+
         /// <summary>
-        /// 
+        /// Initializes a new instance of the <see cref="BatchCleanupService"/> class
+        /// with the default local file system storage.
         /// </summary>
-        /// <param name="options"></param>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
+        public BatchCleanupService() : this(new LocalFileSystemBatchStorage())
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BatchCleanupService"/> class
+        /// with the specified storage backend.
+        /// </summary>
+        /// <param name="storage">The storage backend to use for batch operations.</param>
+        /// <exception cref="ArgumentNullException">Thrown when storage is null.</exception>
+        public BatchCleanupService(IBatchStorage storage)
+        {
+            this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        }
+
+        /// <inheritdoc />
         public Task<int> CleanupExpiredBatchesAsync(SyncOptions options, CancellationToken cancellationToken = default)
         {
             return this.CleanupExpiredBatchesAsync(options.BatchDirectory, options.BatchRetentionPeriod, cancellationToken);
@@ -38,7 +55,7 @@ namespace Wormhole.Sync
             if (string.IsNullOrEmpty(batchDirectory))
                 throw new ArgumentException("Batch directory cannot be null or empty.", nameof(batchDirectory));
 
-            if (!Directory.Exists(batchDirectory))
+            if (!await this.storage.DirectoryExistsAsync(batchDirectory, cancellationToken).ConfigureAwait(false))
                 return 0;
 
             if (retentionPeriod == TimeSpan.Zero)
@@ -54,11 +71,10 @@ namespace Wormhole.Sync
 
                 try
                 {
-                    if (Directory.Exists(directory))
-                    {
-                        Directory.Delete(directory, recursive: true);
+                    var success = await this.storage.DeleteBatchDirectoryAsync(directory, cancellationToken).ConfigureAwait(false);
+                    
+                    if(success)
                         cleanedCount++;
-                    }
                 }
                 catch (Exception)
                 {
@@ -83,7 +99,7 @@ namespace Wormhole.Sync
             if (string.IsNullOrEmpty(batchDirectory))
                 throw new ArgumentException("Batch directory cannot be null or empty.", nameof(batchDirectory));
 
-            if (!Directory.Exists(batchDirectory))
+            if (!await this.storage.DirectoryExistsAsync(batchDirectory, cancellationToken).ConfigureAwait(false))
                 return new List<string>();
 
             if (retentionPeriod == TimeSpan.Zero)
@@ -93,33 +109,31 @@ namespace Wormhole.Sync
             var cutoffTime = DateTime.UtcNow - retentionPeriod;
             var cutoffTimestamp = cutoffTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
 
-            return await Task.Run(() =>
+            try
             {
-                try
-                {
-                    return Directory.EnumerateDirectories(batchDirectory)
-                        .Where(dir =>
-                        {
-                            var directoryName = Path.GetFileName(dir);
+                var subdirectories = await this.storage.GetSubdirectoriesAsync(batchDirectory, cancellationToken).ConfigureAwait(false);
 
-                            // Skip error batch directories - these are used for retry mechanism
-                            if (directoryName.Contains("_ERRORS", StringComparison.OrdinalIgnoreCase))
-                                return false;
+                return subdirectories
+                    .Where(directoryName =>
+                    {
+                        // Skip error batch directories - these are used for retry mechanism
+                        if (directoryName.Contains("_ERRORS", StringComparison.OrdinalIgnoreCase))
+                            return false;
 
-                            // Directory must start with yyyyMMddHHmm format and be older than cutoff
-                            return directoryName.Length >= 12 &&
-                                   directoryName.Substring(0, 12).All(char.IsDigit) &&
-                                   string.Compare(directoryName.Substring(0, 12), cutoffTimestamp, StringComparison.Ordinal) <= 0;
-                        })
-                        .OrderBy(Path.GetFileName)
-                        .ToList();
-                }
-                catch (Exception)
-                {
-                    // Return empty list if directory enumeration fails
-                    return new List<string>();
-                }
-            }, cancellationToken).ConfigureAwait(false);
+                        // Directory must start with yyyyMMddHHmm format and be older than cutoff
+                        return directoryName.Length >= 12 &&
+                               directoryName.Substring(0, 12).All(char.IsDigit) &&
+                               string.Compare(directoryName.Substring(0, 12), cutoffTimestamp, StringComparison.Ordinal) <= 0;
+                    })
+                    .Select(directoryName => Path.Combine(batchDirectory, directoryName))
+                    .OrderBy(Path.GetFileName)
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                // Return empty list if directory enumeration fails
+                return new List<string>();
+            }
         }
     }
 }

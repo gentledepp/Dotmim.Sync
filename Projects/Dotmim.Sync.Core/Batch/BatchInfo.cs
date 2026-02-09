@@ -1,4 +1,5 @@
 ﻿using Wormhole.Sync.DatabaseStringParsers;
+using Wormhole.Sync.Storage;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -6,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
 namespace Wormhole.Sync.Batch
 {
@@ -96,6 +98,14 @@ namespace Wormhole.Sync.Batch
         /// </summary>
         [DataMember(Name = "ser", IsRequired = false, EmitDefaultValue = false, Order = 6)]
         public string SerializerFactoryKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets the batch storage implementation.
+        /// When set, batch operations will use this storage instead of direct filesystem access.
+        /// Not serialized - must be set after deserialization if needed.
+        /// </summary>
+        [IgnoreDataMember]
+        public IBatchStorage Storage { get; set; }
 
         /// <summary>
         /// Get the full path of the Batch directory.
@@ -247,12 +257,30 @@ namespace Wormhole.Sync.Batch
         /// <summary>
         /// try to delete the Batch tmp directory and all the files stored in it.
         /// </summary>
-        public void TryRemoveDirectory()
+        public async Task TryRemoveDirectoryAsync()
         {
             // Once we have applied all the batch, we can safely remove the temp dir and all it's files
             if (!string.IsNullOrEmpty(this.DirectoryRoot) && !string.IsNullOrEmpty(this.DirectoryName))
             {
-                var tmpDirectory = new DirectoryInfo(this.GetDirectoryFullPath());
+                var directoryFullPath = this.GetDirectoryFullPath();
+
+                // Use IBatchStorage if available
+                if (this.Storage != null)
+                {
+                    try
+                    {
+                        await this.Storage.DeleteBatchDirectoryAsync(directoryFullPath).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // do nothing here
+                    }
+
+                    return;
+                }
+
+                // Fallback to direct filesystem access
+                var tmpDirectory = new DirectoryInfo(directoryFullPath);
 
                 if (!tmpDirectory.Exists)
                     return;

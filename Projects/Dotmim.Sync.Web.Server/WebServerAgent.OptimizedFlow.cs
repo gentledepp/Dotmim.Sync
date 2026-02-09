@@ -110,7 +110,7 @@ namespace Wormhole.Sync.Web.Server
 
                 if (httpMessage.Changes != null && httpMessage.Changes.HasRows)
                 {
-                    using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
+                    await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
 
                     // Check if this is a unified batch from the client
                     if (context.UseUnifiedBatching)
@@ -142,13 +142,13 @@ namespace Wormhole.Sync.Web.Server
 
                         // Serialize the entire ContainerSet to one unified file
                         var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
-                        var dn = Path.GetDirectoryName(fullPath);
-                        if(!Directory.Exists(dn))
-                            Directory.CreateDirectory(dn);
-                        using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
+                        await this.RemoteOrchestrator.BatchStorage.EnsureDirectoryExistsAsync(batchDirectoryPath).ConfigureAwait(false);
+                        var data = await serializer.SerializeAsync(httpMessage.Changes).ConfigureAwait(false);
+                        using (var dataStream = new MemoryStream(data))
                         {
-                            var data = await serializer.SerializeAsync(httpMessage.Changes).ConfigureAwait(false);
-                            await fileStream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
+                            await this.RemoteOrchestrator.BatchStorage.WriteBatchPartAsync(batchDirectoryPath, batchFileName, dataStream).ConfigureAwait(false);
                         }
 
                         // Create single BatchPartInfo for the unified batch
@@ -185,8 +185,8 @@ namespace Wormhole.Sync.Web.Server
                         var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
                         var fileName = BatchInfo.GenerateNewFileName(
                             httpMessage.BatchIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                            tableName, LocalJsonSerializer.Extension, "CLICHANGES");
-                        var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
+                            tableName, localSerializer.FileExtension, "CLICHANGES");
+                        var directoryPath = sessionCache.ClientBatchInfo.GetDirectoryFullPath();
 
                         SyncRowState syncRowState = SyncRowState.None;
                         if (containerTable.Rows != null && containerTable.Rows.Count > 0)
@@ -197,7 +197,7 @@ namespace Wormhole.Sync.Web.Server
                         }
 
                         // open the file and write table header
-                        await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState);
+                        await localSerializer.OpenFileAsync(directoryPath, fileName, schemaTable, syncRowState);
 
                         foreach (var row in containerTable.Rows)
                         {
@@ -290,7 +290,7 @@ namespace Wormhole.Sync.Web.Server
                         cleanFolder = await this.RemoteOrchestrator.InternalCanCleanFolderAsync(httpMessage.SyncContext.ScopeName, context.Parameters, sessionCache.ClientBatchInfo, default, cancellationToken);
                     
                     if (cleanFolder)
-                        sessionCache.ClientBatchInfo.TryRemoveDirectory();
+                        await sessionCache.ClientBatchInfo.TryRemoveDirectoryAsync().ConfigureAwait(false);
                     
                     // we do not need client batch info now
                     // sessionCache.ClientBatchInfo = null;
@@ -560,9 +560,11 @@ namespace Wormhole.Sync.Web.Server
             {
                 // For unified batches, deserialize the entire ContainerSet directly from the file
                 var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                var batchFileName = Path.GetFileName(fullPath);
 
-                using var fileStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-                var containerSet = await serializer.DeserializeAsync<ContainerSet>(fileStream).ConfigureAwait(false);
+                using var stream = await this.RemoteOrchestrator.BatchStorage.ReadBatchPartAsync(batchDirectoryPath, batchFileName).ConfigureAwait(false);
+                var containerSet = await serializer.DeserializeAsync<ContainerSet>(stream).ConfigureAwait(false);
 
                 // Apply converter if needed
                 if (this.clientConverter != null && containerSet.HasRows)
@@ -594,8 +596,10 @@ namespace Wormhole.Sync.Web.Server
                 containerSet.Tables.Add(containerTable);
 
                 // Read rows from file
-                using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator, context);
-                foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
+                var directoryPath = Path.GetDirectoryName(fullPath);
+                var fileName = Path.GetFileName(fullPath);
+                await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
+                foreach (var row in await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, schemaTable))
                 {
                     if (row != null && row.Length > 0 && this.clientConverter != null)
                         this.clientConverter.BeforeSerialize(row, schemaTable);

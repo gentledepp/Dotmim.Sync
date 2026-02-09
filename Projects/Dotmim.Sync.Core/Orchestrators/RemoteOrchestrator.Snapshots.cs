@@ -156,16 +156,17 @@ namespace Wormhole.Sync
                         var directoryFullPath = Path.Combine(rootDirectory, nameDirectory);
 
                         // if no snapshot present, just return null value.
-                        if (Directory.Exists(directoryFullPath))
+                        var directoryExists = await this.BatchStorage.DirectoryExistsAsync(directoryFullPath, cancellationToken).ConfigureAwait(false);
+                        if (directoryExists)
                         {
                             // Serialize on disk.
                             var jsonConverter = new Serialization.JsonObjectSerializer();
 
-                            var summaryFileName = Path.Combine(directoryFullPath, "summary.json");
+                            var summaryFileName = "summary.json";
 
-                            using (var fs = new FileStream(summaryFileName, FileMode.Open, FileAccess.Read))
+                            using (var stream = await this.BatchStorage.ReadBatchPartAsync(directoryFullPath, summaryFileName, cancellationToken).ConfigureAwait(false))
                             {
-                                serverBatchInfo = await jsonConverter.DeserializeAsync<BatchInfo>(fs).ConfigureAwait(false);
+                                serverBatchInfo = await jsonConverter.DeserializeAsync<BatchInfo>(stream).ConfigureAwait(false);
                             }
 
                             // Create a Schema set without readonly columns, attached to memory changes
@@ -232,21 +233,20 @@ namespace Wormhole.Sync
             {
                 await this.InterceptAsync(new SnapshotCreatingArgs(context, sScopeInfo.Schema, this.Options.SnapshotsDirectory, this.Options.BatchSize, remoteClientTimestamp, this.Provider.CreateConnection(), null), progress, cancellationToken).ConfigureAwait(false);
 
-                if (!Directory.Exists(this.Options.SnapshotsDirectory))
-                    Directory.CreateDirectory(this.Options.SnapshotsDirectory);
+                await this.BatchStorage.EnsureDirectoryExistsAsync(this.Options.SnapshotsDirectory, cancellationToken).ConfigureAwait(false);
 
                 var (rootDirectory, nameDirectory) = await this.InternalGetSnapshotDirectoryPathAsync(sScopeInfo.Name, context.Parameters, progress, cancellationToken).ConfigureAwait(false);
 
                 // create local directory with scope inside
-                if (!Directory.Exists(rootDirectory))
-                    Directory.CreateDirectory(rootDirectory);
+                await this.BatchStorage.EnsureDirectoryExistsAsync(rootDirectory, cancellationToken).ConfigureAwait(false);
 
                 // Delete directory if already exists
                 var directoryFullPath = Path.Combine(rootDirectory, nameDirectory);
 
                 // Delete old version if exists
-                if (Directory.Exists(directoryFullPath))
-                    Directory.Delete(directoryFullPath, true);
+                var directoryExists = await this.BatchStorage.DirectoryExistsAsync(directoryFullPath, cancellationToken).ConfigureAwait(false);
+                if (directoryExists)
+                    await this.BatchStorage.DeleteBatchDirectoryAsync(directoryFullPath, cancellationToken).ConfigureAwait(false);
 
                 // Create a batch info
                 var info = connection != null && !string.IsNullOrEmpty(connection.Database) ? $"{connection.Database}_REMOTE_SNAPSHOTS_GETCHANGES" : "REMOTE_SNAPSHOTS_GETCHANGES";
@@ -260,20 +260,15 @@ namespace Wormhole.Sync
                 serverBatchInfo.Timestamp = remoteClientTimestamp;
 
                 // Serialize on disk.
-                var summaryFileName = Path.Combine(directoryFullPath, "summary.json");
+                var summaryFileName = "summary.json";
 
-                if (!Directory.Exists(directoryFullPath))
-                    Directory.CreateDirectory(directoryFullPath);
+                await this.BatchStorage.EnsureDirectoryExistsAsync(directoryFullPath, cancellationToken).ConfigureAwait(false);
 
-                using (var f = new FileStream(summaryFileName, FileMode.CreateNew, FileAccess.ReadWrite))
+                var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                var bytes = await serializer.SerializeAsync(serverBatchInfo).ConfigureAwait(false);
+                using (var dataStream = new MemoryStream(bytes))
                 {
-                    var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
-                    var bytes = await serializer.SerializeAsync(serverBatchInfo).ConfigureAwait(false);
-#if NET6_0_OR_GREATER
-                    await f.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-#else
-                    await f.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
-#endif
+                    await this.BatchStorage.WriteBatchPartAsync(directoryFullPath, summaryFileName, dataStream, cancellationToken).ConfigureAwait(false);
                 }
 
                 await this.InterceptAsync(new SnapshotCreatedArgs(context, serverBatchInfo, this.Provider.CreateConnection(), null), progress, cancellationToken).ConfigureAwait(false);

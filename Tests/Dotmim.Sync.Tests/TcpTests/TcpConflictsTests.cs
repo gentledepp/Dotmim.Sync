@@ -20,12 +20,12 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Wormhole.Sync.Sqlite;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
-    public abstract class TcpConflictsTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
+    public abstract class TcpConflictsTests : DatabaseTest, IClassFixture<DatabaseServerFixture>
     {
         private CoreProvider serverProvider;
         private IEnumerable<CoreProvider> clientsProvider;
@@ -73,8 +73,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -89,7 +91,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 var exc = await Assert.ThrowsAsync<SyncException>(() => agent.SynchronizeAsync(this.setup));
                 Assert.NotNull(exc);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
                 Assert.Empty(batchInfos);
             }
         }
@@ -126,8 +128,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -159,7 +163,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -169,7 +173,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -189,7 +193,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -199,7 +203,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 batchInfo = batchInfos[0];
 
-                syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -243,8 +247,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -268,12 +274,12 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var exc = await Assert.ThrowsAsync<SyncException>(() => agent.SynchronizeAsync(this.setup));
                 Assert.NotNull(exc);
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
                 Assert.Empty(batchInfos);
 
                 exc = await Assert.ThrowsAsync<SyncException>(() => agent.SynchronizeAsync(this.setup));
                 Assert.NotNull(exc);
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
                 Assert.Empty(batchInfos);
             }
         }
@@ -310,8 +316,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -343,7 +351,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -353,7 +361,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -397,8 +405,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -430,7 +440,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -440,7 +450,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -460,7 +470,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -470,7 +480,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 batchInfo = batchInfos[0];
 
-                syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -514,8 +524,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -547,7 +559,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -557,7 +569,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -576,8 +588,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -599,7 +613,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
             }
@@ -644,8 +658,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -677,7 +693,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -687,7 +703,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -715,7 +731,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 // (it was in error batch due to constraint issue). RemoteIsDeletedLocalNotExists is now counted as resolved.
                 Assert.Equal(1, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
 
@@ -765,8 +781,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                     if (args.BatchPartInfo != null && args.State == SyncRowState.Modified && args.SchemaTable.TableName == "ProductCategory")
                     {
                         var fullPath = args.BatchInfo.GetBatchPartInfoFullPath(args.BatchPartInfo);
+                        var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                        var batchFileName = Path.GetFileName(fullPath);
 
-                        var table = agent.LocalOrchestrator.LoadTableFromBatchPartInfo(fullPath);
+                        var table = await agent.LocalOrchestrator.LoadTableFromBatchPartInfoAsync(batchDirectoryPath, batchFileName);
 
                         foreach (var row in table.Rows)
                         {
@@ -798,7 +816,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -808,7 +826,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -837,7 +855,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
 
@@ -895,7 +913,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 Assert.NotNull(exc);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
             }
@@ -958,7 +976,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -968,7 +986,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -986,7 +1004,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -996,7 +1014,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 batchInfo = batchInfos[0];
 
-                syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -1058,7 +1076,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(1, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -1068,7 +1086,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var batchInfo = batchInfos[0];
 
-                var syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                var syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -1086,7 +1104,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.NotNull(batchInfos);
                 Assert.Single(batchInfos);
@@ -1096,7 +1114,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 batchInfo = batchInfos[0];
 
-                syncTables = agent.LocalOrchestrator.LoadTablesFromBatchInfo(batchInfo);
+                syncTables = await agent.LocalOrchestrator.LoadTablesFromBatchInfoAsync(batchInfo);
 
                 foreach (var syncTable in syncTables)
                 {
@@ -1193,7 +1211,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalChangesFailedToApplyOnClient);
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
-                var batchInfos = agent.LocalOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.LocalOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
             }
@@ -1286,7 +1304,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
                 // No error batches should exist on server
-                var batchInfos = agent.RemoteOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.RemoteOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos);
             }
@@ -1349,7 +1367,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 agent.RemoteOrchestrator.OnApplyChangesErrorOccured(args =>
                 {
                     // Retry one more time and throw on error
-                    args.Resolution = ErrorResolution.RetryOneMoreTimeAndThrowOnError;
+                    args.Resolution = ErrorResolution.RetryOnNextSync;
                     Assert.NotNull(args.Exception);
                     Assert.NotNull(args.ErrorRow);
                     Assert.NotNull(args.SchemaTable);
@@ -1369,7 +1387,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 Assert.Equal(0, s.TotalResolvedConflicts);
 
                 // Error batches should exist on server
-                var batchInfos = agent.RemoteOrchestrator.LoadBatchInfos();
+                var batchInfos = await agent.RemoteOrchestrator.LoadBatchInfosAsync();
                 Assert.NotEmpty(batchInfos);
 
 
@@ -1381,16 +1399,19 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 // Upload 2 rows
                 // Both applied successfully after retry
-                Assert.Equal(0, s2.TotalChangesDownloadedFromServer);
-                Assert.Equal(1, s2.TotalChangesUploadedToServer);
+                Assert.Equal(1, s2.TotalChangesDownloadedFromServer);
+                Assert.Equal(0, s2.TotalChangesUploadedToServer); // changes already are on the server
                 Assert.Equal(1, s2.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s2.TotalChangesFailedToApplyOnServer);
                 Assert.Equal(0, s2.TotalResolvedConflicts);
 
                 // No error batches should exist on server
-                var batchInfos2 = agent.RemoteOrchestrator.LoadBatchInfos();
+                var batchInfos2 = await agent.RemoteOrchestrator.LoadBatchInfosAsync();
 
                 Assert.Empty(batchInfos2);
+
+                var originallyConflictingCategory = await serverProvider.GetProductCategoryAsync($"ZZZZ{clientNumber}");
+                Assert.NotNull(originallyConflictingCategory); // should have been uploaded and applied on the server now
             }
         }
 

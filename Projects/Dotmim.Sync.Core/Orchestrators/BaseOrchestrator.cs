@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Wormhole.Sync.Storage;
 
 namespace Wormhole.Sync
 {
@@ -68,6 +69,11 @@ namespace Wormhole.Sync
         /// Gets or Sets the end time for this orchestrator.
         /// </summary>
         public virtual DateTime? CompleteTime { get; set; }
+
+        /// <summary>
+        /// Gets/sets the local batch storage
+        /// </summary>
+        public IBatchStorage BatchStorage { get; internal set; } = new LocalFileSystemBatchStorage();
 
         /// <summary>
         /// Gets or Sets the logger used by this orchestrator.

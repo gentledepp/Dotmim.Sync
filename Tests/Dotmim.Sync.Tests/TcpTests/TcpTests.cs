@@ -15,11 +15,11 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.IntegrationTests
 {
-    public abstract partial class TcpTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
+    public abstract partial class TcpTests : DatabaseTest, IClassFixture<DatabaseServerFixture>
     {
         private CoreProvider serverProvider;
         private IEnumerable<CoreProvider> clientsProvider;

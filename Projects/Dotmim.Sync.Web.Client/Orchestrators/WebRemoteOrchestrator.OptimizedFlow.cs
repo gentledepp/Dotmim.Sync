@@ -139,7 +139,7 @@ namespace Wormhole.Sync.Web.Client
                     // Foreach part, will have to send them to the remote
                     // once finished, return context
                     var initialPctProgress1 = context.ProgressPercentage;
-                    using var localSerializer = new LocalJsonSerializer(this, context);
+                    await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                     foreach (var bpi in clientChanges.ClientBatchInfo.BatchPartsInfo.OrderBy(bpi => bpi.Index))
                     {
@@ -159,7 +159,7 @@ namespace Wormhole.Sync.Web.Client
                             
                             await this.InterceptAsync(new HttpSendingClientChangesRequestArgs(firstRequest, tmpRowsSendedCount, clientChanges.ClientBatchInfo.RowsCount, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
-                            firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context, firstRequest, HttpStep.SendChangesIncremental, 0, progress, cancellationToken).ConfigureAwait(false);
+                            firstResponse = await this.ProcessRequestAsync<HttpMessageSendChangesIncrementalResponse>(context, firstRequest, HttpStep.SendChangesIncremental, this.Options.BatchSize, progress, cancellationToken).ConfigureAwait(false);
 
                             summaryResponseContent = firstResponse;
                             
@@ -377,7 +377,9 @@ namespace Wormhole.Sync.Web.Client
                 firstRequest.Changes.Tables.Add(containerTable);
 
                 // read rows from file
-                foreach (var row in localSerializer.GetRowsFromFile(fullPath, schemaTable))
+                var batchDirectoryPath = Path.GetDirectoryName(fullPath);
+                var batchFileName = Path.GetFileName(fullPath);
+                foreach (var row in await localSerializer.GetRowsFromFileAsync(batchDirectoryPath, batchFileName, schemaTable))
                 {
                     if (this.Converter != null && row.Length > 0)
                         this.Converter.BeforeSerialize(row, schemaTable);
@@ -466,7 +468,7 @@ namespace Wormhole.Sync.Web.Client
             else
             {
                 // Traditional batch processing - handle each table separately
-                using var localSerializer = new LocalJsonSerializer(this, context);
+                await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
                 foreach (var containerTable in summaryResponseContent.Changes.Tables)
                 {
                     var schemaTable = CreateChangesTable(schema.Tables[containerTable.TableName, containerTable.SchemaName]);
@@ -474,8 +476,8 @@ namespace Wormhole.Sync.Web.Client
                     var tableName = setupTable.GetFullName().Replace(".", "_").Replace(" ", "_");
 
                     // Create first batch part info (index 0)
-                    var fileName = BatchInfo.GenerateNewFileName("0", tableName, LocalJsonSerializer.Extension, "");
-                    var fullPath = Path.Combine(serverBatchInfo.GetDirectoryFullPath(), fileName);
+                    var fileName = BatchInfo.GenerateNewFileName("0", tableName, localSerializer.FileExtension, "");
+                    var directoryPath = serverBatchInfo.GetDirectoryFullPath();
 
                     SyncRowState syncRowState = SyncRowState.None;
                     if (containerTable.Rows != null && containerTable.Rows.Count > 0)
@@ -485,7 +487,7 @@ namespace Wormhole.Sync.Web.Client
                     }
 
                     // Save first batch data to file
-                    await localSerializer.OpenFileAsync(fullPath, schemaTable, syncRowState).ConfigureAwait(false);
+                    await localSerializer.OpenFileAsync(directoryPath, fileName, schemaTable, syncRowState).ConfigureAwait(false);
 
                     foreach (var row in containerTable.Rows)
                     {

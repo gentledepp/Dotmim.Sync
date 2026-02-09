@@ -48,6 +48,12 @@ namespace Wormhole.Sync.Web.Server
         [DataMember(Name = "abs", IsRequired = false, EmitDefaultValue = false, Order = 6)]
         public bool AppliedBatchesSuccessfully { get; set; }
 
+        /// <summary>
+        /// Gets or Sets the async batch job ID, so GetMoreChangesAsync can refresh session state from the job.
+        /// </summary>
+        [DataMember(Name = "abji", IsRequired = false, EmitDefaultValue = false, Order = 7)]
+        public string AsyncBatchJobId { get; set; }
+
         /// <inheritdoc />
         public override string ToString()
         {

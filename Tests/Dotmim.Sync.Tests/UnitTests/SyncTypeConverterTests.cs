@@ -5,14 +5,13 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
     public class SyncTypeConverterTests : IDisposable
     {
         // Current test running
-        private ITest test;
         private Stopwatch stopwatch;
         public ITestOutputHelper Output { get; }
 
@@ -22,8 +21,6 @@ namespace Wormhole.Sync.Tests.UnitTests
             // Getting the test running
             this.Output = output;
             var type = output.GetType();
-            var testMember = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-            this.test = (ITest)testMember.GetValue(output);
             this.stopwatch = Stopwatch.StartNew();
         }
 
@@ -31,9 +28,9 @@ namespace Wormhole.Sync.Tests.UnitTests
         {
             this.stopwatch.Stop();
 
-            var str = $"{test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
-            Console.WriteLine(str);
-            Debug.WriteLine(str);
+            //var str = $"{test.TestCase.DisplayName} : {this.stopwatch.Elapsed.Minutes}:{this.stopwatch.Elapsed.Seconds}.{this.stopwatch.Elapsed.Milliseconds}";
+            //Console.WriteLine(str);
+            //Debug.WriteLine(str);
         }
 
 

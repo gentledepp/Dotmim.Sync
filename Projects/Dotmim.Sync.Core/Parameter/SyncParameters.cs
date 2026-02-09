@@ -23,6 +23,9 @@ namespace Wormhole.Sync
         [DataMember(Name = "c", IsRequired = true)]
         public Collection<SyncParameter> InnerCollection { get; set; } = new Collection<SyncParameter>();
 
+        [DataMember(Name="ap", IsRequired = false)]
+        public string AdditionalPropertyNames { get; set; }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="SyncParameters"/> class.
         /// Create a default collection for SerializersFactory.
@@ -58,6 +61,22 @@ namespace Wormhole.Sync
                 throw new SyncParameterAlreadyExistsException(item.Name);
 
             this.InnerCollection.Add(item);
+        }
+
+        public void AddAdditional(SyncParameter item)
+        {
+            if (item == null)
+                return;
+
+            if (this.Any(p => p.Name.Equals(item.Name, SyncGlobalization.DataSourceStringComparison)))
+                throw new SyncParameterAlreadyExistsException(item.Name);
+
+            this.InnerCollection.Add(item);
+
+            var apn = string.IsNullOrEmpty(this.AdditionalPropertyNames)
+                ? new string[0]
+                : this.AdditionalPropertyNames.Split(',');
+            this.AdditionalPropertyNames = string.Join(",", apn.Concat(new[] { item.Name }));
         }
 
         /// <summary>
@@ -96,7 +115,11 @@ namespace Wormhole.Sync
         /// </summary>
         public string GetHash()
         {
-            var flatParameters = string.Concat(this.OrderBy(p => p.Name).Select(p => $"{p.Name}.{p.Value}"));
+            var toIgnore = string.IsNullOrWhiteSpace(this.AdditionalPropertyNames)
+                ? Array.Empty<string>()
+                : this.AdditionalPropertyNames.Split(',');
+
+            var flatParameters = string.Concat(this.Where(p => !toIgnore.Contains(p.Name)).OrderBy(p => p.Name).Select(p => $"{p.Name}.{p.Value}"));
             var b = Encoding.UTF8.GetBytes(flatParameters);
             var hash1 = HashAlgorithm.SHA256.Create(b);
             var hash1String = Convert.ToBase64String(hash1);
