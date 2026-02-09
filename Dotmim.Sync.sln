@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.2.32317.152
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dotmim.Sync.Core", "Projects\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj", "{C58C0E87-84B4-4DC7-A2F2-CCC2B9DAEF86}"
 EndProject
@@ -55,7 +55,12 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "solution files", "solution files", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 	ProjectSection(SolutionItems) = preProject
 		Directory.Build.props = Directory.Build.props
+		Readme.md = Readme.md
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dotmim.Sync.Web.Azure", "Projects\Dotmim.Sync.Web.Azure\Dotmim.Sync.Web.Azure.csproj", "{DE191618-93DF-4035-A1D8-1106E1998028}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dotmim.Sync.Web.Hangfire", "Projects\Dotmim.Sync.Web.Hangfire\Dotmim.Sync.Web.Hangfire.csproj", "{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -276,6 +281,38 @@ Global
 		{D05D557E-5962-42AC-1797-F681B6C310EB}.Release|x64.Build.0 = Release|Any CPU
 		{D05D557E-5962-42AC-1797-F681B6C310EB}.Release|x86.ActiveCfg = Release|Any CPU
 		{D05D557E-5962-42AC-1797-F681B6C310EB}.Release|x86.Build.0 = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|ARM.Build.0 = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|x64.Build.0 = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Debug|x86.Build.0 = Debug|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|ARM.ActiveCfg = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|ARM.Build.0 = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|x64.ActiveCfg = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|x64.Build.0 = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|x86.ActiveCfg = Release|Any CPU
+		{DE191618-93DF-4035-A1D8-1106E1998028}.Release|x86.Build.0 = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|ARM.Build.0 = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|x64.Build.0 = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Debug|x86.Build.0 = Debug|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|ARM.ActiveCfg = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|ARM.Build.0 = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|x64.ActiveCfg = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|x64.Build.0 = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|x86.ActiveCfg = Release|Any CPU
+		{8F0B9E17-60A8-4341-8077-4A1615E7ADAD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -287,8 +324,8 @@ Global
 		{D05D557E-5962-42AC-1797-F681B6C310EB} = {AC37FDEF-1057-4915-806D-DC22DD68F44B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		BuildVersion_StartDate = 2000/1/1
 		SolutionGuid = {348020ED-748B-4CC8-AA1D-9F7D36E2AC12}
+		BuildVersion_StartDate = 2000/1/1
 	EndGlobalSection
 	GlobalSection(Performance) = preSolution
 		HasPerformanceSessions = true

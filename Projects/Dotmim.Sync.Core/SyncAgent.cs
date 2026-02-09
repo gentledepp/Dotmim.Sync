@@ -444,6 +444,9 @@ namespace Wormhole.Sync
 
                 context.ProgressPercentage = 0.3;
 
+                // re-set parameters
+                cScopeInfoClient.Parameters = parameters;
+
                 // Use optimized flow if available and conditions are met
                 if (useOptimizedFlow && this.RemoteOrchestrator is IIncrementalSyncOrchestrator)
                 {

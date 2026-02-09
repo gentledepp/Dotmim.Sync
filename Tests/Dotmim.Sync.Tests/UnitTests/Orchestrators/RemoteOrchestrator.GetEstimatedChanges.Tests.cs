@@ -15,11 +15,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
-    public partial class RemoteOrchestratorTests : IDisposable
+    public partial class RemoteOrchestratorTests
     {
 
 

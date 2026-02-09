@@ -103,8 +103,13 @@ namespace Wormhole.Sync
         /// <summary>
         /// Execute an operation based on a retry policy, synchronously.
         /// </summary>
+        [Obsolete("Synchronous execution is no longer supported to avoid blocking calls. Use ExecuteAsync instead.", error: true)]
         public TResult Execute<TResult>(Func<TResult> operation)
-        => this.InternalExecuteAsync(new Func<Task<TResult>>(() => Task.FromResult(operation())), null, CancellationToken.None).GetAwaiter().GetResult();
+        {
+            throw new NotSupportedException(
+                "Synchronous execution is no longer supported to eliminate blocking async calls (GetAwaiter().GetResult()). " +
+                "Please use ExecuteAsync instead. Example: await policy.ExecuteAsync(async () => { ... })");
+        }
 
         /// <summary>
         /// Execute an operation based on a retry policy, asynchronously.

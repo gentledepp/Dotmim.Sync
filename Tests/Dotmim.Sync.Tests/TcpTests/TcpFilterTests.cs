@@ -16,12 +16,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
-    public abstract partial class TcpFilterTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
+    public abstract partial class TcpFilterTests : DatabaseTest, IClassFixture<DatabaseServerFixture>
     {
         internal CoreProvider serverProvider;
         internal IEnumerable<CoreProvider> clientsProvider;

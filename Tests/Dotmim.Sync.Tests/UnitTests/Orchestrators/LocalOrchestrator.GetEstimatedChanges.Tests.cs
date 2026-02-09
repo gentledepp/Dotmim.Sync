@@ -15,11 +15,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
-    public partial class LocalOrchestratorTests : IDisposable
+    public partial class LocalOrchestratorTests
     {
         /// <summary>
         /// LocalOrchestrator.GetEstimatedChanges should return estimated rows to send back to the server

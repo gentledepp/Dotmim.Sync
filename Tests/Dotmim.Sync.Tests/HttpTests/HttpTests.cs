@@ -30,7 +30,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 #if !NET48
 using Microsoft.AspNetCore.Hosting;
@@ -45,22 +44,27 @@ using Wormhole.Sync.Tests.Fixtures;
 using System.Security.Cryptography;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
-#if !NET48
-using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
-#endif
+using Wormhole.Sync.Storage;
 
 namespace Wormhole.Sync.Tests.IntegrationTests
 {
 
-    public abstract partial class HttpTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
+    public abstract partial class HttpTests : DatabaseTest, IClassFixture<DatabaseServerFixture>
     {
+        private readonly IBatchStorage batchStorage;
         private CoreProvider serverProvider;
         private IEnumerable<CoreProvider> clientsProvider;
         private SyncSetup setup;
         private string serviceUri;
 
-        protected HttpTests(ITestOutputHelper output, DatabaseServerFixture fixture) : base(output, fixture)
+
+        protected HttpTests(ITestOutputHelper output, DatabaseServerFixture fixture) : this(output, fixture, null)
         {
+        }
+
+        protected HttpTests(ITestOutputHelper output, DatabaseServerFixture fixture, IBatchStorage? batchStorage) : base(output, fixture)
+        {
+            this.batchStorage = batchStorage;
             serverProvider = GetServerProvider();
             clientsProvider = GetClientProviders();
             setup = GetSetup();
@@ -68,8 +72,15 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             this.Kestrel.AddSyncServer(serverProvider, setup, new SyncOptions
             {
                 DisableConstraintsOnApplyChanges = true
-            });
+            }, batchStorage: batchStorage);
             serviceUri = this.Kestrel.Run();
+        }
+
+        private void AddSyncServer(CoreProvider provider, SyncSetup setup = null, SyncOptions options = null,
+            WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+        {
+            this.Kestrel.AddSyncServer(provider, setup, options, webServerOptions, scopeName, identifier,
+                this.batchStorage);
         }
 
         [Theory]
@@ -112,7 +123,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             await this.Kestrel.StopAsync();
 
             // Add again the serverprovider
-            this.Kestrel.AddSyncServer(serverProvider, setup, options);
+            this.AddSyncServer(serverProvider, setup, options);
 
 #if NET48
             // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
@@ -207,7 +218,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             await this.Kestrel.StopAsync();
 
             // Add again the serverprovider
-            this.Kestrel.AddSyncServer(serverProvider, setup, options);
+            this.AddSyncServer(serverProvider, setup, options);
 
 #if NET48
             // override server handler to use OnHttpGettingRequest and OnHttpSendingResponse
@@ -296,13 +307,13 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             await this.Kestrel.StopAsync();
 
-            this.Kestrel.AddSyncServer(serverProvider, setup,
+            this.AddSyncServer(serverProvider, setup,
                 new SyncOptions { DisableConstraintsOnApplyChanges = true }, null, "v1", "db1");
 
-            this.Kestrel.AddSyncServer(serverProvider, setup,
+            this.AddSyncServer(serverProvider, setup,
                 new SyncOptions { DisableConstraintsOnApplyChanges = true }, null, "v2", "db1");
 
-            this.Kestrel.AddSyncServer(serverProvider, setup,
+            this.AddSyncServer(serverProvider, setup,
                 new SyncOptions { DisableConstraintsOnApplyChanges = true }, identifier: "db2");
 
             var serviceUri = this.Kestrel.Run();
@@ -351,7 +362,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var clientProvider = clientsProvider.First();
 
             using var kestrel = new TestWebServer(this.UseFiddler);
-            kestrel.AddSyncServer(badServerProvider, setup, options);
+            kestrel.AddSyncServer(badServerProvider, setup, options, batchStorage: this.batchStorage);
             var serviceUri = kestrel.Run();
 
             var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serviceUri), options);
@@ -1274,7 +1285,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             await this.Kestrel.StopAsync();
 
-            this.Kestrel.AddSyncServer(serverProvider, setupV2, new SyncOptions { DisableConstraintsOnApplyChanges = true }, null, "uploadonly");
+            this.AddSyncServer(serverProvider, setupV2, new SyncOptions { DisableConstraintsOnApplyChanges = true }, null, "uploadonly");
 
 
             var serviceUri = this.Kestrel.Run();
@@ -1321,7 +1332,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             await this.Kestrel.StopAsync();
 
-            this.Kestrel.AddSyncServer(serverProvider, setupV2,
+            this.AddSyncServer(serverProvider, setupV2,
                 new SyncOptions { DisableConstraintsOnApplyChanges = true }, null, "downloadonly");
 
             var serviceUri = this.Kestrel.Run();
@@ -1559,7 +1570,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         //    var rowsCount = this.GetServerDatabaseRowsCount(this.Server);
 
         //    // configure server orchestrator
-        //    this.Kestrel.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
+        //    this.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
         //        new SyncSetup(Tables));
 
         //    // Create server web proxy
@@ -1611,7 +1622,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         //        await this.CreateDatabaseAsync(client.ProviderType, client.DatabaseName, true);
 
         //    // configure server orchestrator
-        //    this.Kestrel.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
+        //    this.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
         //        new SyncSetup(Tables));
 
         //    var serviceUri = this.Kestrel.Run();
@@ -1713,7 +1724,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             await this.Kestrel.StopAsync();
 
             // Add again the serverprovider
-            this.Kestrel.AddSyncServer(serverProvider, setup, options, webServerOptions);
+            this.AddSyncServer(serverProvider, setup, options, webServerOptions);
 
 #if NET48
             // Create server web proxy
@@ -1944,8 +1955,8 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(serverProvider, setup, options, identifier: "c1");
-            this.Kestrel.AddSyncServer(serverProvider, new SyncSetup("Customer"), options, scopeName: "customScope1", identifier: "c2");
+            this.AddSyncServer(serverProvider, setup, options, identifier: "c1");
+            this.AddSyncServer(serverProvider, new SyncSetup("Customer"), options, scopeName: "customScope1", identifier: "c2");
             var serviceUri = this.Kestrel.Run();
 
             // Execute a sync on all clients and check results
@@ -2142,7 +2153,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
-                kestrel.AddSyncServer(serverProvider, setup, options);
+                kestrel.AddSyncServer(serverProvider, setup, options, batchStorage: this.batchStorage);
 
                 var batchIndex = 0;
 
@@ -2250,7 +2261,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
-                kestrel.AddSyncServer(serverProvider, setup, options);
+                kestrel.AddSyncServer(serverProvider, setup, options, batchStorage: this.batchStorage);
 
                 var serviceUri = kestrel.Run();
 
@@ -2312,7 +2323,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
-                kestrel.AddSyncServer(serverProvider, setup, options);
+                kestrel.AddSyncServer(serverProvider, setup, options, batchStorage: this.batchStorage);
 
                 var serviceUri = kestrel.Run();
 
@@ -2337,7 +2348,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
                 using var kestrel = new TestWebServer(this.UseFiddler);
 
                 // Configure server orchestrator
-                kestrel.AddSyncServer(serverProvider, setup, options);
+                kestrel.AddSyncServer(serverProvider, setup, options, batchStorage: this.batchStorage);
 
                 var serviceUri = kestrel.Run();
 
@@ -2388,7 +2399,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         //    await remoteOrchestrator.ProvisionAsync(sScopeInfo);
 
         //    // configure server orchestrator
-        //    this.Kestrel.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
+        //    this.AddSyncServer(this.Server.Provider.GetType(), this.Server.Provider.ConnectionString, SyncOptions.DefaultScopeName,
         //        new SyncSetup(Tables));
 
         //    var serviceUri = this.Kestrel.Run();
@@ -2489,7 +2500,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(serverProvider, setup, options);
+            this.AddSyncServer(serverProvider, setup, options);
 
 #if NET48
             // Create server web proxy
@@ -2580,7 +2591,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(serverProvider, setup, options);
+            this.AddSyncServer(serverProvider, setup, options);
 
 #if NET48
             // Create server web proxy
@@ -2663,7 +2674,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var rowsCount = serverProvider.GetDatabaseRowsCount();
 
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(serverProvider, setup, options);
+            this.AddSyncServer(serverProvider, setup, options);
 
             var interruptedBatch = false;
 
@@ -3325,7 +3336,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             });
             
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(this.serverProvider, setup, options);
+            this.AddSyncServer(this.serverProvider, setup, options);
             this.serviceUri = this.Kestrel.Run();
 
             // Create a customer on the server
@@ -3444,7 +3455,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             });
 
             await this.Kestrel.StopAsync();
-            this.Kestrel.AddSyncServer(this.serverProvider, setup, options);
+            this.AddSyncServer(this.serverProvider, setup, options);
             this.serviceUri = this.Kestrel.Run();
 
             // Create a customer on the server with an EmployeeId

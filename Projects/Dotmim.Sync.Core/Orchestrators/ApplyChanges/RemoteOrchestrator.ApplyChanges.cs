@@ -4,6 +4,7 @@ using Wormhole.Sync.Extensions;
 using Wormhole.Sync.Serialization;
 using System;
 using System.Data.Common;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -162,13 +163,14 @@ namespace Wormhole.Sync
                                     if (!table.HasRows)
                                         continue;
 
-                                    using var localSerializer = new LocalJsonSerializer(this, context);
+                                    await using var localSerializer = new LocalJsonSerializer(this.BatchStorage, this, context);
 
                                     var (filePath, fileName) = errorsBatchInfo.GetNewBatchPartInfoPath(table, batchIndex, "json", info);
+                                    var directoryPath = Path.GetDirectoryName(filePath);
                                     var batchPartInfo = new BatchPartInfo(fileName, table.TableName, table.SchemaName, SyncRowState.None, table.Rows.Count, batchIndex);
                                     errorsBatchInfo.BatchPartsInfo.Add(batchPartInfo);
 
-                                    await localSerializer.OpenFileAsync(filePath, table, SyncRowState.None).ConfigureAwait(false);
+                                    await localSerializer.OpenFileAsync(directoryPath, fileName, table, SyncRowState.None).ConfigureAwait(false);
 
                                     foreach (var row in table.Rows)
                                         await localSerializer.WriteRowToFileAsync(row, table).ConfigureAwait(false);
@@ -253,6 +255,8 @@ namespace Wormhole.Sync
 
                     if (runner.CancellationToken.IsCancellationRequested)
                         runner.CancellationToken.ThrowIfCancellationRequested();
+
+
 
                     // When we get the changes from server, we create the batches if it's requested by the client
                     // the batch decision comes from batchsize from client

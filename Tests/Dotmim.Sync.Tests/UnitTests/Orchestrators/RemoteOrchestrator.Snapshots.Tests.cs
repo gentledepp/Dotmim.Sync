@@ -13,10 +13,8 @@ using Xunit;
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
-    public partial class RemoteOrchestratorTests : IDisposable
+    public partial class RemoteOrchestratorTests
     {
- 
-
         [Fact]
         public async Task RemoteOrchestrator_CreateSnapshot_CheckInterceptors()
         {

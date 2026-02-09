@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8);net48</TargetFrameworks>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8);$(TargetFrameworkNetframework)</TargetFrameworks>
         <AssemblyName>Wormhole.Sync.Web.Server</AssemblyName>
         <PackageId>Wormhole.Sync.Web.Server</PackageId>
         <RootNamespace>Wormhole.Sync.Web.Server</RootNamespace>
@@ -22,6 +22,13 @@
         <ProjectReference Include="..\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
         <PackageReference Include="System.Text.Json" Version="8.0.5" />
+        <!-- Required for async batch creation -->
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+        <PackageReference Include="System.Threading.Channels" Version="8.0.0" />
+        <!-- Required for session cache store abstraction -->
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
     </ItemGroup>
 
 

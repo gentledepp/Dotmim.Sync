@@ -1,0 +1,9 @@
+{
+   "$schema": "https://json.schemastore.org/testconfig.json",
+   "hangdump": {
+      "enabled": true,
+      "timeout": "30s",
+      "type": "mini",
+      "filename": "hangdump_{pid}_{datetime}.dmp"
+   }
+}

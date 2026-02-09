@@ -1,11 +1,20 @@
 ﻿
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFramework>net48</TargetFramework>
+		<TargetFramework>$(TargetFrameworkNetframework)</TargetFramework>
+		<OutputType>Exe</OutputType>
 		<AssemblyName>Wormhole.Sync.Tests.WebApi2</AssemblyName>
 		<RootNamespace>Wormhole.Sync.Tests</RootNamespace>
 		<IsPackable>false</IsPackable>
 		<LangVersion>latest</LangVersion>
+
+		<!-- required to get SQLitePCLraw.bundle_e_sqlite3 targets to copy the e_sqlite3.dll to the output directory
+			it only does so if $(RuntimeIdentifier) is empty -->
+		<PlatformTarget>AnyCPU</PlatformTarget>
+
+		<!-- Enable Microsoft.Testing.Platform support for xUnit v3 -->
+		<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+		<TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -14,6 +23,11 @@
 		<RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
 		<RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
 	</PropertyGroup>
+
+	<Target Name="TestMessage" AfterTargets="Build" >
+		<Message Text="$(OS)" Importance="high"/>
+		<Message Text="$(RuntimeIdentifier)" Importance="high"/>
+	</Target>
 
 	<ItemGroup>
 	  <Compile Include="..\Dotmim.Sync.Tests\Converters\DateConverter.cs" Link="Converters\DateConverter.cs" />
@@ -45,6 +59,8 @@
 	  <Compile Include="..\Dotmim.Sync.Tests\Models\SalesOrderHeader.cs" Link="Models\SalesOrderHeader.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Models\Sql.cs" Link="Models\Sql.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Models\Tags.cs" Link="Models\Tags.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\UnitTests\Storage\AzureBlobBatchStorageTests.cs" Link="UnitTests\Storage\AzureBlobBatchStorageTests.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\HttpTests\HttpTests.AsyncBatchCreation.cs" Link="HttpTests\HttpTests.AsyncBatchCreation.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -62,22 +78,27 @@
 		<PackageReference Include="Microsoft.Owin.Host.HttpListener" Version="4.2.2" />
 		<PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" />
 		<PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" />
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.32" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.32" />
-		<PackageReference Include="xunit" Version="2.8.1" />
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+		<PackageReference Include="Hangfire.Core" Version="1.8.17" />
+		<PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
+		<PackageReference Include="xunit.v3" Version="3.2.2" />
+		<PackageReference Include="xunit.v3.runner.msbuild" Version="3.2.2" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+
+		<PackageReference Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Core\Dotmim.Sync.Core.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Sqlite\Dotmim.Sync.Sqlite.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.SqlServer\Dotmim.Sync.SqlServer.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Azure\Dotmim.Sync.Web.Azure.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Client\Dotmim.Sync.Web.Client.csproj" />
 		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Server\Dotmim.Sync.Web.Server.csproj" />
+		<ProjectReference Include="..\..\Projects\Dotmim.Sync.Web.Hangfire\Dotmim.Sync.Web.Hangfire.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -87,17 +108,23 @@
 		<None Update="appsettings.local.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<None Update=".testconfig.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 	<ItemGroup>
 	  <Folder Include="HttpTests\" />
 	  <Folder Include="Converters\" />
 	  <Folder Include="Fixtures\" />
+	  <Folder Include="UnitTests\Storage\" />
 	</ItemGroup>
 
 	<!-- Copy native SQLite DLL from runtimes folder to output root for .NET Framework -->
-	<Target Name="CopySQLiteInterop" AfterTargets="AfterBuild">
-		<Copy SourceFiles="$(TargetDir)runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(Platform)' == 'x64' Or '$(Platform)' == 'AnyCPU'" ContinueOnError="true" />
-		<Copy SourceFiles="$(TargetDir)runtimes\win-x86\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(Platform)' == 'x86'" ContinueOnError="true" />
+	<!-- The SQLitePCLRaw package auto-populates runtimes folder, we just copy the right one to root -->
+	<Target Name="CopySQLiteInterop" AfterTargets="Build">
+		<Copy SourceFiles="$(TargetDir)runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(PlatformTarget)' == 'x64'" ContinueOnError="true" />
+		<Copy SourceFiles="$(TargetDir)runtimes\win-x86\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" Condition="'$(PlatformTarget)' == 'x86'" ContinueOnError="true" />
 	</Target>
 </Project>
+

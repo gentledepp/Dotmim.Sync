@@ -13,9 +13,10 @@ namespace Wormhole.Sync
     public class BatchChangesCreatedArgs : ProgressArgs
     {
         /// <inheritdoc cref="BatchChangesCreatedArgs"/>
-        public BatchChangesCreatedArgs(SyncContext context, BatchPartInfo batchPartInfo, SyncTable syncTable, TableChangesSelected tableChangesSelected, SyncRowState state, DbConnection connection, DbTransaction transaction)
+        public BatchChangesCreatedArgs(SyncContext context, BatchInfo batchInfo, BatchPartInfo batchPartInfo, SyncTable syncTable, TableChangesSelected tableChangesSelected, SyncRowState state, DbConnection connection, DbTransaction transaction)
                     : base(context, connection, transaction)
         {
+            this.BatchInfo = batchInfo;
             this.BatchPartInfo = batchPartInfo;
             this.SchemaTable = syncTable;
             this.TableChangesSelected = tableChangesSelected;
@@ -40,7 +41,7 @@ namespace Wormhole.Sync
         /// <summary>
         /// Gets or sets the batch info.
         /// </summary>
-        public BatchInfo BatchInfo { get; set; }
+        public BatchInfo BatchInfo { get; }
 
         /// <summary>
         /// Gets the batch part info.

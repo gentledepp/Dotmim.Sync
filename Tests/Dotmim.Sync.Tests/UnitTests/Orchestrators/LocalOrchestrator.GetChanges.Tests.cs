@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
-    public partial class LocalOrchestratorTests : IDisposable
+    public partial class LocalOrchestratorTests
     {
 
         /// <summary>
@@ -48,10 +48,10 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("SalesOrderDetail", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
             Assert.Contains("SalesOrderHeader", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
 
-            var sodTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "SalesOrderDetail", "SalesLT");
+            var sodTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "SalesOrderDetail", "SalesLT");
             Assert.Equal(3, sodTable.Rows.Count);
 
-            var sohTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "SalesOrderHeader", "SalesLT");
+            var sohTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "SalesOrderHeader", "SalesLT");
             Assert.Single(sohTable.Rows);
         }
 
@@ -86,11 +86,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("Product", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
             Assert.Contains("ProductCategory", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
 
-            var productTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "Product", "SalesLT");
+            var productTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "Product", "SalesLT");
             var productRowName = productTable.Rows[0]["Name"];
             Assert.Equal(product.Name, productRowName);
 
-            var productCategoryTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "ProductCategory", "SalesLT");
+            var productCategoryTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "ProductCategory", "SalesLT");
             var productCategoryRowName = productCategoryTable.Rows[0]["Name"];
             Assert.Equal(productCategory.Name, productCategoryRowName);
         }
@@ -124,11 +124,11 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.Contains("Product", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
             Assert.Contains("ProductCategory", changes.ClientChangesSelected.TableChangesSelected.Select(tcs => tcs.TableName).ToList());
 
-            var productTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "Product", "SalesLT");
+            var productTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "Product", "SalesLT");
             var productRowName = productTable.Rows[0]["Name"];
             Assert.Equal(product.Name, productRowName);
 
-            var productCategoryTable = localOrchestrator.LoadTableFromBatchInfo(scopeName, changes.ClientBatchInfo, "ProductCategory", "SalesLT");
+            var productCategoryTable = await localOrchestrator.LoadTableFromBatchInfoAsync(scopeName, changes.ClientBatchInfo, "ProductCategory", "SalesLT");
             var productCategoryRowName = productCategoryTable.Rows[0]["Name"];
             Assert.Equal(productCategory.Name, productCategoryRowName);
         }

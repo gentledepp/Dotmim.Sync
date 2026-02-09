@@ -16,11 +16,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
+
 
 namespace Wormhole.Sync.Tests.UnitTests
 {
-    public abstract partial class LocalOrchestratorTests : DatabaseTest, IClassFixture<DatabaseServerFixture>, IDisposable
+    public abstract partial class LocalOrchestratorTests : DatabaseTest, IClassFixture<DatabaseServerFixture>
     {
         private CoreProvider serverProvider;
         private CoreProvider clientProvider;
