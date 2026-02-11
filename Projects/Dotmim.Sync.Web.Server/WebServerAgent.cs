@@ -24,6 +24,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Wormhole.Sync.Storage;
+using Wormhole.Sync.Web.Server.Errors;
 
 namespace Wormhole.Sync.Web.Server
 {
@@ -32,6 +33,7 @@ namespace Wormhole.Sync.Web.Server
     /// </summary>
     public partial class WebServerAgent
     {
+        private readonly IErrorHandler errorHandler;
         private static readonly ISerializer JsonSerializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
 
         private static bool checkUpgradeDone;
@@ -43,8 +45,10 @@ namespace Wormhole.Sync.Web.Server
             IBatchCleanupService cleanupService = null,
             IBatchCreationJobService batchCreationJobService = null,
             IBatchStorage batchStore = null,
-            ISessionCacheStore sessionCacheStore = null)
+            ISessionCacheStore sessionCacheStore = null,
+            IErrorHandler errorHandler = null)
         {
+            this.errorHandler = errorHandler ?? NullErrorHandler.Instance;
             this.Setup = setup;
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
             this.Provider = provider;
@@ -65,8 +69,10 @@ namespace Wormhole.Sync.Web.Server
             string identifier = null,
             IBatchCleanupService cleanupService = null,
             IBatchCreationJobService batchCreationJobService = null,
-            ISessionCacheStore sessionCacheStore = null)
+            ISessionCacheStore sessionCacheStore = null,
+            IErrorHandler errorHandler = null)
         {
+            this.errorHandler = errorHandler ?? NullErrorHandler.Instance;
             this.Setup = new SyncSetup(tables);
             this.WebServerOptions = webServerOptions ?? new WebServerOptions();
             this.Provider = provider;
@@ -744,6 +750,7 @@ namespace Wormhole.Sync.Web.Server
             }
             catch (Exception ex)
             {
+                await this.errorHandler.HandleAsync(new(ex, httpRequest));
                 await this.WriteExceptionAsync(httpRequest, httpResponse, ex).ConfigureAwait(false);
             }
             finally
@@ -1779,4 +1786,5 @@ namespace Wormhole.Sync.Web.Server
             checkUpgradeDone = true;
         }
     }
+
 }

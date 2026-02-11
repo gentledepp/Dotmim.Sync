@@ -19,6 +19,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Wormhole.Sync.Storage;
+using Wormhole.Sync.Web.Server.Errors;
 
 [assembly: InternalsVisibleTo("Wormhole.Sync.Tests")]
 
@@ -29,55 +30,6 @@ namespace Microsoft.Extensions.DependencyInjection
     /// </summary>
     public static class DependencyInjection
     {
-        /// <summary>
-        /// Add the server provider (inherited from CoreProvider) and register in the DI a WebServerAgent.
-        /// Use the WebServerAgent in your controller, by inject it.
-        /// </summary>
-        /// <param name="serviceCollection">services collections.</param>
-        /// <param name="providerType">Provider inherited from CoreProvider (SqlSyncProvider, MySqlSyncProvider, OracleSyncProvider) Should have [CanBeServerProvider=true]. </param>
-        /// <param name="connectionString">Provider connection string.</param>
-        /// <param name="setup">Configuration server side. Adding at least tables to be synchronized.</param>
-        /// <param name="options">Options, not shared with client, but only applied locally. Can be null.</param>
-        /// <param name="webServerOptions">Specific web server options.</param>
-        /// <param name="scopeName">Scope name.</param>
-        /// <param name="identifier">Can be use to differentiate configuration where you are using the same provider in a multiple databases scenario.</param>
-        [Obsolete("Use AddSyncServer(CoreProvider provider) instead, as it offers more possibilities to configure your provider, if needed.")]
-        public static IServiceCollection AddSyncServer(this IServiceCollection serviceCollection, Type providerType,
-                                                        string connectionString, SyncSetup setup = null, SyncOptions options = null,
-                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
-        {
-            if (string.IsNullOrWhiteSpace(connectionString))
-                throw new ArgumentNullException(nameof(connectionString));
-
-            webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
-            setup = setup ?? throw new ArgumentNullException(nameof(setup));
-            scopeName ??= SyncOptions.DefaultScopeName;
-
-            // Create provider
-            var provider = (CoreProvider)Activator.CreateInstance(providerType);
-            provider.ConnectionString = connectionString;
-
-            serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
-
-            // Create orchestrator
-            serviceCollection.AddScoped(sp => new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier));
-
-            return serviceCollection;
-        }
-
-        /// <inheritdoc cref="AddSyncServer(IServiceCollection, CoreProvider, string[], SyncOptions, WebServerOptions, string, string)" />
-        [Obsolete("Use AddSyncServer(CoreProvider provider) instead, as it offers you to configure your provider, if needed.")]
-        public static IServiceCollection AddSyncServer<TProvider>(this IServiceCollection serviceCollection, string connectionString, SyncSetup setup = null, SyncOptions options = null, WebServerOptions webServerOptions = null, string identifier = null)
-            where TProvider : CoreProvider, new()
-            => serviceCollection.AddSyncServer(typeof(TProvider), connectionString, setup, options, webServerOptions, identifier);
-
-        /// <inheritdoc cref="AddSyncServer(IServiceCollection, CoreProvider, string[], SyncOptions, WebServerOptions, string, string)" />
-        [Obsolete("Use AddSyncServer(CoreProvider provider) instead, as it offers you to configure your provider, if needed.")]
-        public static IServiceCollection AddSyncServer<TProvider>(this IServiceCollection serviceCollection, string connectionString, string[] tables = default, SyncOptions options = null, WebServerOptions webServerOptions = null, string identifier = null)
-            where TProvider : CoreProvider, new()
-            => serviceCollection.AddSyncServer(typeof(TProvider), connectionString, new SyncSetup(tables), options, webServerOptions, identifier);
-
         /// <summary>
         /// Add the server provider (inherited from CoreProvider) and register in the DI as a new WebServerAgent.
         /// In Your controller, inject a WebServerAgent to get your agent.
@@ -145,7 +97,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -216,7 +169,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -292,7 +246,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -362,7 +317,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 sp.GetRequiredService<IBatchCreationJobService>(),
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -418,7 +374,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 sp.GetRequiredService<IBatchCreationJobService>(),
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -484,7 +441,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 sp.GetRequiredService<IBatchCreationJobService>(),
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
@@ -559,7 +517,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 sp.GetRequiredService<IBatchCleanupService>(),
                 sp.GetRequiredService<IBatchCreationJobService>(),
                 sp.GetService<IBatchStorage>(),
-                sp.GetService<ISessionCacheStore>()));
+                sp.GetService<ISessionCacheStore>(),
+                sp.GetService<IErrorHandler>()));
 
             return serviceCollection;
         }
