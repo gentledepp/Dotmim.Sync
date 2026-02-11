@@ -392,6 +392,10 @@ namespace Wormhole.Sync.Web.Server
             IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
 #endif
         {
+
+            if (this.SessionCacheStore is IRequiresHttpContext requiresContext)
+                requiresContext.SetContext(httpContext);
+
 #if !NET48
             var httpRequest = httpContext.Request;
             var httpResponse = httpContext.Response;

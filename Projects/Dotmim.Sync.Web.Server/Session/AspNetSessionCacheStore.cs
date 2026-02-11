@@ -3,6 +3,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using System.Web.SessionState;
+using HttpContext = System.Web.HttpContextBase;
 #else
 using Microsoft.AspNetCore.Http;
 #endif
@@ -16,36 +18,28 @@ namespace Wormhole.Sync.Web.Server
     /// Session cache store implementation using ASP.NET Session.
     /// This is the default implementation for backward compatibility.
     /// </summary>
-    public class AspNetSessionCacheStore : ISessionCacheStore
+    public class AspNetSessionCacheStore : ISessionCacheStore, IRequiresHttpContext
     {
+        private HttpContext localContext;
+
 #if !NET48
-        private readonly IHttpContextAccessor httpContextAccessor;
-
-        public AspNetSessionCacheStore(IHttpContextAccessor httpContextAccessor)
-        {
-            this.httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
-        }
-
+        
         private ISession GetSession()
         {
-            var httpContext = httpContextAccessor.HttpContext;
+            var httpContext = this.localContext;
             if (httpContext == null)
                 throw new InvalidOperationException("HttpContext is not available");
 
             return httpContext.Session;
         }
 #else
-        public AspNetSessionCacheStore()
-        {
-        }
-
         private HttpSessionStateBase GetSession()
         {
-            var httpContext = HttpContext.Current;
+            var httpContext = this.localContext;
             if (httpContext == null)
                 throw new InvalidOperationException("HttpContext.Current is not available");
 
-            return new HttpSessionStateWrapper(httpContext.Session);
+            return httpContext.Session;
         }
 #endif
 
@@ -119,6 +113,11 @@ namespace Wormhole.Sync.Web.Server
             session.SetString(key, sessionId);
             await session.CommitAsync(cancellationToken).ConfigureAwait(false);
 #endif
+        }
+
+        public void SetContext(HttpContext httpContext)
+        {
+            this.localContext = httpContext;
         }
     }
 }

@@ -37,7 +37,7 @@ namespace Wormhole.Sync.Tests
             
             this.WebServerAgents.RemoveAll(wsa => wsa.ScopeName == scopeName);
 
-            this.WebServerAgents.Add(new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier, batchStore: batchStorage, batchCreationJobService:batchJobService));
+            this.WebServerAgents.Add(new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier, batchStore: batchStorage, batchCreationJobService:batchJobService, sessionCacheStore:new AspNetSessionCacheStore()));
         }
 
         public List<WebServerAgent> WebServerAgents { get; private set; } = new();

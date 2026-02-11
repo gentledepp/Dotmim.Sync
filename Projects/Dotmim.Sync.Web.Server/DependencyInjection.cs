@@ -58,6 +58,8 @@ namespace Microsoft.Extensions.DependencyInjection
             var provider = (CoreProvider)Activator.CreateInstance(providerType);
             provider.ConnectionString = connectionString;
 
+            serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
+
             // Create orchestrator
             serviceCollection.AddScoped(sp => new WebServerAgent(provider, setup, options, webServerOptions, scopeName, identifier));
 
@@ -99,6 +101,8 @@ namespace Microsoft.Extensions.DependencyInjection
             scopeName ??= SyncOptions.DefaultScopeName;
 
             serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
+
+            serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
 
             // Register session cache store based on configuration
             RegisterSessionCacheStore(serviceCollection, webServerOptions);
@@ -610,13 +614,13 @@ namespace Microsoft.Extensions.DependencyInjection
                     // Default - use ASP.NET Session via AspNetSessionCacheStore
 #if NET6_0_OR_GREATER
                     serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-                    serviceCollection.AddSingleton<ISessionCacheStore, AspNetSessionCacheStore>();
+                    serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
 #elif NETSTANDARD2_0
                     // For netstandard2.0, IHttpContextAccessor should be registered by the consuming application
-                    serviceCollection.AddSingleton<ISessionCacheStore, AspNetSessionCacheStore>();
+                    serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
 #else
                     // NET48
-                    serviceCollection.AddSingleton<ISessionCacheStore, AspNetSessionCacheStore>();
+                    serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
 #endif
                     break;
 
