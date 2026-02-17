@@ -343,6 +343,9 @@ namespace Wormhole.Sync
             InternalSetParameterValue(command, "sync_scope_properties", scopeInfoClient.Properties);
             InternalSetParameterValue(command, "sync_scope_errors", scopeInfoClient.Errors);
             InternalSetParameterValue(command, "sync_scope_parameters", scopeInfoClient.Parameters != null ? Serializer.Serialize(scopeInfoClient.Parameters).ToUtf8String() : DBNull.Value);
+            InternalSetParameterValue(command, "sync_scope_reinit_tables", scopeInfoClient.ReinitTables == null ? DBNull.Value : scopeInfoClient.ReinitTables);
+            InternalSetParameterValue(command, "sync_scope_supported_migrations", scopeInfoClient.SupportedMigrations == null ? DBNull.Value : scopeInfoClient.SupportedMigrations);
+            InternalSetParameterValue(command, "sync_scope_last_known_server_migrations", scopeInfoClient.LastKnownServerMigrations == null ? DBNull.Value : scopeInfoClient.LastKnownServerMigrations);
 
             // Set custom parameter values if definitions exist
             if (customParameters != null && customParameters.Count > 0)
@@ -397,6 +400,9 @@ namespace Wormhole.Sync
                 Properties = reader["sync_scope_properties"] as string,
                 Errors = reader["sync_scope_errors"] as string,
                 Parameters = reader["sync_scope_parameters"] != DBNull.Value ? Serializer.Deserialize<SyncParameters>((string)reader["sync_scope_parameters"]) : null,
+                ReinitTables = InternalTryReadColumn(reader, "sync_scope_reinit_tables") as string,
+                SupportedMigrations = InternalTryReadColumn(reader, "sync_scope_supported_migrations") as string,
+                LastKnownServerMigrations = InternalTryReadColumn(reader, "sync_scope_last_known_server_migrations") as string,
             };
             scopeInfoClient.IsNewScope = scopeInfoClient.LastSync == null && scopeInfoClient.LastServerSyncTimestamp is null;
 

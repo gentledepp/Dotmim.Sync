@@ -144,6 +144,7 @@ namespace Wormhole.Sync.Sqlite
                         sync_scope_properties text NULL,
                         sync_scope_server_capabilities text NULL,
                         sync_scope_schema_hash text NULL,
+                        sync_scope_migrations text NULL,
                         CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedName} PRIMARY KEY(sync_scope_name))";
 
             var command = connection.CreateCommand();
@@ -167,6 +168,9 @@ namespace Wormhole.Sync.Sqlite
                         scope_last_sync datetime NULL,
                         sync_scope_errors text NULL,
                         sync_scope_properties text NULL,
+                        sync_scope_reinit_tables text NULL,
+                        sync_scope_supported_migrations text NULL,
+                        sync_scope_last_known_server_migrations text NULL,
                         CONSTRAINT PKey_{this.ScopeInfoTableNames.NormalizedName}_client PRIMARY KEY(sync_scope_id, sync_scope_name, sync_scope_hash))";
 
             var command = connection.CreateCommand();
@@ -187,7 +191,8 @@ namespace Wormhole.Sync.Sqlite
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash]
+                          [sync_scope_schema_hash],
+                          [sync_scope_migrations]
                     FROM  {this.ScopeInfoTableNames.NormalizedName}";
 
             var command = connection.CreateCommand();
@@ -212,6 +217,9 @@ namespace Wormhole.Sync.Sqlite
                          , [scope_last_sync]
                          , [sync_scope_errors]
                          , [sync_scope_properties]
+                         , [sync_scope_reinit_tables]
+                         , [sync_scope_supported_migrations]
+                         , [sync_scope_last_known_server_migrations]
                     FROM  [{this.ScopeInfoTableNames.NormalizedName}_client]";
 
             var command = connection.CreateCommand();
@@ -287,7 +295,8 @@ namespace Wormhole.Sync.Sqlite
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash]
+                          [sync_scope_schema_hash],
+                          [sync_scope_migrations]
                     FROM  [{tableName}]
                     WHERE [sync_scope_name] = @sync_scope_name";
 
@@ -380,17 +389,18 @@ namespace Wormhole.Sync.Sqlite
                       $"sync_scope_last_clean_timestamp=@sync_scope_last_clean_timestamp, " +
                       $"sync_scope_properties=@sync_scope_properties, " +
                       $"sync_scope_server_capabilities=@sync_scope_server_capabilities, " +
-                      $"sync_scope_schema_hash=@sync_scope_schema_hash " +
+                      $"sync_scope_schema_hash=@sync_scope_schema_hash, " +
+                      $"sync_scope_migrations=@sync_scope_migrations " +
                       $"WHERE sync_scope_name=@sync_scope_name;"
 
                     : $"INSERT INTO {tableName} " +
                       $"(sync_scope_name, sync_scope_schema, sync_scope_setup, sync_scope_version, " +
                       $"sync_scope_last_clean_timestamp, sync_scope_properties, sync_scope_server_capabilities, " +
-                      $"sync_scope_schema_hash) " +
+                      $"sync_scope_schema_hash, sync_scope_migrations) " +
                       $"VALUES " +
                       $"(@sync_scope_name, @sync_scope_schema, @sync_scope_setup, @sync_scope_version, " +
                       $"@sync_scope_last_clean_timestamp, @sync_scope_properties, @sync_scope_server_capabilities, " +
-                      $"@sync_scope_schema_hash);");
+                      $"@sync_scope_schema_hash, @sync_scope_migrations);");
 
             stmtText.AppendLine(@$"SELECT sync_scope_id
                            , sync_scope_name
@@ -401,6 +411,7 @@ namespace Wormhole.Sync.Sqlite
                            , sync_scope_properties
                            , sync_scope_server_capabilities
                            , sync_scope_schema_hash
+                           , sync_scope_migrations
                     FROM  {tableName}
                     WHERE sync_scope_name=@sync_scope_name;");
 
@@ -453,6 +464,12 @@ namespace Wormhole.Sync.Sqlite
             p.Size = 64;
             command.Parameters.Add(p);
 
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_migrations";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
             return command;
         }
 
@@ -471,17 +488,20 @@ namespace Wormhole.Sync.Sqlite
                       $"scope_last_server_sync_timestamp=@scope_last_server_sync_timestamp, " +
                       $"scope_last_sync=@scope_last_sync, " +
                       $"scope_last_sync_duration=@scope_last_sync_duration, " +
-                      $"sync_scope_properties=@sync_scope_properties,  " +
-                      $"sync_scope_errors=@sync_scope_errors,  " +
-                      $"sync_scope_parameters=@sync_scope_parameters  " +
+                      $"sync_scope_properties=@sync_scope_properties, " +
+                      $"sync_scope_errors=@sync_scope_errors, " +
+                      $"sync_scope_parameters=@sync_scope_parameters, " +
+                      $"sync_scope_reinit_tables=@sync_scope_reinit_tables, " +
+                      $"sync_scope_supported_migrations=@sync_scope_supported_migrations, " +
+                      $"sync_scope_last_known_server_migrations=@sync_scope_last_known_server_migrations " +
                       $"WHERE sync_scope_id=@sync_scope_id and sync_scope_name=@sync_scope_name and sync_scope_hash=@sync_scope_hash;"
 
                     : $"INSERT INTO {tableName} " +
                       $"(sync_scope_name, sync_scope_id, sync_scope_hash, sync_scope_parameters, scope_last_sync_timestamp, scope_last_server_sync_timestamp, " +
-                      $"scope_last_sync, scope_last_sync_duration, sync_scope_errors, sync_scope_properties) " +
+                      $"scope_last_sync, scope_last_sync_duration, sync_scope_errors, sync_scope_properties, sync_scope_reinit_tables, sync_scope_supported_migrations, sync_scope_last_known_server_migrations) " +
                       $"VALUES " +
                       $"(@sync_scope_name, @sync_scope_id, @sync_scope_hash, @sync_scope_parameters, @scope_last_sync_timestamp, @scope_last_server_sync_timestamp, " +
-                      $"@scope_last_sync, @scope_last_sync_duration, @sync_scope_errors, @sync_scope_properties);");
+                      $"@scope_last_sync, @scope_last_sync_duration, @sync_scope_errors, @sync_scope_properties, @sync_scope_reinit_tables, @sync_scope_supported_migrations, @sync_scope_last_known_server_migrations);");
 
             stmtText.AppendLine(@$"SELECT sync_scope_id
                            , sync_scope_name
@@ -493,6 +513,9 @@ namespace Wormhole.Sync.Sqlite
                            , scope_last_sync_duration
                            , sync_scope_errors
                            , sync_scope_properties
+                           , sync_scope_reinit_tables
+                           , sync_scope_supported_migrations
+                           , sync_scope_last_known_server_migrations
                     FROM  {tableName}
                     WHERE sync_scope_name=@sync_scope_name and sync_scope_id=@sync_scope_id and sync_scope_hash=@sync_scope_hash;");
 
@@ -553,6 +576,24 @@ namespace Wormhole.Sync.Sqlite
             p.Size = -1;
             command.Parameters.Add(p);
 
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_reinit_tables";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_supported_migrations";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_last_known_server_migrations";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
             return command;
         }
 
@@ -590,9 +631,12 @@ namespace Wormhole.Sync.Sqlite
         {
             var command = connection.CreateCommand();
             command.Transaction = transaction;
+            // SQLite doesn't support IF NOT EXISTS on ALTER TABLE, so we use a pragmatic approach
+            // by catching errors for already-existing columns
             command.CommandText = $@"
                 ALTER TABLE {this.ScopeInfoTableNames.NormalizedName} ADD COLUMN sync_scope_server_capabilities TEXT NULL;
                 ALTER TABLE {this.ScopeInfoTableNames.NormalizedName} ADD COLUMN sync_scope_schema_hash TEXT NULL;
+                ALTER TABLE {this.ScopeInfoTableNames.NormalizedName} ADD COLUMN sync_scope_migrations TEXT NULL;
             ";
             return command;
         }

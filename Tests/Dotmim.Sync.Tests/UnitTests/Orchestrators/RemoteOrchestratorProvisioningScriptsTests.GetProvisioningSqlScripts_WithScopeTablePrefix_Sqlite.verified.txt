@@ -8,6 +8,7 @@
                         sync_scope_properties text NULL,
                         sync_scope_server_capabilities text NULL,
                         sync_scope_schema_hash text NULL,
+                        sync_scope_migrations text NULL,
                         CONSTRAINT PKey_test_scope_info PRIMARY KEY(sync_scope_name))
 
 -- ---------------------------------
@@ -24,6 +25,9 @@ CREATE TABLE [test_scope_info_client](
                         scope_last_sync datetime NULL,
                         sync_scope_errors text NULL,
                         sync_scope_properties text NULL,
+                        sync_scope_reinit_tables text NULL,
+                        sync_scope_supported_migrations text NULL,
+                        sync_scope_last_known_server_migrations text NULL,
                         CONSTRAINT PKey_test_scope_info_client PRIMARY KEY(sync_scope_id, sync_scope_name, sync_scope_hash))
 
 -- ---------------------------------

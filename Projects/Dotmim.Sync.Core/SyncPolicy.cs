@@ -159,6 +159,11 @@ namespace Wormhole.Sync
             if (operation == null)
                 return default;
 
+#if DEBUG
+            if (this.RetryCount > 1)
+                this.RetryCount = 1;
+#endif
+
             // try count
             var tryCount = 0;
             try

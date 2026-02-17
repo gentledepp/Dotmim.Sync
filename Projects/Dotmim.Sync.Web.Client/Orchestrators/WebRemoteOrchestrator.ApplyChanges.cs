@@ -190,10 +190,10 @@ namespace Wormhole.Sync.Web.Client
                 }
 
                 // Set batch info properties from response
-                serverBatchInfo.RowsCount = summaryResponseContent.BatchInfo.RowsCount;
+                serverBatchInfo.RowsCount = summaryResponseContent.BatchInfo?.RowsCount??0;
                 serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
 
-                if (summaryResponseContent.BatchInfo.BatchPartsInfo != null)
+                if (summaryResponseContent.BatchInfo?.BatchPartsInfo != null)
                 {
                     foreach (var bpi in summaryResponseContent.BatchInfo.BatchPartsInfo)
                         serverBatchInfo.BatchPartsInfo.Add(bpi);

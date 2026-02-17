@@ -1,7 +1,9 @@
 ﻿using Wormhole.Sync.Enumerations;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -112,6 +114,13 @@ namespace Wormhole.Sync
         /// Gets the options used on this sync process.
         /// </summary>
         public SyncOptions Options => this.LocalOrchestrator?.Options;
+
+        /// <summary>
+        /// Gets or sets the list of migration names that this client app version supports.
+        /// Set by the developer to declare which schema migrations the client app has been updated to handle.
+        /// Example: ["20260217_titlecolumns", "20260301_newprefs"]
+        /// </summary>
+        public List<string> SupportedMigrations { get; set; }
 
         /// <summary>
         /// Shortcut to Apply changed conflict occured if remote orchestrator supports it.
@@ -232,18 +241,37 @@ namespace Wormhole.Sync
                 (context, cScopeInfo) = await this.LocalOrchestrator.InternalEnsureScopeInfoAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
                 (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalEnsureScopeInfoClientAsync(context, default, default, progress, cancellationToken).ConfigureAwait(false);
 
+                // Check if client has unprovisioned migrations → force traditional flow.
+                // We must avoid attempting optimized flow when reprovision is needed,
+                // because the server processes the sync even when rejecting (schemaValid=false)
+                // and sets AppliedBatchesSuccessfully=true in the session cache. A subsequent
+                // traditional flow call then gets a stub response with no BatchInfo → NullRef.
+                // NOTE: SupportedMigrations is only written to cScopeInfoClient AFTER
+                // reprovision, so the DB-stored value reflects what's actually provisioned.
+                var hasPendingMigrations = false;
+                if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0
+                    && cScopeInfo?.Setup != null)
+                {
+                    var clientProvisioned = cScopeInfoClient.GetSupportedMigrationsList();
+                    hasPendingMigrations = this.SupportedMigrations.Any(m => !clientProvisioned.Contains(m));
+                }
+
                 // check if the server supports unified batching
                 if (this.Options.UseUnifiedBatching)
                     context.UseUnifiedBatching = true;
-                    
+
                 // Check if remote orchestrator supports optimization
                 if (this.Options.UseOptimizedFlow && this.RemoteOrchestrator is IIncrementalSyncOrchestrator optimized)
                 {
                     canUseOptimizedFlow = optimized.CanUseOptimizedSync(cScopeInfo, cScopeInfoClient);
                 }
-        
+
                 var clientIsNew = cScopeInfoClient.IsNewScope || cScopeInfo.Schema == null;
-                useOptimizedFlow = !clientIsNew && canUseOptimizedFlow && syncType == SyncType.Normal;
+
+                // Skip optimized flow when there are pending migrations — we need the
+                // traditional flow to reprovision before syncing (and can't fall back
+                // from optimized flow without double-applying changes on the server).
+                useOptimizedFlow = !clientIsNew && canUseOptimizedFlow && syncType == SyncType.Normal && !hasPendingMigrations;
 
                 if (useOptimizedFlow)
                 {
@@ -278,9 +306,56 @@ namespace Wormhole.Sync
                     if(sScopeInfo is null) // maybe we already retrieved it from the optimized sync attmept
                         (context, sScopeInfo, shouldProvision) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
+                    // -----------------------------------------------------------
+                    // Schema evolution: auto-reprovision if the server has
+                    // migrations that the client supports but hasn't provisioned
+                    // locally yet (proven by schema hash mismatch → we're in
+                    // traditional flow).
+                    // -----------------------------------------------------------
+                    if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0
+                        && sScopeInfo != null && !string.IsNullOrEmpty(sScopeInfo.Migrations))
+                    {
+                        var serverMigrations = sScopeInfo.GetMigrationsList();
+                        var clientNeedsReprovision = serverMigrations.Any(m => this.SupportedMigrations.Contains(m));
+
+                        if (clientNeedsReprovision)
+                        {
+                            var provision = SyncProvision.StoredProcedures | SyncProvision.Triggers;
+
+                            (context, _) = await this.LocalOrchestrator.InternalDeprovisionAsync(
+                                cScopeInfo, context, provision,
+                                default, default, progress, cancellationToken).ConfigureAwait(false);
+
+                            (context, cScopeInfo) = await this.LocalOrchestrator.InternalProvisionClientAsync(
+                                sScopeInfo, cScopeInfo, context, provision, true,
+                                default, default, progress, cancellationToken).ConfigureAwait(false);
+
+                            // Record which migrations are now provisioned so we don't repeat
+                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
+
+                            // Determine which tables have schema changes and need re-downloading
+                            var migration = new Migration(cScopeInfo, sScopeInfo);
+                            var migrationResult = migration.Compare();
+                            var changedTables = migrationResult.GetTablesWithSchemaChanges();
+                            if (changedTables.Count > 0)
+                                cScopeInfoClient.SetReinitTables(changedTables);
+                        }
+                    }
+
+                    // Schema evolution: if client is ahead of server, fall back to server's setup
+                    if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0
+                        && sScopeInfo?.Setup != null)
+                    {
+                        var serverMigs = sScopeInfo.GetMigrationsList();
+                        var clientStillAhead = this.SupportedMigrations.Any(m => !serverMigs.Contains(m));
+
+                        if (clientStillAhead)
+                            setup = sScopeInfo.Setup;
+                    }
+
                     var isConflicting = false;
                     (context, isConflicting, sScopeInfo) = await this.RemoteOrchestrator.InternalIsConflictingSetupAsync(context, setup, sScopeInfo, default, default, progress, cancellationToken).ConfigureAwait(false);
-                    
+
                     // Check if we have a problem with the SyncSetup local and the one coming from server
                     // Let a chance to the user to update the local setup accordingly to the server one
                     isConflicting = false;

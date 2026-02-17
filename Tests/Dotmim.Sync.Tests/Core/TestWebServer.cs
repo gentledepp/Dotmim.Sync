@@ -148,6 +148,18 @@ namespace Wormhole.Sync.Tests
             return serviceUrl;
         }
 
+        /// <summary>
+        /// Hot-swap the SyncSetup without restarting the server.
+        /// </summary>
+        public void UpdateSyncSetup(SyncSetup setup, string scopeName = null, string identifier = null)
+        {
+            if (this.host == null)
+                throw new InvalidOperationException("Server is not running");
+
+            var store = this.host.Services.GetRequiredService<SyncSetupStore>();
+            store.Update(scopeName ?? SyncOptions.DefaultScopeName, identifier, setup);
+        }
+
         public async void Dispose()
         {
             await this.Dispose(true);

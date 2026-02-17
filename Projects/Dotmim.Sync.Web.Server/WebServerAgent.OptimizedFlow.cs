@@ -64,6 +64,24 @@ namespace Wormhole.Sync.Web.Server
                                  !string.IsNullOrEmpty(serverScopeInfo.SchemaHash) &&
                                  httpMessage.SchemaHash.Equals(serverScopeInfo.SchemaHash, StringComparison.OrdinalIgnoreCase);
 
+                // Schema evolution: if hash doesn't match but either side has migration
+                // context, tolerate the schema difference. This covers:
+                //   - Old clients (no SupportedMigrations) syncing with migrated server
+                //   - Ahead clients (support migrations server doesn't have yet)
+                //   - Already-reprovisioned clients (hash may differ due to implementation)
+                // The client-side hasPendingMigrations guard in SyncAgent ensures that
+                // clients needing reprovision use traditional flow (never reach here).
+                // The tolerant batch serialization (SP's @sync_columns_present) handles
+                // any column mismatches at the data level.
+                if (!schemaValid)
+                {
+                    var hasMigrationContext = !string.IsNullOrEmpty(serverScopeInfo.Migrations)
+                        || httpMessage.ScopeInfoClient.GetSupportedMigrationsList().Count > 0;
+
+                    if (hasMigrationContext)
+                        schemaValid = true;
+                }
+
                 // Step 3: Operation determination
                 var operation = SyncOperation.Normal;
                 if (!schemaValid || httpMessage.ScopeInfoClient.IsNewScope)

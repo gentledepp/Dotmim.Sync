@@ -448,9 +448,7 @@ namespace Wormhole.Sync.Tests.UnitTests
             CreateTestBatchDirectory(batchDir, DateTime.UtcNow.AddHours(-3));
 
             using var cts = new CancellationTokenSource();
-            cts.CancelAfter(1);
-
-            await Task.Delay(2);
+            await cts.CancelAsync();
 
             await Assert.ThrowsAsync<OperationCanceledException>(
                 () => this.batchCleanupService.CleanupExpiredBatchesAsync(batchDir, retentionPeriod, cts.Token));

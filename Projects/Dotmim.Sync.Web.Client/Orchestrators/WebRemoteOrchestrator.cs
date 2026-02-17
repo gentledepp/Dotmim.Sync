@@ -57,6 +57,13 @@ namespace Wormhole.Sync.Web.Client
         public Uri ServiceUri { get; set; }
 
         /// <summary>
+        /// Gets or sets the list of migration names that this client app version supports.
+        /// Set by the developer to declare which schema migrations the client has been updated to handle.
+        /// Example: ["20260217_titlecolumns", "20260301_newprefs"]
+        /// </summary>
+        public List<string> SupportedMigrations { get; set; }
+
+        /// <summary>
         /// Gets or Sets the HttpClient instanced used for this web client orchestrator.
         /// </summary>
         public HttpClient HttpClient { get; set; }

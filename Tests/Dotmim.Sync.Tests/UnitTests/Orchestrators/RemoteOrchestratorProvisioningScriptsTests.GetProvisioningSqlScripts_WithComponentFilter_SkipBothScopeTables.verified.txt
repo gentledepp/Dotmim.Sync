@@ -183,6 +183,7 @@ CREATE PROCEDURE [dbo].[ProductCategory_bulkupdate]
 	@sync_min_timestamp bigint,
 	@sync_scope_id uniqueidentifier,
 	@sync_force_write int,
+	@sync_columns_present nvarchar (MAX) = '*',
 	@changeTable [dbo].[ProductCategory_BulkType] READONLY
 AS
 BEGIN
@@ -200,8 +201,16 @@ USING [changes] on [changes].[ProductCategoryID] = [base].[ProductCategoryID]
 WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1) THEN
 
 	UPDATE SET
-	[Name] = [changes].[Name]
-	, [ModifiedDate] = [changes].[ModifiedDate]
+	[Name] = CASE
+		WHEN @sync_columns_present = '*' OR CHARINDEX('Name', @sync_columns_present) > 0
+		THEN [changes].[Name]
+		ELSE COALESCE([base].[Name], [changes].[Name])
+	END
+	, [ModifiedDate] = CASE
+		WHEN @sync_columns_present = '*' OR CHARINDEX('ModifiedDate', @sync_columns_present) > 0
+		THEN [changes].[ModifiedDate]
+		ELSE COALESCE([base].[ModifiedDate], [changes].[ModifiedDate])
+	END
 WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR @sync_force_write = 1) THEN
 
 	INSERT
@@ -271,6 +280,7 @@ CREATE PROCEDURE [dbo].[ProductCategory_update]
 	@sync_min_timestamp bigint,
 	@sync_scope_id uniqueidentifier,
 	@sync_force_write int,
+	@sync_columns_present nvarchar (MAX) = '*',
 	@sync_row_count int OUTPUT
 AS
 BEGIN
@@ -289,8 +299,16 @@ USING [changes] on [changes].[ProductCategoryID] = [base].[ProductCategoryID]
 WHEN MATCHED AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR [changes].[sync_update_scope_id] = @sync_scope_id OR @sync_force_write = 1) THEN
 
 	UPDATE SET
-	[Name] = [changes].[Name]
-	, [ModifiedDate] = [changes].[ModifiedDate]
+	[Name] = CASE
+		WHEN @sync_columns_present = '*' OR CHARINDEX('Name', @sync_columns_present) > 0
+		THEN [changes].[Name]
+		ELSE COALESCE([base].[Name], [changes].[Name])
+	END
+	, [ModifiedDate] = CASE
+		WHEN @sync_columns_present = '*' OR CHARINDEX('ModifiedDate', @sync_columns_present) > 0
+		THEN [changes].[ModifiedDate]
+		ELSE COALESCE([base].[ModifiedDate], [changes].[ModifiedDate])
+	END
 WHEN NOT MATCHED BY TARGET AND ([changes].[sync_timestamp] <= @sync_min_timestamp OR [changes].[sync_timestamp] IS NULL OR @sync_force_write = 1) THEN
 
 	INSERT

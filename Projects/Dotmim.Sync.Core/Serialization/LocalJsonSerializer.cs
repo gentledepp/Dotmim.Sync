@@ -537,10 +537,24 @@ namespace Wormhole.Sync.Serialization
                         schemaEmpty = false;
                      }
 
+                     // Tolerate column count mismatches for schema evolution.
+                     // If the batch file has more or fewer columns than the local schema,
+                     // map by column name instead of throwing.
                      if (values.Length != (currentTable.Columns.Count + 1))
                      {
-                        var rowStr = "[" + string.Join(",", values) + "]";
-                        throw new Exception($"Table {currentTable.GetFullName()} with {currentTable.Columns.Count} columns does not have the same columns count as the row read {rowStr} which have {values.Length - 1} values.");
+                        // Trim or pad values to match currentTable columns
+                        if (values.Length < currentTable.Columns.Count + 1)
+                        {
+                           var padded = new object[currentTable.Columns.Count + 1];
+                           Array.Copy(values, padded, values.Length);
+                           values = padded;
+                        }
+                        else if (values.Length > currentTable.Columns.Count + 1)
+                        {
+                           var trimmed = new object[currentTable.Columns.Count + 1];
+                           Array.Copy(values, trimmed, trimmed.Length);
+                           values = trimmed;
+                        }
                      }
 
                      // if we have some columns, we check the date time thing
@@ -558,7 +572,31 @@ namespace Wormhole.Sync.Serialization
                      }
 
                      foundMatchingTable = true;
-                     rows.Add(new SyncRow(currentTable, values));
+
+                     // If the batch file schema (currentTable) differs from the target schema (schemaTable),
+                     // map columns by name to handle schema evolution gracefully.
+                     // Only apply column mapping when schemaTable has columns (i.e., caller knows the target schema).
+                     // When schemaTable has 0 columns (e.g., LoadTableFromBatchInfoAsync), use the file's schema directly.
+                     if (schemaTable != null && schemaTable.Columns.Count > 0 && currentTable.Columns.Count != schemaTable.Columns.Count)
+                     {
+                        var sourceColumnNames = new List<string>(currentTable.Columns.Count);
+                        foreach (var col in currentTable.Columns)
+                           sourceColumnNames.Add(col.ColumnName);
+
+                        rows.Add(SyncRow.CreateWithColumnMapping(schemaTable, values, sourceColumnNames));
+                     }
+                     else if (schemaTable != null && schemaTable.Columns.Count > 0 && !ColumnsMatch(currentTable, schemaTable))
+                     {
+                        var sourceColumnNames = new List<string>(currentTable.Columns.Count);
+                        foreach (var col in currentTable.Columns)
+                           sourceColumnNames.Add(col.ColumnName);
+
+                        rows.Add(SyncRow.CreateWithColumnMapping(schemaTable, values, sourceColumnNames));
+                     }
+                     else
+                     {
+                        rows.Add(new SyncRow(currentTable, values));
+                     }
                   }
 
                   // For unified batches, continue reading other tables
@@ -583,6 +621,23 @@ namespace Wormhole.Sync.Serialization
             this.writerLock?.Dispose();
             this.disposedValue = true;
          }
+      }
+
+      /// <summary>
+      /// Check if two SyncTable instances have the same column names in the same order.
+      /// </summary>
+      private static bool ColumnsMatch(SyncTable table1, SyncTable table2)
+      {
+         if (table1.Columns.Count != table2.Columns.Count)
+            return false;
+
+         for (int i = 0; i < table1.Columns.Count; i++)
+         {
+            if (!string.Equals(table1.Columns[i].ColumnName, table2.Columns[i].ColumnName, StringComparison.OrdinalIgnoreCase))
+               return false;
+         }
+
+         return true;
       }
 
       private static SyncTable GetSchemaTableFromReader(JsonReader jsonReader, string tableName, string schemaName)

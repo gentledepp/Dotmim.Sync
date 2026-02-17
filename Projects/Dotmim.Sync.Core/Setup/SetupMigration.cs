@@ -1,253 +1,472 @@
-﻿// using Wormhole.Sync.Enumerations;
-// using System;
-// using System.Collections.Generic;
-// using System.Linq;
-// using System.Text;
+using Wormhole.Sync.Enumerations;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Serialization;
+using System.Text;
 
-// namespace Dotmim.Sync
-// {
+namespace Wormhole.Sync
+{
 
-// public enum MigrationAction
-//    {
-//        None,
-//        Alter,
-//        Create,
-//        Drop,
-//        Rename,
-//    }
+   /// <summary>
+   /// Describes what kind of migration action to take.
+   /// </summary>
+   public enum MigrationAction
+   {
+      /// <summary>No action.</summary>
+      None,
 
+      /// <summary>Alter the object.</summary>
+      Alter,
 
+      /// <summary>Create the object.</summary>
+      Create,
 
-// public class MigrationResults
-//    {
-//        /// <summary>
-//        /// Gets or Sets a boolean indicating that all tables should recreate their own stored procedures
-//        /// </summary>
-//        public MigrationAction AllStoredProcedures { get; set; }
+      /// <summary>Drop the object.</summary>
+      Drop,
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that all tables should recreate their own triggers
-//        /// </summary>
-//        public MigrationAction AllTriggers { get; set; }
+      /// <summary>Rename the object.</summary>
+      Rename,
+   }
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that all tables should recreate their tracking table
-//        /// </summary>
-//        public MigrationAction AllTrackingTables { get; set; }
+   /// <summary>
+   /// Results of comparing two schemas for migration.
+   /// </summary>
+   public class MigrationResults
+   {
+      /// <summary>
+      /// Gets or Sets a value indicating that all tables should recreate their own stored procedures.
+      /// </summary>
+      public MigrationAction AllStoredProcedures { get; set; }
 
-// /// <summary>
-//        /// Tables involved in the migration
-//        /// </summary>
-//        public List<MigrationSetupTable> Tables { get; set; } = new List<MigrationSetupTable>();
+      /// <summary>
+      /// Gets or Sets a value indicating that all tables should recreate their own triggers.
+      /// </summary>
+      public MigrationAction AllTriggers { get; set; }
 
+      /// <summary>
+      /// Gets or Sets a value indicating that all tables should recreate their tracking table.
+      /// </summary>
+      public MigrationAction AllTrackingTables { get; set; }
 
-// }
+      /// <summary>
+      /// Tables involved in the migration.
+      /// </summary>
+      public List<MigrationSetupTable> Tables { get; set; } = new List<MigrationSetupTable>();
 
-// public class MigrationSetupTable
-//    {
-//        private MigrationAction table;
+      /// <summary>
+      /// Gets a value indicating whether the migration contains only additive changes.
+      /// Additive means: new nullable/default columns added to existing tables, or entirely new tables.
+      /// </summary>
+      public bool IsAdditiveOnly()
+      {
+         foreach (var table in Tables)
+         {
+            // Dropped tables are not additive
+            if (table.Table == MigrationAction.Drop)
+               return false;
 
-// public MigrationSetupTable(SetupTable table)
-//        {
-//            this.SetupTable = table;
-//        }
+            // Dropped tracking tables, triggers, SPs are needed for reprovisioning but are still "additive"
+            // since we recreate them with the new schema
 
-// /// <summary>
-//        /// Table to migrate
-//        /// </summary>
-//        public SetupTable SetupTable { get; set; }
+            // If columns were removed, it's not additive
+            if (table.RemovedColumns != null && table.RemovedColumns.Count > 0)
+               return false;
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that this table should recreate the stored procedures
-//        /// </summary>
-//        public MigrationAction StoredProcedures { get; set; }
+            // If columns were modified (type changed), it's not additive
+            if (table.ModifiedColumns != null && table.ModifiedColumns.Count > 0)
+               return false;
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that this table should recreate triggers
-//        /// </summary>
-//        public MigrationAction Triggers { get; set; }
+            // Added columns must be nullable or have defaults
+            if (table.AddedColumns != null)
+            {
+               foreach (var col in table.AddedColumns)
+               {
+                  if (!col.AllowDBNull && string.IsNullOrEmpty(col.DefaultValue))
+                     return false;
+               }
+            }
+         }
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that this table should recreate the tracking table
-//        /// </summary>
-//        public MigrationAction TrackingTable { get; set; }
+         return true;
+      }
 
+      /// <summary>
+      /// Gets a value indicating whether there are any changes at all.
+      /// </summary>
+      public bool HasChanges => Tables.Count > 0;
 
-// /// <summary>
-//        /// Gets a value indicating if the table should be migrated
-//        /// </summary>
-//        public bool ShouldMigrate => this.TrackingTable != MigrationAction.None ||
-//                                        this.Triggers != MigrationAction.None ||
-//                                        this.StoredProcedures != MigrationAction.None ||
-//                                        this.Table != MigrationAction.None;
+      /// <summary>
+      /// Gets all table names that have schema changes (new columns or are new tables).
+      /// </summary>
+      public IReadOnlyList<string> GetTablesWithSchemaChanges()
+      {
+         var result = new List<string>();
+         foreach (var table in Tables)
+         {
+            if (table.Table == MigrationAction.Create ||
+                table.Table == MigrationAction.Alter ||
+                (table.AddedColumns != null && table.AddedColumns.Count > 0))
+            {
+               var fullName = string.IsNullOrEmpty(table.SetupTable.SchemaName)
+                  ? table.SetupTable.TableName
+                  : $"{table.SetupTable.SchemaName}.{table.SetupTable.TableName}";
+               result.Add(fullName);
+            }
+         }
 
+         return result;
+      }
+   }
 
-// /// <summary>
-//        /// Gets or Sets a boolean indicating that this table should be recreated
-//        /// </summary>
-//        public MigrationAction Table
-//        {
-//            get => table;
-//            set
-//            {
-//                if (value == MigrationAction.Drop)
-//                    throw new MigrationTableDropNotAllowedException();
+   /// <summary>
+   /// Represents a table that needs migration.
+   /// </summary>
+   public class MigrationSetupTable
+   {
+      private MigrationAction table;
 
-// table = value;
-//            }
-//        }
+      /// <inheritdoc cref="MigrationSetupTable"/>
+      public MigrationSetupTable(SetupTable table)
+      {
+         this.SetupTable = table;
+      }
 
-// }
+      /// <summary>
+      /// Table to migrate.
+      /// </summary>
+      public SetupTable SetupTable { get; set; }
 
-// public class Migration
-//    {
-//        private readonly ScopeInfo oldClientScopeInfo;
-//        private readonly ScopeInfo newServerScopeInfo;
+      /// <summary>
+      /// Gets or Sets a value indicating that this table should recreate the stored procedures.
+      /// </summary>
+      public MigrationAction StoredProcedures { get; set; }
 
-// public Migration(ScopeInfo oldClientScopeInfo, ScopeInfo newServerScopeInfo)
-//        {
-//            this.oldClientScopeInfo = oldClientScopeInfo;
-//            this.newServerScopeInfo = newServerScopeInfo;
-//        }
+      /// <summary>
+      /// Gets or Sets a value indicating that this table should recreate triggers.
+      /// </summary>
+      public MigrationAction Triggers { get; set; }
 
-// public MigrationResults Compare()
-//        {
-//            MigrationResults migrationSetup = new MigrationResults();
-//            var sc = SyncGlobalization.DataSourceStringComparison;
+      /// <summary>
+      /// Gets or Sets a value indicating that this table should recreate the tracking table.
+      /// </summary>
+      public MigrationAction TrackingTable { get; set; }
 
-// if (newServerScopeInfo.Setup.EqualsByProperties(oldClientScopeInfo.Setup) && string.Equals(newServerScopeInfo.Name, oldClientScopeInfo.Name, sc))
-//                return migrationSetup;
+      /// <summary>
+      /// Gets a value indicating if the table should be migrated.
+      /// </summary>
+      public bool ShouldMigrate => this.TrackingTable != MigrationAction.None ||
+                                   this.Triggers != MigrationAction.None ||
+                                   this.StoredProcedures != MigrationAction.None ||
+                                   this.Table != MigrationAction.None;
 
+      /// <summary>
+      /// Gets or Sets a value indicating that this table should be recreated.
+      /// </summary>
+      public MigrationAction Table
+      {
+         get => table;
+         set
+         {
+            if (value == MigrationAction.Drop)
+               throw new Exception("Dropping tables during migration is not allowed.");
 
-// // if we change the prefix / suffix, we should recreate all stored procedures
-//            if (!string.Equals(newServerScopeInfo.Setup.StoredProceduresPrefix, oldClientScopeInfo.Setup.StoredProceduresPrefix, sc)
-//                || !string.Equals(newServerScopeInfo.Setup.StoredProceduresSuffix, oldClientScopeInfo.Setup.StoredProceduresSuffix, sc)
-//                || !string.Equals(newServerScopeInfo.Name, oldClientScopeInfo.Name, sc))
-//                migrationSetup.AllStoredProcedures = MigrationAction.Create;
+            table = value;
+         }
+      }
 
-// // if we change the prefix / suffix, we should recreate all triggers
-//            if (!string.Equals(newServerScopeInfo.Setup.TriggersPrefix, oldClientScopeInfo.Setup.TriggersPrefix, sc) || !string.Equals(newServerScopeInfo.Setup.TriggersSuffix, oldClientScopeInfo.Setup.TriggersSuffix, sc))
-//                migrationSetup.AllTriggers = MigrationAction.Create;
+      /// <summary>
+      /// Columns added to the table (new nullable/default columns).
+      /// </summary>
+      public List<MigrationColumnInfo> AddedColumns { get; set; }
 
-// // If we change tracking tables prefix and suffix, we should:
-//            // - RENAME the tracking tables (and keep the rows)
-//            // - RECREATE the stored procedure
-//            // - RECREATE the triggers
-//            if (!string.Equals(newServerScopeInfo.Setup.TrackingTablesPrefix, oldClientScopeInfo.Setup.TrackingTablesPrefix, sc) || !string.Equals(newServerScopeInfo.Setup.TrackingTablesSuffix, oldClientScopeInfo.Setup.TrackingTablesSuffix, sc))
-//            {
-//                migrationSetup.AllStoredProcedures = MigrationAction.Create;
-//                migrationSetup.AllTriggers = MigrationAction.Create;
-//                migrationSetup.AllTrackingTables = MigrationAction.Rename;
-//            }
+      /// <summary>
+      /// Columns removed from the table (not allowed for additive migrations).
+      /// </summary>
+      public List<string> RemovedColumns { get; set; }
 
-// // Search for deleted tables
-//            var deletedTables = oldClientScopeInfo.Setup.Tables.Where(oldt => newServerScopeInfo.Setup.Tables[oldt.ObjectName, oldt.OwnerName] == null);
+      /// <summary>
+      /// Columns whose type was modified (not allowed for additive migrations).
+      /// </summary>
+      public List<string> ModifiedColumns { get; set; }
+   }
 
-// // We found some tables present in the old setup, but not in the new setup
-//            // So, we are removing all the sync elements from the table, but we do not remote the table itself
-//            foreach (var deletedTable in deletedTables)
-//            {
-//                var migrationDeletedSetupTable = new MigrationSetupTable(deletedTable)
-//                {
-//                    StoredProcedures = MigrationAction.Drop,
-//                    TrackingTable = MigrationAction.Drop,
-//                    Triggers = MigrationAction.Drop,
-//                    Table = MigrationAction.None
-//                };
+   /// <summary>
+   /// Information about a column involved in a migration.
+   /// </summary>
+   public class MigrationColumnInfo
+   {
+      /// <summary>
+      /// The column name.
+      /// </summary>
+      public string ColumnName { get; set; }
 
-// migrationSetup.Tables.Add(migrationDeletedSetupTable);
-//            }
+      /// <summary>
+      /// Whether the column allows null values.
+      /// </summary>
+      public bool AllowDBNull { get; set; }
 
-// // Search for new tables
-//            var newTables = newServerScopeInfo.Setup.Tables.Where(newdt => oldClientScopeInfo.Setup.Tables[newdt.ObjectName, newdt.OwnerName] == null);
+      /// <summary>
+      /// The default value expression for the column.
+      /// </summary>
+      public string DefaultValue { get; set; }
 
-// // We found some tables present in the new setup, but not in the old setup
-//            foreach (var newTable in newTables)
-//            {
-//                var migrationAddedSetupTable = new MigrationSetupTable(newTable)
-//                {
-//                    StoredProcedures = MigrationAction.Create,
-//                    TrackingTable = MigrationAction.Create,
-//                    Triggers = MigrationAction.Create,
-//                    Table = MigrationAction.Create
-//                };
+      /// <summary>
+      /// The column's data type.
+      /// </summary>
+      public string DataType { get; set; }
+   }
 
-// migrationSetup.Tables.Add(migrationAddedSetupTable);
-//            }
+   /// <summary>
+   /// Computes migration diff between two ScopeInfo instances.
+   /// </summary>
+   public class Migration
+   {
+      private readonly ScopeInfo oldScopeInfo;
+      private readonly ScopeInfo newScopeInfo;
 
-// // Compare existing tables
-//            foreach (var newTable in newServerScopeInfo.Setup.Tables)
-//            {
-//                // Getting corresponding table in old setup
-//                var oldTable = oldClientScopeInfo.Setup.Tables[newTable.ObjectName, newTable.OwnerName];
+      /// <inheritdoc cref="Migration"/>
+      public Migration(ScopeInfo oldScopeInfo, ScopeInfo newScopeInfo)
+      {
+         this.oldScopeInfo = oldScopeInfo;
+         this.newScopeInfo = newScopeInfo;
+      }
 
-// // We do not found the old setup table, we can conclude this "newTable" is a new table included in the new setup
-//                // And therefore will be setup during the last call the EnsureSchema()
-//                if (oldTable == null)
-//                    continue;
+      /// <summary>
+      /// Compare old and new scopes and return a detailed migration result.
+      /// </summary>
+      public MigrationResults Compare()
+      {
+         var migrationSetup = new MigrationResults();
+         var sc = SyncGlobalization.DataSourceStringComparison;
 
-// // SyncDirection has no impact if different form old and new setup table.
+         if (newScopeInfo.Setup.EqualsByProperties(oldScopeInfo.Setup) &&
+             string.Equals(newScopeInfo.Name, oldScopeInfo.Name, sc))
+            return migrationSetup;
 
-// var migrationSetupTable = new MigrationSetupTable(newTable);
+         // if we change the prefix / suffix, we should recreate all stored procedures
+         if (!string.Equals(newScopeInfo.Setup.StoredProceduresPrefix, oldScopeInfo.Setup.StoredProceduresPrefix, sc)
+             || !string.Equals(newScopeInfo.Setup.StoredProceduresSuffix, oldScopeInfo.Setup.StoredProceduresSuffix, sc)
+             || !string.Equals(newScopeInfo.Name, oldScopeInfo.Name, sc))
+            migrationSetup.AllStoredProcedures = MigrationAction.Create;
 
-// // Then compare all columns
-//                if (oldTable.Columns.Count != newTable.Columns.Count || !oldTable.Columns.All(item1 => newTable.Columns.Any(item2 => string.Equals(item1, item2, sc))))
-//                {
-//                    migrationSetupTable.StoredProcedures = MigrationAction.Create;
-//                    migrationSetupTable.TrackingTable = MigrationAction.None;
-//                    migrationSetupTable.Triggers = MigrationAction.Create;
-//                    migrationSetupTable.Table = MigrationAction.Alter;
-//                }
-//                else
-//                {
-//                    migrationSetupTable.StoredProcedures = migrationSetup.AllStoredProcedures;
-//                    migrationSetupTable.TrackingTable = migrationSetup.AllTrackingTables;
-//                    migrationSetupTable.Triggers = migrationSetup.AllTriggers;
-//                    migrationSetupTable.Table = MigrationAction.None;
-//                }
+         // if we change the prefix / suffix, we should recreate all triggers
+         if (!string.Equals(newScopeInfo.Setup.TriggersPrefix, oldScopeInfo.Setup.TriggersPrefix, sc) ||
+             !string.Equals(newScopeInfo.Setup.TriggersSuffix, oldScopeInfo.Setup.TriggersSuffix, sc))
+            migrationSetup.AllTriggers = MigrationAction.Create;
 
-// if (migrationSetupTable.ShouldMigrate)
-//                    migrationSetup.Tables.Add(migrationSetupTable);
-//            }
+         // If we change tracking tables prefix and suffix
+         if (!string.Equals(newScopeInfo.Setup.TrackingTablesPrefix, oldScopeInfo.Setup.TrackingTablesPrefix, sc) ||
+             !string.Equals(newScopeInfo.Setup.TrackingTablesSuffix, oldScopeInfo.Setup.TrackingTablesSuffix, sc))
+         {
+            migrationSetup.AllStoredProcedures = MigrationAction.Create;
+            migrationSetup.AllTriggers = MigrationAction.Create;
+            migrationSetup.AllTrackingTables = MigrationAction.Rename;
+         }
 
+         // Search for deleted tables
+         var deletedTables = oldScopeInfo.Setup.Tables
+            .Where(oldt => newScopeInfo.Setup.Tables[oldt.TableName, oldt.SchemaName] == null);
 
-// // Search for deleted filters
-//            // TODO : what's the problem if we still have filters, even if not existing ?
+         foreach (var deletedTable in deletedTables)
+         {
+            var migrationDeletedSetupTable = new MigrationSetupTable(deletedTable)
+            {
+               StoredProcedures = MigrationAction.Drop,
+               TrackingTable = MigrationAction.Drop,
+               Triggers = MigrationAction.Drop,
+               Table = MigrationAction.None,
+            };
+            migrationSetup.Tables.Add(migrationDeletedSetupTable);
+         }
 
-// // Search for new filters
-//            // If we have any filter, just recreate them, just in case
-//            if (newServerScopeInfo.Setup.Filters != null && newServerScopeInfo.Setup.Filters.Count > 0)
-//            {
-//                foreach (var filter in newServerScopeInfo.Setup.Filters)
-//                {
-//                    var setupTable = newServerScopeInfo.Setup.Tables[filter.ObjectName, filter.OwnerName];
+         // Search for new tables
+         var newTables = newScopeInfo.Setup.Tables
+            .Where(newdt => oldScopeInfo.Setup.Tables[newdt.TableName, newdt.SchemaName] == null);
 
-// if (setupTable == null)
-//                        continue;
+         foreach (var newTable in newTables)
+         {
+            var migrationAddedSetupTable = new MigrationSetupTable(newTable)
+            {
+               StoredProcedures = MigrationAction.Create,
+               TrackingTable = MigrationAction.Create,
+               Triggers = MigrationAction.Create,
+               Table = MigrationAction.Create,
+            };
+            migrationSetup.Tables.Add(migrationAddedSetupTable);
+         }
 
-// var migrationTable = migrationSetup.Tables.FirstOrDefault(ms => ms.SetupTable.EqualsByName(setupTable));
+         // Compare existing tables
+         foreach (var newTable in newScopeInfo.Setup.Tables)
+         {
+            var oldTable = oldScopeInfo.Setup.Tables[newTable.TableName, newTable.SchemaName];
 
-// if (migrationTable == null)
-//                    {
-//                        migrationTable = new MigrationSetupTable(setupTable)
-//                        {
-//                            StoredProcedures = MigrationAction.Create,
-//                            Table = MigrationAction.None,
-//                            TrackingTable = MigrationAction.None,
-//                            Triggers = MigrationAction.None,
-//                        };
-//                        migrationSetup.Tables.Add(migrationTable);
-//                    }
+            if (oldTable == null)
+               continue;
 
-// migrationTable.StoredProcedures = MigrationAction.Create;
-//                }
+            var migrationSetupTable = new MigrationSetupTable(newTable);
 
-// }
+            // Compare columns using schema-level detail
+            var columnDiff = CompareTableColumns(oldTable, newTable);
 
+            if (columnDiff.hasChanges)
+            {
+               migrationSetupTable.StoredProcedures = MigrationAction.Create;
+               migrationSetupTable.TrackingTable = MigrationAction.None;
+               migrationSetupTable.Triggers = MigrationAction.Create;
+               migrationSetupTable.Table = MigrationAction.Alter;
+               migrationSetupTable.AddedColumns = columnDiff.addedColumns;
+               migrationSetupTable.RemovedColumns = columnDiff.removedColumns;
+               migrationSetupTable.ModifiedColumns = columnDiff.modifiedColumns;
+            }
+            else
+            {
+               migrationSetupTable.StoredProcedures = migrationSetup.AllStoredProcedures;
+               migrationSetupTable.TrackingTable = migrationSetup.AllTrackingTables;
+               migrationSetupTable.Triggers = migrationSetup.AllTriggers;
+               migrationSetupTable.Table = MigrationAction.None;
+            }
 
-// return migrationSetup;
+            if (migrationSetupTable.ShouldMigrate)
+               migrationSetup.Tables.Add(migrationSetupTable);
+         }
 
-// }
+         // Handle filters
+         if (newScopeInfo.Setup.Filters != null && newScopeInfo.Setup.Filters.Count > 0)
+         {
+            foreach (var filter in newScopeInfo.Setup.Filters)
+            {
+               var setupTable = newScopeInfo.Setup.Tables[filter.TableName, filter.SchemaName];
 
-// }
-// }
+               if (setupTable == null)
+                  continue;
+
+               var migrationTable = migrationSetup.Tables.FirstOrDefault(ms => ms.SetupTable.EqualsByName(setupTable));
+
+               if (migrationTable == null)
+               {
+                  migrationTable = new MigrationSetupTable(setupTable)
+                  {
+                     StoredProcedures = MigrationAction.Create,
+                     Table = MigrationAction.None,
+                     TrackingTable = MigrationAction.None,
+                     Triggers = MigrationAction.None,
+                  };
+                  migrationSetup.Tables.Add(migrationTable);
+               }
+
+               migrationTable.StoredProcedures = MigrationAction.Create;
+            }
+         }
+
+         return migrationSetup;
+      }
+
+      /// <summary>
+      /// Compare columns between old and new setup tables using schema-level detail.
+      /// </summary>
+      public SchemaMigration CompareSchemaTables(SyncTable oldSchemaTable, SyncTable newSchemaTable)
+      {
+         var result = new SchemaMigration();
+         var sc = SyncGlobalization.DataSourceStringComparison;
+
+         if (oldSchemaTable == null || newSchemaTable == null)
+            return result;
+
+         // Find added columns
+         foreach (var newCol in newSchemaTable.Columns)
+         {
+            var oldCol = oldSchemaTable.Columns[newCol.ColumnName];
+            if (oldCol == null)
+            {
+               result.AddedColumns.Add(new MigrationColumnInfo
+               {
+                  ColumnName = newCol.ColumnName,
+                  AllowDBNull = newCol.AllowDBNull,
+                  DefaultValue = newCol.DefaultValue,
+                  DataType = newCol.DataType,
+               });
+               result.HasChanges = true;
+            }
+         }
+
+         // Find removed columns
+         foreach (var oldCol in oldSchemaTable.Columns)
+         {
+            var newCol = newSchemaTable.Columns[oldCol.ColumnName];
+            if (newCol == null)
+            {
+               result.RemovedColumns.Add(oldCol.ColumnName);
+               result.HasChanges = true;
+            }
+         }
+
+         return result;
+      }
+
+      private (bool hasChanges, List<MigrationColumnInfo> addedColumns, List<string> removedColumns, List<string> modifiedColumns)
+         CompareTableColumns(SetupTable oldTable, SetupTable newTable)
+      {
+         var sc = SyncGlobalization.DataSourceStringComparison;
+         var addedColumns = new List<MigrationColumnInfo>();
+         var removedColumns = new List<string>();
+         var modifiedColumns = new List<string>();
+
+         ICollection<string> oldColumns = oldTable.Columns != null && oldTable.Columns.Count > 0
+            ? (ICollection<string>)oldTable.Columns : Array.Empty<string>();
+         ICollection<string> newColumns = newTable.Columns != null && newTable.Columns.Count > 0
+            ? (ICollection<string>)newTable.Columns : Array.Empty<string>();
+
+         // If both have no columns specified (means all columns), check by count won't work
+         // Need schema-level comparison for full detail
+         if (oldColumns.Count == 0 && newColumns.Count == 0)
+            return (false, addedColumns, removedColumns, modifiedColumns);
+
+         // Find added columns
+         foreach (var newCol in newColumns)
+         {
+            if (!oldColumns.Any(oc => string.Equals(oc, newCol, sc)))
+            {
+               addedColumns.Add(new MigrationColumnInfo
+               {
+                  ColumnName = newCol,
+                  AllowDBNull = true, // Assumed nullable at setup level
+               });
+            }
+         }
+
+         // Find removed columns
+         foreach (var oldCol in oldColumns)
+         {
+            if (!newColumns.Any(nc => string.Equals(nc, oldCol, sc)))
+            {
+               removedColumns.Add(oldCol);
+            }
+         }
+
+         var hasChanges = addedColumns.Count > 0 || removedColumns.Count > 0 || modifiedColumns.Count > 0;
+         return (hasChanges, addedColumns, removedColumns, modifiedColumns);
+      }
+   }
+
+   /// <summary>
+   /// Schema-level migration results for comparing SyncTable column sets.
+   /// </summary>
+   public class SchemaMigration
+   {
+      /// <summary>
+      /// Whether any changes were detected.
+      /// </summary>
+      public bool HasChanges { get; set; }
+
+      /// <summary>
+      /// Columns added in the new schema.
+      /// </summary>
+      public List<MigrationColumnInfo> AddedColumns { get; set; } = new List<MigrationColumnInfo>();
+
+      /// <summary>
+      /// Columns removed in the new schema.
+      /// </summary>
+      public List<string> RemovedColumns { get; set; } = new List<string>();
+   }
+}

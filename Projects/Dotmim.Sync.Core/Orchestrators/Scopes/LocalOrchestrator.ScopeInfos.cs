@@ -112,40 +112,52 @@ namespace Wormhole.Sync
             {
                 if (inputSetup != null && clientScopeInfo.Setup != null && !clientScopeInfo.Setup.EqualsByProperties(inputSetup))
                 {
-                    var conflictingSetupArgs = new ConflictingSetupArgs(context, inputSetup, clientScopeInfo, serverScopeInfo);
-                    await this.InterceptAsync(conflictingSetupArgs, progress, cancellationToken).ConfigureAwait(false);
+                    // Check if the difference is an additive schema change (schema evolution)
+                    // If the server has migrations and the client's schema hash matches a known version, allow it
+                    if (!IsAdditiveSetupDifference(clientScopeInfo, serverScopeInfo))
+                    {
+                        var conflictingSetupArgs = new ConflictingSetupArgs(context, inputSetup, clientScopeInfo, serverScopeInfo);
+                        await this.InterceptAsync(conflictingSetupArgs, progress, cancellationToken).ConfigureAwait(false);
 
-                    if (conflictingSetupArgs.Action == ConflictingSetupAction.Rollback)
-                        throw new SetupConflictOnClientException(inputSetup, clientScopeInfo.Setup);
+                        if (conflictingSetupArgs.Action == ConflictingSetupAction.Rollback)
+                            throw new SetupConflictOnClientException(inputSetup, clientScopeInfo.Setup);
 
-                    if (conflictingSetupArgs.Action == ConflictingSetupAction.Abort)
-                        return (context, true, clientScopeInfo, serverScopeInfo);
+                        if (conflictingSetupArgs.Action == ConflictingSetupAction.Abort)
+                            return (context, true, clientScopeInfo, serverScopeInfo);
 
-                    // re affect scope infos
-                    clientScopeInfo = conflictingSetupArgs.ClientScopeInfo;
-                    serverScopeInfo = conflictingSetupArgs.ServerScopeInfo;
+                        // re affect scope infos
+                        clientScopeInfo = conflictingSetupArgs.ClientScopeInfo;
+                        serverScopeInfo = conflictingSetupArgs.ServerScopeInfo;
+                    }
                 }
 
                 if (clientScopeInfo.Setup != null && serverScopeInfo.Setup != null && !clientScopeInfo.Setup.EqualsByProperties(serverScopeInfo.Setup))
                 {
-                    var conflictingSetupArgs = new ConflictingSetupArgs(context, inputSetup, clientScopeInfo, serverScopeInfo);
-                    await this.InterceptAsync(conflictingSetupArgs, progress, cancellationToken).ConfigureAwait(false);
+                    // Check if the difference is an additive schema change (schema evolution)
+                    if (!IsAdditiveSetupDifference(clientScopeInfo, serverScopeInfo))
+                    {
+                        var conflictingSetupArgs = new ConflictingSetupArgs(context, inputSetup, clientScopeInfo, serverScopeInfo);
+                        await this.InterceptAsync(conflictingSetupArgs, progress, cancellationToken).ConfigureAwait(false);
 
-                    if (conflictingSetupArgs.Action == ConflictingSetupAction.Rollback)
-                        throw new SetupConflictOnClientException(serverScopeInfo.Setup, clientScopeInfo.Setup);
+                        if (conflictingSetupArgs.Action == ConflictingSetupAction.Rollback)
+                            throw new SetupConflictOnClientException(serverScopeInfo.Setup, clientScopeInfo.Setup);
 
-                    if (conflictingSetupArgs.Action == ConflictingSetupAction.Abort)
-                        return (context, true, clientScopeInfo, serverScopeInfo);
+                        if (conflictingSetupArgs.Action == ConflictingSetupAction.Abort)
+                            return (context, true, clientScopeInfo, serverScopeInfo);
 
-                    // re affect scope infos
-                    clientScopeInfo = conflictingSetupArgs.ClientScopeInfo;
-                    serverScopeInfo = conflictingSetupArgs.ServerScopeInfo;
+                        // re affect scope infos
+                        clientScopeInfo = conflictingSetupArgs.ClientScopeInfo;
+                        serverScopeInfo = conflictingSetupArgs.ServerScopeInfo;
+                    }
                 }
 
                 // We gave 2 chances to user to edit the setup and fill correct values.
-                // Final check, but if not valid, raise an error
+                // Final check, but if not valid, raise an error — unless it's an additive schema evolution
                 if (clientScopeInfo.Setup != null && serverScopeInfo.Setup != null && !clientScopeInfo.Setup.EqualsByProperties(serverScopeInfo.Setup))
-                    throw new SetupConflictOnClientException(serverScopeInfo.Setup, clientScopeInfo.Setup);
+                {
+                    if (!IsAdditiveSetupDifference(clientScopeInfo, serverScopeInfo))
+                        throw new SetupConflictOnClientException(serverScopeInfo.Setup, clientScopeInfo.Setup);
+                }
 
                 return (context, false, clientScopeInfo, serverScopeInfo);
             }
@@ -169,6 +181,28 @@ namespace Wormhole.Sync
 
                 throw this.GetSyncError(context, ex, message);
             }
+        }
+        /// <summary>
+        /// Check if the difference between client and server setups is an additive schema evolution.
+        /// An additive difference means: server has new tables or new columns in existing tables,
+        /// but no tables or columns have been removed or modified.
+        /// This allows old clients to continue syncing with a newer server schema.
+        /// </summary>
+        private static bool IsAdditiveSetupDifference(ScopeInfo clientScopeInfo, ScopeInfo serverScopeInfo)
+        {
+            if (clientScopeInfo?.Setup == null || serverScopeInfo?.Setup == null)
+                return false;
+
+            // If server has migrations, the difference is expected — it's a schema evolution
+            if (!string.IsNullOrEmpty(serverScopeInfo.Migrations))
+            {
+                // Compute migration diff to verify it's truly additive
+                var migration = new Migration(clientScopeInfo, serverScopeInfo);
+                var results = migration.Compare();
+                return results.IsAdditiveOnly();
+            }
+
+            return false;
         }
     }
 }

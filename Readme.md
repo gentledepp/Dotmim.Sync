@@ -209,6 +209,113 @@ This setup ensures:
 - Job state is stored in Redis (shared across all server instances)
 - Jobs are processed by Hangfire (any server can pick up and process jobs)
 
+## Schema Evolution
+
+DMS supports **additive schema evolution** — you can add new nullable columns or new tables to your server database, and old clients (running with the previous schema) continue to sync without errors or redeployment. New clients can upgrade at their own pace.
+
+### How It Works
+
+1. **Server migrates** using `MigrateSchemaAsync` — records the migration, reprovisions stored procedures with CASE/COALESCE logic
+2. **Old clients keep syncing** — the server detects the additive difference and allows it; the SP preserves new column values when old clients upload partial data
+3. **Clients upgrade when ready** — add the column, set `SupportedMigrations`, and the framework auto-reprovisions on the next sync
+
+### Server-Side Migration
+
+On the server, call `MigrateSchemaAsync` with a new setup that includes the added columns or tables. Only **additive** changes are allowed (new nullable columns, new tables). Removing or renaming columns will throw.
+
+```csharp
+var remoteOrchestrator = new RemoteOrchestrator(serverProvider);
+
+// Original setup
+var setupV1 = new SyncSetup("ProductCategory");
+setupV1.Tables["ProductCategory"].Columns.AddRange(
+    "ProductCategoryId", "Name", "rowguid", "ModifiedDate");
+
+// New setup with an additional column
+var setupV2 = new SyncSetup("ProductCategory");
+setupV2.Tables["ProductCategory"].Columns.AddRange(
+    "ProductCategoryId", "Name", "rowguid", "ModifiedDate", "Description");
+
+// Migrate — reprovisiones SPs/triggers, records migration in scope_info
+await remoteOrchestrator.MigrateSchemaAsync("20260220_add_description", setupV2);
+```
+
+After migration, the server's stored procedures use `@sync_columns_present` to detect which columns the client actually sent. Columns not sent by an old client are preserved via `COALESCE([base].[col], [changes].[col])`.
+
+### Old Clients Sync Without Changes
+
+Old clients (still using V1 setup) continue to sync normally. The server detects the setup difference is additive and allows the sync:
+
+```csharp
+// Old client — no code changes needed, keeps using setupV1
+var agent = new SyncAgent(clientProvider, serverProvider);
+var result = await agent.SynchronizeAsync(setupV1);
+// Works! Downloads new rows (without the new column), uploads as usual.
+// When uploading, server preserves existing values for "Description".
+```
+
+### HTTP Sync
+
+Schema evolution works over HTTP too. After migrating, restart the web server with the new setup:
+
+```csharp
+// Server-side: migrate, then reconfigure the web server
+var remoteOrchestrator = new RemoteOrchestrator(serverProvider);
+await remoteOrchestrator.MigrateSchemaAsync("20260220_add_description", setupV2);
+
+// Restart Kestrel/IIS with the new setup
+services.AddSyncServer(serverProvider, setupV2, options);
+
+// Old clients (using WebRemoteOrchestrator) sync without changes
+var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serverUri));
+var result = await agent.SynchronizeAsync(setupV1); // still works
+```
+
+### Client Upgrade Path
+
+When a client app is updated to use the new columns, two things are needed:
+
+1. **Add the column** to the local database (your app's migration logic)
+2. **Register the migration** via `SupportedMigrations`
+
+The framework handles deprovisioning and reprovisioning automatically during the next sync — once, not on every call. If the server hasn't migrated yet, nothing happens; the client stays on the old schema until it connects to a server that has the migration.
+
+```csharp
+// 1. Add the column (your app's own migration/update logic)
+using var connection = clientProvider.CreateConnection();
+connection.Open();
+var cmd = connection.CreateCommand();
+cmd.CommandText = "ALTER TABLE ProductCategory ADD [Description] text NULL;";
+await cmd.ExecuteNonQueryAsync();
+connection.Close();
+
+// 2. Tell the framework this client supports the migration, then sync normally
+var agent = new SyncAgent(clientProvider, serverProvider);
+agent.SupportedMigrations = new List<string> { "20260220_add_description" };
+
+var result = await agent.SynchronizeAsync(setupV2);
+// Framework auto-deprovisions old triggers, reprovisions with new schema,
+// records the migration so it doesn't repeat, and syncs.
+```
+
+**What happens under the hood:**
+
+- On sync, the framework compares `agent.SupportedMigrations` with the server's `ScopeInfo.Migrations`
+- If the server has a migration the client supports but hasn't provisioned for yet, it automatically deprovisions old triggers/SPs and reprovisions with the server's updated schema
+- The provisioned migrations are recorded in `ScopeInfoClient.SupportedMigrations` so this only happens once
+- If the server hasn't migrated yet (e.g., connecting to a different server still on V1), nothing happens — the client keeps syncing with the old schema
+- Incremental sync continues normally; new/changed rows will include the new column. To backfill existing rows, use `SyncType.Reinitialize`
+
+### Mixed Client Scenario
+
+Old and new clients can coexist. When an old client updates a row, the server's SP logic preserves column values that the old client doesn't know about:
+
+| Action | `Name` | `Description` |
+|--------|--------|---------------|
+| Server inserts row | "Bikes" | "All bikes" |
+| Old client (V1) updates `Name` to "Bicycles" | "Bicycles" | "All bikes" (preserved) |
+| New client (V2) syncs | "Bicycles" | "All bikes" |
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Mimetis/Dotmim.Sync&type=Date)](https://star-history.com/#Mimetis/Dotmim.Sync&Date)

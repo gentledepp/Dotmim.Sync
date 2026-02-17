@@ -29,7 +29,8 @@ namespace Wormhole.Sync
                            ScopeInfo scopeInfo, SyncContext context, bool isNew, long? fromLastTimestamp, Guid? excludingScopeId,
                            bool supportsMultiActiveResultSets, BatchInfo batchInfo,
                            DbConnection connection, DbTransaction transaction,
-                           IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+                           IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
+                           HashSet<string> reinitTables = null)
       {
          try
          {
@@ -78,9 +79,15 @@ namespace Wormhole.Sync
                      // tmp count of table for report progress pct
                      cptSyncTable++;
 
+                     // Schema evolution: per-table re-init for upgraded clients
+                     var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
+                        ? syncTable.TableName
+                        : $"{syncTable.SchemaName}.{syncTable.TableName}";
+                     var isNewForTable = isNew || (reinitTables != null && reinitTables.Contains(tableKey));
+
                      TableChangesSelected tableChangesSelected;
                      (context, tableChangesSelected, currentBatchRowCount) = await this.InternalReadSyncTableChangesUnifiedAsync(
-                             scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                             scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNewForTable, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                      if (tableChangesSelected != null && (tableChangesSelected.Deletes > 0 || tableChangesSelected.Upserts > 0))
                      {
@@ -101,9 +108,15 @@ namespace Wormhole.Sync
                   // tmp count of table for report progress pct
                   cptSyncTable++;
 
+                  // Schema evolution: per-table re-init for upgraded clients
+                  var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
+                     ? syncTable.TableName
+                     : $"{syncTable.SchemaName}.{syncTable.TableName}";
+                  var isNewForTable = isNew || (reinitTables != null && reinitTables.Contains(tableKey));
+
                   TableChangesSelected tableChangesSelected;
                   (context, tableChangesSelected, currentBatchRowCount) = await this.InternalReadSyncTableChangesUnifiedAsync(
-                          scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                          scopeInfo, context, excludingScopeId, syncTable, unifiedSerializer, batchInfo, batchPartInfos, batchingLock, isNewForTable, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                   if (tableChangesSelected != null && (tableChangesSelected.Deletes > 0 || tableChangesSelected.Upserts > 0))
                   {
@@ -180,13 +193,14 @@ namespace Wormhole.Sync
                            ScopeInfo scopeInfo, SyncContext context, bool isNew, long? fromLastTimestamp, Guid? excludingScopeId,
                            bool supportsMultiActiveResultSets, BatchInfo batchInfo,
                            DbConnection connection, DbTransaction transaction,
-                           IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+                           IProgress<ProgressArgs> progress, CancellationToken cancellationToken,
+                           HashSet<string> reinitTables = null)
       {
          // Use unified batching if enabled by the client
          if (context.UseUnifiedBatching)
          {
             return await this.InternalGetChangesUnifiedAsync(scopeInfo, context, isNew, fromLastTimestamp, excludingScopeId,
-               supportsMultiActiveResultSets, batchInfo, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+               supportsMultiActiveResultSets, batchInfo, connection, transaction, progress, cancellationToken, reinitTables).ConfigureAwait(false);
          }
 
          // Fall back to traditional batching
@@ -228,10 +242,16 @@ namespace Wormhole.Sync
                   // tmp count of table for report progress pct
                   cptSyncTable++;
 
+                  // Schema evolution: per-table re-init for upgraded clients
+                  var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
+                     ? syncTable.TableName
+                     : $"{syncTable.SchemaName}.{syncTable.TableName}";
+                  var isNewForTable = isNew || (reinitTables != null && reinitTables.Contains(tableKey));
+
                   List<BatchPartInfo> syncTableBatchPartInfos;
                   TableChangesSelected tableChangesSelected;
                   (context, syncTableBatchPartInfos, tableChangesSelected) = await this.InternalReadSyncTableChangesAsync(
-                          scopeInfo, context, excludingScopeId, syncTable, batchInfo, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                          scopeInfo, context, excludingScopeId, syncTable, batchInfo, isNewForTable, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                   if (syncTableBatchPartInfos == null)
                      return;
@@ -256,10 +276,16 @@ namespace Wormhole.Sync
                   // tmp count of table for report progress pct
                   cptSyncTable++;
 
+                  // Schema evolution: per-table re-init for upgraded clients
+                  var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
+                     ? syncTable.TableName
+                     : $"{syncTable.SchemaName}.{syncTable.TableName}";
+                  var isNewForTable = isNew || (reinitTables != null && reinitTables.Contains(tableKey));
+
                   List<BatchPartInfo> syncTableBatchPartInfos;
                   TableChangesSelected tableChangesSelected;
                   (context, syncTableBatchPartInfos, tableChangesSelected) = await this.InternalReadSyncTableChangesAsync(
-                          scopeInfo, context, excludingScopeId, syncTable, batchInfo, isNew, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                          scopeInfo, context, excludingScopeId, syncTable, batchInfo, isNewForTable, fromLastTimestamp, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
 
                   if (syncTableBatchPartInfos == null)
                      continue;
