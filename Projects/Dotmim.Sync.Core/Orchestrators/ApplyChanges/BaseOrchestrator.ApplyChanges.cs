@@ -21,6 +21,22 @@ namespace Wormhole.Sync
     public abstract partial class BaseOrchestrator
     {
         /// <summary>
+        /// Check if the containerTable columns differ from the schemaTable columns, requiring name-based mapping.
+        /// </summary>
+        private static bool NeedsColumnMapping(ContainerTable containerTable, SyncTable schemaTable)
+        {
+            if (containerTable.Columns.Count != schemaTable.Columns.Count)
+                return true;
+
+            for (int i = 0; i < containerTable.Columns.Count; i++)
+            {
+                if (!string.Equals(containerTable.Columns[i].ColumnName, schemaTable.Columns[i].ColumnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+        /// <summary>
         /// Get all rows from a unified batch file for a specific table, regardless of operation type, with caching support.
         /// Used for error recovery scenarios.
         /// </summary>
@@ -70,6 +86,16 @@ namespace Wormhole.Sync
 
             var result = new List<SyncRow>();
 
+            // Check if column mapping is needed (schema evolution — batch has different columns than local schema)
+            var needsMapping = NeedsColumnMapping(containerTable, schemaTable);
+            IList<string> sourceColumnNames = null;
+            if (needsMapping)
+            {
+                sourceColumnNames = new List<string>(containerTable.Columns.Count);
+                foreach (var col in containerTable.Columns)
+                    sourceColumnNames.Add(col.ColumnName);
+            }
+
             // Return all rows for this table, converting to SyncRow
             for (int i = 0; i < containerTable.Rows.Count; i++)
             {
@@ -78,7 +104,10 @@ namespace Wormhole.Sync
                 {
                     var rowData = containerTable.Rows[i];
 
-                    syncRow = new SyncRow(schemaTable, rowData);
+                    if (needsMapping)
+                        syncRow = SyncRow.CreateWithColumnMapping(schemaTable, rowData, sourceColumnNames);
+                    else
+                        syncRow = new SyncRow(schemaTable, rowData);
                 }
                 catch (Exception ex)
                 {
@@ -142,6 +171,16 @@ namespace Wormhole.Sync
 
             var result = new List<SyncRow>();
 
+            // Check if column mapping is needed (schema evolution — batch has different columns than local schema)
+            var needsMapping = NeedsColumnMapping(containerTable, schemaTable);
+            IList<string> sourceColumnNames = null;
+            if (needsMapping)
+            {
+                sourceColumnNames = new List<string>(containerTable.Columns.Count);
+                foreach (var col in containerTable.Columns)
+                    sourceColumnNames.Add(col.ColumnName);
+            }
+
             // Filter rows by state and convert to SyncRow
             for (int i = 0; i < containerTable.Rows.Count; i++)
             {
@@ -165,8 +204,11 @@ namespace Wormhole.Sync
                         (rowState == SyncRowState.Deleted || rowState == SyncRowState.RetryDeletedOnNextSync || rowState == SyncRowState.ApplyDeletedFailed))
                         continue;
 
-                    // Create SyncRow directly from the row data (which already has the correct format)
-                    syncRow = new SyncRow(schemaTable, rowData);
+                    // Create SyncRow with column mapping if schemas differ
+                    if (needsMapping)
+                        syncRow = SyncRow.CreateWithColumnMapping(schemaTable, rowData, sourceColumnNames);
+                    else
+                        syncRow = new SyncRow(schemaTable, rowData);
 
                 }
                 catch (Exception ex)

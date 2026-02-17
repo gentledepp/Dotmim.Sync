@@ -261,9 +261,11 @@ namespace Wormhole.Sync
                     // When we get the changes from server, we create the batches if it's requested by the client
                     // the batch decision comes from batchsize from client
                     // Note: excludeScopeId is used to filter changes - random GUID means no filtering (get all changes)
+                    var reinitTables = cScopeInfoClient.GetReinitTablesSet();
                     serverChangesSelected = await this.InternalGetChangesAsync(cScopeInfo, context, fromScratch, cScopeInfoClient.LastServerSyncTimestamp, excludeScopeId,
                         this.Provider.SupportsMultipleActiveResultSets, serverBatchInfo,
-                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken,
+                        reinitTables.Count > 0 ? reinitTables : null).ConfigureAwait(false);
 
                     if (runner.CancellationToken.IsCancellationRequested)
                         runner.CancellationToken.ThrowIfCancellationRequested();

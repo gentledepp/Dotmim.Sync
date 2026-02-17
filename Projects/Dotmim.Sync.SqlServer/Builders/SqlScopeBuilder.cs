@@ -105,6 +105,7 @@ namespace Wormhole.Sync.SqlServer.Scope
                     [sync_scope_properties] [nvarchar](MAX) NULL,
                     [sync_scope_server_capabilities] [nvarchar](MAX) NULL,
                     [sync_scope_schema_hash] [nvarchar](64) NULL,
+                    [sync_scope_migrations] [nvarchar](MAX) NULL,
                     CONSTRAINT [PKey_{this.ScopeInfoTableNames.NormalizedFullName}]
                     PRIMARY KEY CLUSTERED ([sync_scope_name] ASC)
                     )";
@@ -129,7 +130,10 @@ namespace Wormhole.Sync.SqlServer.Scope
             sb.AppendLine("    [scope_last_sync_duration] [bigint] NULL,");
             sb.AppendLine("    [scope_last_sync] [datetime] NULL,");
             sb.AppendLine("    [sync_scope_errors] [nvarchar](MAX) NULL,");
-            sb.AppendLine("    [sync_scope_properties] [nvarchar](MAX) NULL");
+            sb.AppendLine("    [sync_scope_properties] [nvarchar](MAX) NULL,");
+            sb.AppendLine("    [sync_scope_reinit_tables] [nvarchar](MAX) NULL,");
+            sb.AppendLine("    [sync_scope_supported_migrations] [nvarchar](MAX) NULL,");
+            sb.AppendLine("    [sync_scope_last_known_server_migrations] [nvarchar](MAX) NULL");
 
             // Add custom parameter columns
             if (this.ScopeInfoClientParameters != null && this.ScopeInfoClientParameters.Count > 0)
@@ -162,7 +166,8 @@ namespace Wormhole.Sync.SqlServer.Scope
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash]
+                          [sync_scope_schema_hash],
+                          [sync_scope_migrations]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}";
 
             var command = connection.CreateCommand();
@@ -188,6 +193,9 @@ namespace Wormhole.Sync.SqlServer.Scope
                          , [scope_last_sync]
                          , [sync_scope_errors]
                          , [sync_scope_properties]
+                         , [sync_scope_reinit_tables]
+                         , [sync_scope_supported_migrations]
+                         , [sync_scope_last_known_server_migrations]
                          {customColumns}
                     FROM  {this.ScopeInfoClientTableNames.QuotedFullName}";
 
@@ -211,7 +219,8 @@ namespace Wormhole.Sync.SqlServer.Scope
                           [sync_scope_last_clean_timestamp],
                           [sync_scope_properties],
                           [sync_scope_server_capabilities],
-                          [sync_scope_schema_hash]
+                          [sync_scope_schema_hash],
+                          [sync_scope_migrations]
                     FROM  {this.ScopeInfoTableNames.QuotedFullName}
                     WHERE [sync_scope_name] = @sync_scope_name";
 
@@ -289,28 +298,30 @@ namespace Wormhole.Sync.SqlServer.Scope
             var commandText = $@"
                     MERGE {this.ScopeInfoTableNames.QuotedFullName} WITH (READCOMMITTED) AS [base] 
                     USING (
-                               SELECT  @sync_scope_name AS sync_scope_name,  
-	                                   @sync_scope_schema AS sync_scope_schema,  
-	                                   @sync_scope_setup AS sync_scope_setup,  
+                               SELECT  @sync_scope_name AS sync_scope_name,
+	                                   @sync_scope_schema AS sync_scope_schema,
+	                                   @sync_scope_setup AS sync_scope_setup,
 	                                   @sync_scope_version AS sync_scope_version,
                                        @sync_scope_last_clean_timestamp AS sync_scope_last_clean_timestamp,
                                        @sync_scope_properties as sync_scope_properties,
                                        @sync_scope_server_capabilities as sync_scope_server_capabilities,
-                                       @sync_scope_schema_hash as sync_scope_schema_hash
-                           ) AS [changes] 
+                                       @sync_scope_schema_hash as sync_scope_schema_hash,
+                                       @sync_scope_migrations as sync_scope_migrations
+                           ) AS [changes]
                     ON [base].[sync_scope_name] = [changes].[sync_scope_name]
                     WHEN NOT MATCHED THEN
-	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties], [sync_scope_server_capabilities], [sync_scope_schema_hash])
-	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], [changes].[sync_scope_last_clean_timestamp], [changes].[sync_scope_properties], [changes].[sync_scope_server_capabilities], [changes].[sync_scope_schema_hash])
+	                    INSERT ([sync_scope_name], [sync_scope_schema], [sync_scope_setup], [sync_scope_version], [sync_scope_last_clean_timestamp], [sync_scope_properties], [sync_scope_server_capabilities], [sync_scope_schema_hash], [sync_scope_migrations])
+	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_schema], [changes].[sync_scope_setup], [changes].[sync_scope_version], [changes].[sync_scope_last_clean_timestamp], [changes].[sync_scope_properties], [changes].[sync_scope_server_capabilities], [changes].[sync_scope_schema_hash], [changes].[sync_scope_migrations])
                     WHEN MATCHED THEN
-	                    UPDATE SET [sync_scope_name] = [changes].[sync_scope_name], 
-                                   [sync_scope_schema] = [changes].[sync_scope_schema], 
-                                   [sync_scope_setup] = [changes].[sync_scope_setup], 
+	                    UPDATE SET [sync_scope_name] = [changes].[sync_scope_name],
+                                   [sync_scope_schema] = [changes].[sync_scope_schema],
+                                   [sync_scope_setup] = [changes].[sync_scope_setup],
                                    [sync_scope_version] = [changes].[sync_scope_version],
                                    [sync_scope_last_clean_timestamp] = [changes].[sync_scope_last_clean_timestamp],
                                    [sync_scope_properties] = [changes].[sync_scope_properties],
                                    [sync_scope_server_capabilities] = [changes].[sync_scope_server_capabilities],
-                                   [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash]
+                                   [sync_scope_schema_hash] = [changes].[sync_scope_schema_hash],
+                                   [sync_scope_migrations] = [changes].[sync_scope_migrations]
                     OUTPUT  INSERTED.[sync_scope_id],
                             INSERTED.[sync_scope_name],
                             INSERTED.[sync_scope_schema],
@@ -319,7 +330,8 @@ namespace Wormhole.Sync.SqlServer.Scope
                             INSERTED.[sync_scope_last_clean_timestamp],
                             INSERTED.[sync_scope_properties],
                             INSERTED.[sync_scope_server_capabilities],
-                            INSERTED.[sync_scope_schema_hash];";
+                            INSERTED.[sync_scope_schema_hash],
+                            INSERTED.[sync_scope_migrations];";
 
             var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -373,6 +385,12 @@ namespace Wormhole.Sync.SqlServer.Scope
             p.Size = 64;
             command.Parameters.Add(p);
 
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_migrations";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
             return command;
         }
 
@@ -398,20 +416,26 @@ namespace Wormhole.Sync.SqlServer.Scope
                                        @scope_last_sync_duration AS scope_last_sync_duration,
                                        @scope_last_sync AS scope_last_sync,
                                        @sync_scope_errors AS sync_scope_errors,
-                                       @sync_scope_properties AS sync_scope_properties
+                                       @sync_scope_properties AS sync_scope_properties,
+                                       @sync_scope_reinit_tables AS sync_scope_reinit_tables,
+                                       @sync_scope_supported_migrations AS sync_scope_supported_migrations,
+                                       @sync_scope_last_known_server_migrations AS sync_scope_last_known_server_migrations
                                        {customSelectForUsing}
                            ) AS [changes]
                     ON [base].[sync_scope_id] = [changes].[sync_scope_id] and [base].[sync_scope_name] = [changes].[sync_scope_name] and [base].[sync_scope_hash] = [changes].[sync_scope_hash]
                     WHEN NOT MATCHED THEN
-	                    INSERT ([sync_scope_name], [sync_scope_id], [sync_scope_hash], [sync_scope_parameters], [scope_last_sync_timestamp],  [scope_last_server_sync_timestamp], [scope_last_sync], [scope_last_sync_duration], [sync_scope_errors], [sync_scope_properties]{customColumnsInsert})
-	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_id], [changes].[sync_scope_hash], [changes].[sync_scope_parameters], [changes].[scope_last_sync_timestamp], [changes].[scope_last_server_sync_timestamp], [changes].[scope_last_sync], [changes].[scope_last_sync_duration], [changes].[sync_scope_errors], [changes].[sync_scope_properties]{customParametersInsert})
+	                    INSERT ([sync_scope_name], [sync_scope_id], [sync_scope_hash], [sync_scope_parameters], [scope_last_sync_timestamp],  [scope_last_server_sync_timestamp], [scope_last_sync], [scope_last_sync_duration], [sync_scope_errors], [sync_scope_properties], [sync_scope_reinit_tables], [sync_scope_supported_migrations], [sync_scope_last_known_server_migrations]{customColumnsInsert})
+	                    VALUES ([changes].[sync_scope_name], [changes].[sync_scope_id], [changes].[sync_scope_hash], [changes].[sync_scope_parameters], [changes].[scope_last_sync_timestamp], [changes].[scope_last_server_sync_timestamp], [changes].[scope_last_sync], [changes].[scope_last_sync_duration], [changes].[sync_scope_errors], [changes].[sync_scope_properties], [changes].[sync_scope_reinit_tables], [changes].[sync_scope_supported_migrations], [changes].[sync_scope_last_known_server_migrations]{customParametersInsert})
                     WHEN MATCHED THEN
 	                    UPDATE SET [scope_last_sync_timestamp] = [changes].[scope_last_sync_timestamp],
                                    [scope_last_server_sync_timestamp] = [changes].[scope_last_server_sync_timestamp],
                                    [scope_last_sync] = [changes].[scope_last_sync],
                                    [scope_last_sync_duration] = [changes].[scope_last_sync_duration],
                                    [sync_scope_errors] = [changes].[sync_scope_errors],
-                                   [sync_scope_properties] = [changes].[sync_scope_properties]
+                                   [sync_scope_properties] = [changes].[sync_scope_properties],
+                                   [sync_scope_reinit_tables] = [changes].[sync_scope_reinit_tables],
+                                   [sync_scope_supported_migrations] = [changes].[sync_scope_supported_migrations],
+                                   [sync_scope_last_known_server_migrations] = [changes].[sync_scope_last_known_server_migrations]
                                    {customSetClause}
                     OUTPUT  INSERTED.[sync_scope_name],
                             INSERTED.[sync_scope_id],
@@ -422,7 +446,10 @@ namespace Wormhole.Sync.SqlServer.Scope
                             INSERTED.[scope_last_sync],
                             INSERTED.[scope_last_sync_duration],
                             INSERTED.[sync_scope_errors],
-                            INSERTED.[sync_scope_properties]
+                            INSERTED.[sync_scope_properties],
+                            INSERTED.[sync_scope_reinit_tables],
+                            INSERTED.[sync_scope_supported_migrations],
+                            INSERTED.[sync_scope_last_known_server_migrations]
                             {customColumnsSelect}; ";
 
             var command = connection.CreateCommand();
@@ -482,6 +509,24 @@ namespace Wormhole.Sync.SqlServer.Scope
 
             p = command.CreateParameter();
             p.ParameterName = "@sync_scope_properties";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_reinit_tables";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_supported_migrations";
+            p.DbType = DbType.String;
+            p.Size = -1;
+            command.Parameters.Add(p);
+
+            p = command.CreateParameter();
+            p.ParameterName = "@sync_scope_last_known_server_migrations";
             p.DbType = DbType.String;
             p.Size = -1;
             command.Parameters.Add(p);
@@ -629,8 +674,12 @@ namespace Wormhole.Sync.SqlServer.Scope
             var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = $@"
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_capabilities] NVARCHAR(MAX) NULL;
-                ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_schema_hash] NVARCHAR(64) NULL;
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('{this.ScopeInfoTableNames.QuotedFullName}') AND name = 'sync_scope_server_capabilities')
+                    ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_server_capabilities] NVARCHAR(MAX) NULL;
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('{this.ScopeInfoTableNames.QuotedFullName}') AND name = 'sync_scope_schema_hash')
+                    ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_schema_hash] NVARCHAR(64) NULL;
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('{this.ScopeInfoTableNames.QuotedFullName}') AND name = 'sync_scope_migrations')
+                    ALTER TABLE {this.ScopeInfoTableNames.QuotedFullName} ADD [sync_scope_migrations] NVARCHAR(MAX) NULL;
             ";
             return command;
         }

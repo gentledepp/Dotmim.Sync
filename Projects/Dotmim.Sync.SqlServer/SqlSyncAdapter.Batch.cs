@@ -93,6 +93,18 @@ namespace Wormhole.Sync.SqlServer.Builders
             if (sqlParameters.Contains("@sync_scope_id"))
                 sqlParameters["@sync_scope_id"].Value = senderScopeId;
 
+            // Schema evolution: determine which columns are actually present in the batch data.
+            // When an old client sends fewer columns, SyncRow.SourceColumnNames tracks the original columns.
+            // The SP's CASE logic uses this to preserve existing values for columns not sent by the client.
+            if (sqlParameters.Contains("@sync_columns_present"))
+            {
+                var firstRow = items.FirstOrDefault();
+                if (firstRow?.SourceColumnNames != null)
+                    sqlParameters["@sync_columns_present"].Value = string.Join(",", firstRow.SourceColumnNames);
+                else
+                    sqlParameters["@sync_columns_present"].Value = "*";
+            }
+
             bool alreadyOpened = connection.State == ConnectionState.Open;
 
             try
@@ -480,6 +492,10 @@ namespace Wormhole.Sync.SqlServer.Builders
 
                     if (cmd.Parameters.Contains("@sync_scope_id"))
                         cmd.Parameters["@sync_scope_id"].Value = scopeId.HasValue ? scopeId.Value : DBNull.Value;
+
+                    // Schema evolution: set @sync_columns_present to indicate all columns are present
+                    if (cmd.Parameters.Contains("@sync_columns_present"))
+                        cmd.Parameters["@sync_columns_present"].Value = "*";
 
                     // Execute - the stored procedure returns failed rows, but for force_write there shouldn't be any
                     using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);

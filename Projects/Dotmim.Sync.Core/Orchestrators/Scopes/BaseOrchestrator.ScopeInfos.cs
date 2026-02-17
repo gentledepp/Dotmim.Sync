@@ -489,7 +489,7 @@ namespace Wormhole.Sync
             
             InternalSetParameterValue(command, "sync_scope_server_capabilities", scopeInfo.ServerCapabilities == null ? DBNull.Value : scopeInfo.ServerCapabilities);
             InternalSetParameterValue(command, "sync_scope_schema_hash", scopeInfo.SchemaHash == null ? DBNull.Value : scopeInfo.SchemaHash);
-
+            InternalSetParameterValue(command, "sync_scope_migrations", scopeInfo.Migrations == null ? DBNull.Value : scopeInfo.Migrations);
 
             return command;
         }
@@ -514,9 +514,27 @@ namespace Wormhole.Sync
                 Properties = reader["sync_scope_properties"] as string,
                 ServerCapabilities = reader["sync_scope_server_capabilities"] as string,
                 SchemaHash = reader["sync_scope_schema_hash"] as string,
+                Migrations = InternalTryReadColumn(reader, "sync_scope_migrations") as string,
             };
 
             return clientScopeInfo;
+        }
+
+        /// <summary>
+        /// Try to read a column value from a DbDataReader. Returns null if the column does not exist.
+        /// Used for backward compatibility with older database schemas that may not have new columns.
+        /// </summary>
+        private static object InternalTryReadColumn(DbDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                return null;
+            }
         }
     }
 }

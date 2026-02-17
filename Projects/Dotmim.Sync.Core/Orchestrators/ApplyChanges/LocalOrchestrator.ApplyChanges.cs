@@ -249,6 +249,9 @@ namespace Wormhole.Sync
                         LastSyncDuration = this.CompleteTime.Value.Subtract(context.StartTime).Ticks,
                         Properties = cScopeInfoClient.Properties,
                         Errors = errorsBatchInfo != null && errorsBatchInfo.BatchPartsInfo != null && errorsBatchInfo.BatchPartsInfo.Count > 0 ? Serializer.Serialize(errorsBatchInfo).ToUtf8String() : null,
+                        SupportedMigrations = cScopeInfoClient.SupportedMigrations,
+                        LastKnownServerMigrations = cScopeInfoClient.LastKnownServerMigrations,
+                        // NOTE: ReinitTables is intentionally NOT copied — it's a one-shot mechanism
                     };
 
                     // Write scopes locally

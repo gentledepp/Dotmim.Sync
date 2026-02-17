@@ -28,6 +28,7 @@ namespace Wormhole.Sync.Tests
         {
             this.useFiddler = useFiddler;
         }
+
         public void AddSyncServer(CoreProvider provider, SyncSetup setup = null, SyncOptions options = null,
             WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null,
             IBatchStorage batchStorage = null,
@@ -114,6 +115,23 @@ namespace Wormhole.Sync.Tests
             var listeners = ipGlobalProperties.GetActiveTcpListeners();
         
             return !listeners.Any(l => l.Port == port);
+        }
+
+        /// <summary>
+        /// Hot-swap the SyncSetup without restarting the server.
+        /// </summary>
+        public void UpdateSyncSetup(SyncSetup setup, string scopeName = null, string identifier = null)
+        {
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            var agent = this.WebServerAgents.FirstOrDefault(wsa =>
+                wsa.ScopeName == scopeName &&
+                (string.IsNullOrEmpty(identifier) ? string.IsNullOrEmpty(wsa.Identifier) : wsa.Identifier == identifier));
+
+            if (agent == null)
+                throw new InvalidOperationException($"No WebServerAgent found for scope '{scopeName}' and identifier '{identifier}'");
+
+            agent.Setup = setup;
         }
 
         public Task StopAsync()

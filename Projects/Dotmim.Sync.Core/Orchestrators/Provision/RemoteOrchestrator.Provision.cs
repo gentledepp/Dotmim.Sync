@@ -1,5 +1,7 @@
 ﻿using Wormhole.Sync.Builders;
 using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Extensions;
+using Wormhole.Sync.Serialization;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -442,6 +444,208 @@ namespace Wormhole.Sync
             {
                 throw this.GetSyncError(context, ex);
             }
+        }
+
+        /// <summary>
+        /// Migrate the server schema by applying an additive schema change.
+        /// This method:
+        /// 1. Loads the current ScopeInfo from server DB
+        /// 2. Snapshots the current schema into scope_info_schema_history (preserves the "before" state)
+        /// 3. Compares with the new SyncSetup to compute migration results
+        /// 4. Validates that changes are additive only (new nullable/default columns, new tables)
+        /// 5. Reprovisions affected tables (drop/recreate triggers, SPs, TVPs)
+        /// 6. Adds migration name to ScopeInfo.Migrations
+        /// 7. Updates ScopeInfo with new schema and hash
+        /// 8. Snapshots the new schema into scope_info_schema_history
+        /// </summary>
+        /// <param name="migrationName">A unique, sortable name for this migration (e.g., "20260217_titlecolumns").</param>
+        /// <param name="newSetup">The new SyncSetup with the updated table/column definitions.</param>
+        /// <param name="scopeName">The scope name to migrate (default scope if not specified).</param>
+        /// <param name="connection">Optional Connection.</param>
+        /// <param name="transaction">Optional Transaction.</param>
+        /// <param name="progress">Optional progress.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>The updated ScopeInfo with the migration applied.</returns>
+        public virtual async Task<ScopeInfo> MigrateSchemaAsync(string migrationName, SyncSetup newSetup,
+            string scopeName = null, DbConnection connection = null, DbTransaction transaction = null,
+            IProgress<ProgressArgs> progress = null, CancellationToken cancellationToken = default)
+        {
+            Guard.ThrowIfNull(migrationName);
+            Guard.ThrowIfNull(newSetup);
+
+            scopeName ??= SyncOptions.DefaultScopeName;
+            var context = new SyncContext(Guid.NewGuid(), scopeName);
+
+            try
+            {
+                using var runner = await this.GetConnectionAsync(context, SyncMode.WithTransaction, SyncStage.Provisioning, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                await using (runner.ConfigureAwait(false))
+                {
+                    // 1. Load current ScopeInfo
+                    ScopeInfo currentScopeInfo;
+                    (context, currentScopeInfo) = await this.InternalLoadScopeInfoAsync(context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    if (currentScopeInfo == null || currentScopeInfo.Setup == null || currentScopeInfo.Schema == null)
+                        throw new Exception($"Cannot migrate schema: server scope '{scopeName}' has not been provisioned yet. Call ProvisionAsync first.");
+
+                    // 2. Snapshot current schema before making changes
+                    var currentSchemaJson = Serializer.Serialize(currentScopeInfo.Schema).ToUtf8String();
+                    var currentSetupJson = Serializer.Serialize(currentScopeInfo.Setup).ToUtf8String();
+                    var currentHash = currentScopeInfo.SchemaHash;
+
+                    // Save the "before" snapshot to the schema history table
+                    var beforeMigrationName = $"_before_{migrationName}";
+                    await this.InternalSaveSchemaHistoryAsync(context, beforeMigrationName, scopeName, currentHash, currentSchemaJson, currentSetupJson,
+                        runner.Connection, runner.Transaction, runner.CancellationToken).ConfigureAwait(false);
+
+                    // 3. Create a temporary scope with new setup to compute migration diff
+                    var newScopeInfo = new ScopeInfo
+                    {
+                        Name = scopeName,
+                        Setup = newSetup,
+                    };
+
+                    // Get schema for the new setup from the database
+                    (context, newScopeInfo, _) = await this.InternalEnsureScopeInfoAsync(context, newSetup, true,
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    // 4. Compute migration diff and validate additive only
+                    var migration = new Migration(currentScopeInfo, newScopeInfo);
+                    var results = migration.Compare();
+
+                    if (results.HasChanges && !results.IsAdditiveOnly())
+                        throw new Exception($"Migration '{migrationName}' contains non-additive changes (removed/modified columns). " +
+                                           "Only additive changes (new nullable/default columns, new tables) are supported.");
+
+                    // 5. Reprovision affected tables (overwrite = true to recreate SPs/triggers/TVPs)
+                    var provision = SyncProvision.StoredProcedures | SyncProvision.Triggers | SyncProvision.TrackingTable;
+                    (context, _) = await this.InternalProvisionAsync(newScopeInfo, context, true, provision,
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    // 6. Add migration name to ScopeInfo.Migrations
+                    newScopeInfo.AddMigration(migrationName);
+
+                    // 7. Update ScopeInfo with new schema and hash
+                    newScopeInfo.UpdateSchemaHash(newScopeInfo.Schema);
+
+                    (context, newScopeInfo) = await this.InternalSaveScopeInfoAsync(newScopeInfo, context,
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    // 8. Snapshot the new schema into schema history
+                    var newSchemaJson = Serializer.Serialize(newScopeInfo.Schema).ToUtf8String();
+                    var newSetupJson = Serializer.Serialize(newScopeInfo.Setup).ToUtf8String();
+                    await this.InternalSaveSchemaHistoryAsync(context, migrationName, scopeName, newScopeInfo.SchemaHash, newSchemaJson, newSetupJson,
+                        runner.Connection, runner.Transaction, runner.CancellationToken).ConfigureAwait(false);
+
+                    await runner.CommitAsync().ConfigureAwait(false);
+
+                    return newScopeInfo;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw this.GetSyncError(context, ex, $"MigrationName:{migrationName}");
+            }
+        }
+
+        /// <summary>
+        /// Save a schema snapshot to the scope_info_schema_history table.
+        /// Creates the table if it doesn't exist.
+        /// </summary>
+        internal async Task InternalSaveSchemaHistoryAsync(SyncContext context, string migrationName, string scopeName,
+            string schemaHash, string schemaJson, string setupJson,
+            DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
+        {
+            // Create the schema history table if needed
+            var createTableCommand = connection.CreateCommand();
+            createTableCommand.Transaction = transaction;
+
+            // Detect provider type from connection
+            var isPostgres = connection.GetType().Name.Contains("Npgsql", StringComparison.OrdinalIgnoreCase);
+            var isMySql = connection.GetType().Name.Contains("MySql", StringComparison.OrdinalIgnoreCase);
+            var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+
+            if (isSqlite)
+            {
+                createTableCommand.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS [scope_info_schema_history] (
+                        [migration_name] TEXT NOT NULL,
+                        [scope_name] TEXT NOT NULL,
+                        [schema_hash] TEXT NULL,
+                        [schema_json] TEXT NULL,
+                        [setup_json] TEXT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT (datetime('now')),
+                        PRIMARY KEY ([migration_name], [scope_name])
+                    )";
+            }
+            else
+            {
+                // SQL Server (default)
+                createTableCommand.CommandText = @"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'scope_info_schema_history')
+                    CREATE TABLE [scope_info_schema_history] (
+                        [migration_name] NVARCHAR(200) NOT NULL,
+                        [scope_name] NVARCHAR(100) NOT NULL,
+                        [schema_hash] NVARCHAR(64) NULL,
+                        [schema_json] NVARCHAR(MAX) NULL,
+                        [setup_json] NVARCHAR(MAX) NULL,
+                        [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                        CONSTRAINT [PKey_scope_info_schema_history] PRIMARY KEY ([migration_name], [scope_name])
+                    )";
+            }
+
+            await createTableCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            // Insert the schema snapshot
+            var insertCommand = connection.CreateCommand();
+            insertCommand.Transaction = transaction;
+
+            if (isSqlite)
+            {
+                insertCommand.CommandText = @"
+                    INSERT OR REPLACE INTO [scope_info_schema_history]
+                    ([migration_name], [scope_name], [schema_hash], [schema_json], [setup_json])
+                    VALUES (@migration_name, @scope_name, @schema_hash, @schema_json, @setup_json)";
+            }
+            else
+            {
+                insertCommand.CommandText = @"
+                    MERGE [scope_info_schema_history] AS [target]
+                    USING (SELECT @migration_name, @scope_name) AS [source] ([migration_name], [scope_name])
+                    ON [target].[migration_name] = [source].[migration_name] AND [target].[scope_name] = [source].[scope_name]
+                    WHEN NOT MATCHED THEN
+                        INSERT ([migration_name], [scope_name], [schema_hash], [schema_json], [setup_json])
+                        VALUES (@migration_name, @scope_name, @schema_hash, @schema_json, @setup_json)
+                    WHEN MATCHED THEN
+                        UPDATE SET [schema_hash] = @schema_hash, [schema_json] = @schema_json, [setup_json] = @setup_json;";
+            }
+
+            var p1 = insertCommand.CreateParameter();
+            p1.ParameterName = "@migration_name";
+            p1.Value = migrationName;
+            insertCommand.Parameters.Add(p1);
+
+            var p2 = insertCommand.CreateParameter();
+            p2.ParameterName = "@scope_name";
+            p2.Value = scopeName;
+            insertCommand.Parameters.Add(p2);
+
+            var p3 = insertCommand.CreateParameter();
+            p3.ParameterName = "@schema_hash";
+            p3.Value = (object)schemaHash ?? DBNull.Value;
+            insertCommand.Parameters.Add(p3);
+
+            var p4 = insertCommand.CreateParameter();
+            p4.ParameterName = "@schema_json";
+            p4.Value = (object)schemaJson ?? DBNull.Value;
+            insertCommand.Parameters.Add(p4);
+
+            var p5 = insertCommand.CreateParameter();
+            p5.ParameterName = "@setup_json";
+            p5.Value = (object)setupJson ?? DBNull.Value;
+            insertCommand.Parameters.Add(p5);
+
+            await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 }

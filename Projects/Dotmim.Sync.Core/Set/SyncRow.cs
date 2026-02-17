@@ -1,5 +1,6 @@
 ﻿using Wormhole.Sync.Enumerations;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
@@ -76,6 +77,13 @@ namespace Wormhole.Sync
         public int Length { get; }
 
         /// <summary>
+        /// Gets the original column names from the batch file when column mapping was applied.
+        /// Null when all schema columns are present (no mapping needed).
+        /// Used by schema evolution to tell the SP which columns the client actually sent.
+        /// </summary>
+        public IList<string> SourceColumnNames { get; set; }
+
+        /// <summary>
         /// Get the value in the array that correspond to the column index given.
         /// </summary>
         public object this[int index]
@@ -112,6 +120,38 @@ namespace Wormhole.Sync
 
                 this[index] = value;
             }
+        }
+
+        /// <summary>
+        /// Create a SyncRow by mapping source columns to the target schema by name.
+        /// Extra source columns are discarded. Missing source columns get null.
+        /// sourceRow[0] must be the row state.
+        /// </summary>
+        public static SyncRow CreateWithColumnMapping(SyncTable targetSchema, object[] sourceRow, IList<string> sourceColumnNames)
+        {
+            var state = (SyncRowState)SyncTypeConverter.TryConvertTo<int>(sourceRow[0]);
+            var row = new SyncRow(targetSchema, state);
+
+            // Build mapping from source column names to target positions
+            for (int sourceIdx = 0; sourceIdx < sourceColumnNames.Count; sourceIdx++)
+            {
+                var sourceColName = sourceColumnNames[sourceIdx];
+                var targetCol = targetSchema.Columns[sourceColName];
+
+                if (targetCol == null)
+                    continue; // Extra column in source — discard
+
+                var targetIdx = targetSchema.Columns.IndexOf(targetCol);
+                if (targetIdx >= 0 && sourceIdx + 1 < sourceRow.Length)
+                {
+                    row[targetIdx] = sourceRow[sourceIdx + 1];
+                }
+            }
+
+            // Missing columns in source will remain null (default)
+            // Track which columns were actually present in the source batch data
+            row.SourceColumnNames = sourceColumnNames;
+            return row;
         }
 
         /// <summary>

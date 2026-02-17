@@ -24,9 +24,9 @@
 		<RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
 	</PropertyGroup>
 
-	<Target Name="TestMessage" AfterTargets="Build" >
-		<Message Text="$(OS)" Importance="high"/>
-		<Message Text="$(RuntimeIdentifier)" Importance="high"/>
+	<Target Name="TestMessage" AfterTargets="Build">
+		<Message Text="$(OS)" Importance="high" />
+		<Message Text="$(RuntimeIdentifier)" Importance="high" />
 	</Target>
 
 	<ItemGroup>
@@ -34,6 +34,7 @@
 	  <Compile Include="..\Dotmim.Sync.Tests\Core\ProviderType.cs" Link="Core\ProviderType.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Fixtures\DatabaseServerFixture.cs" Link="Fixtures\DatabaseServerFixture.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\HttpTests\HttpTests.cs" Link="HttpTests\HttpTests.cs" />
+	  <Compile Include="..\Dotmim.Sync.Tests\HttpTests\HttpTests.SchemaEvolutionTests.cs" Link="HttpTests\HttpTests.SchemaEvolutionTests.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\DatabaseTest.cs" Link="Misc\DatabaseTest.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\Extensibility.cs" Link="Misc\Extensibility.cs" />
 	  <Compile Include="..\Dotmim.Sync.Tests\Misc\HelperDatabase.cs" Link="Misc\HelperDatabase.cs" />

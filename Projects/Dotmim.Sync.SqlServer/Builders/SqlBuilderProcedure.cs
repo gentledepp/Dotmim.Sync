@@ -440,6 +440,9 @@ namespace Wormhole.Sync.SqlServer.Builders
             var sqlParameterForceWrite = new SqlParameter("@sync_force_write", SqlDbType.Int);
             sqlCommand.Parameters.Add(sqlParameterForceWrite);
 
+            var sqlParameterColumnsPresent = new SqlParameter("@sync_columns_present", SqlDbType.NVarChar, -1) { Value = "'*'" };
+            sqlCommand.Parameters.Add(sqlParameterColumnsPresent);
+
             var sqlParameter2 = new SqlParameter("@changeTable", SqlDbType.Structured)
             {
                 TypeName = this.SqlObjectNames.GetStoredProcedureCommandName(DbStoredProcedureType.BulkTableType),
@@ -519,7 +522,12 @@ namespace Wormhole.Sync.SqlServer.Builders
                 {
                     var columnParser = new ObjectParser(mutableColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
 
-                    stringBuilder.AppendLine($"\t{strSeparator}{columnParser.QuotedShortName} = [changes].{columnParser.QuotedShortName}");
+                    // Schema evolution: preserve existing values for columns not sent by the client
+                    stringBuilder.AppendLine($"\t{strSeparator}{columnParser.QuotedShortName} = CASE");
+                    stringBuilder.AppendLine($"\t\tWHEN @sync_columns_present = '*' OR CHARINDEX('{mutableColumn.ColumnName}', @sync_columns_present) > 0");
+                    stringBuilder.AppendLine($"\t\tTHEN [changes].{columnParser.QuotedShortName}");
+                    stringBuilder.AppendLine($"\t\tELSE COALESCE([base].{columnParser.QuotedShortName}, [changes].{columnParser.QuotedShortName})");
+                    stringBuilder.AppendLine($"\tEND");
                     strSeparator = ", ";
                 }
             }
@@ -811,6 +819,9 @@ namespace Wormhole.Sync.SqlServer.Builders
             var sqlParameter3 = new SqlParameter("@sync_force_write", SqlDbType.Int);
             sqlCommand.Parameters.Add(sqlParameter3);
 
+            var sqlParameterColumnsPresent = new SqlParameter("@sync_columns_present", SqlDbType.NVarChar, -1) { Value = "'*'" };
+            sqlCommand.Parameters.Add(sqlParameterColumnsPresent);
+
             var sqlParameter4 = new SqlParameter("@sync_row_count", SqlDbType.Int)
             {
                 Direction = ParameterDirection.Output,
@@ -902,7 +913,13 @@ namespace Wormhole.Sync.SqlServer.Builders
                 foreach (var mutableColumn in this.TableDescription.GetMutableColumns(false))
                 {
                     var columnParser = new ObjectParser(mutableColumn.ColumnName, SqlObjectNames.LeftQuote, SqlObjectNames.RightQuote);
-                    stringBuilder.AppendLine($"\t{strSeparator}{columnParser.QuotedShortName} = [changes].{columnParser.QuotedShortName}");
+
+                    // Schema evolution: preserve existing values for columns not sent by the client
+                    stringBuilder.AppendLine($"\t{strSeparator}{columnParser.QuotedShortName} = CASE");
+                    stringBuilder.AppendLine($"\t\tWHEN @sync_columns_present = '*' OR CHARINDEX('{mutableColumn.ColumnName}', @sync_columns_present) > 0");
+                    stringBuilder.AppendLine($"\t\tTHEN [changes].{columnParser.QuotedShortName}");
+                    stringBuilder.AppendLine($"\t\tELSE COALESCE([base].{columnParser.QuotedShortName}, [changes].{columnParser.QuotedShortName})");
+                    stringBuilder.AppendLine($"\tEND");
                     strSeparator = ", ";
                 }
             }

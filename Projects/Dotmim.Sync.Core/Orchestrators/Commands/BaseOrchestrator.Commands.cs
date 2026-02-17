@@ -241,6 +241,17 @@ namespace Wormhole.Sync
             if (syncForceWriteParameter != null)
                 syncAdapter.AddCommandParameterValue(context, syncForceWriteParameter, sync_force_write.HasValue ? sync_force_write.Value ? 1 : 0 : DBNull.Value, command, commandType);
 
+            // Set the sync_columns_present for schema evolution support
+            // When all columns are present (normal case), "*" means all columns present.
+            // When some columns are missing (old client), list only the columns actually sent.
+            var syncColumnsPresentParam = syncAdapter.GetParameter(context, command, "sync_columns_present");
+            if (syncColumnsPresentParam != null)
+            {
+                // Default to "*" (all columns present). The caller is responsible for setting
+                // a specific column list when processing batches from old clients.
+                syncAdapter.AddCommandParameterValue(context, syncColumnsPresentParam, "*", command, commandType);
+            }
+
             // Sqlite does not support output parameters
             if (syncAdapter.SupportsOutputParameters)
             {

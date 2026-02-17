@@ -85,6 +85,13 @@ namespace Wormhole.Sync
         public string SchemaHash { get; set; }
 
         /// <summary>
+        /// Gets or Sets the JSON array of migration names that have been applied to this scope, sorted.
+        /// Example: ["20260217_titlecolumns","20260301_newprefs"]
+        /// </summary>
+        [DataMember(Name = "mig", IsRequired = false, EmitDefaultValue = false, Order = 8)]
+        public string Migrations { get; set; }
+
+        /// <summary>
         /// Get server capabilities as strongly-typed object.
         /// </summary>
         public ReadOnlyDictionary<string, object> GetServerCapabilities()
@@ -212,6 +219,52 @@ namespace Wormhole.Sync
 
             var currentHash = GenerateSchemaHash(schema);
             return SchemaHash.Equals(currentHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Get the list of migration names applied to this scope.
+        /// </summary>
+        public List<string> GetMigrationsList()
+        {
+            if (string.IsNullOrEmpty(Migrations))
+                return new List<string>();
+
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<string>>(Migrations);
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Set the list of migration names applied to this scope.
+        /// </summary>
+        public void SetMigrationsList(List<string> migrations)
+        {
+            if (migrations == null || migrations.Count == 0)
+            {
+                Migrations = null;
+                return;
+            }
+
+            migrations.Sort(StringComparer.Ordinal);
+            Migrations = System.Text.Json.JsonSerializer.Serialize(migrations);
+        }
+
+        /// <summary>
+        /// Add a migration name to the list.
+        /// </summary>
+        public void AddMigration(string migrationName)
+        {
+            var list = GetMigrationsList();
+            if (list.FindIndex(m => string.Equals(m, migrationName, StringComparison.Ordinal)) < 0)
+            {
+                list.Add(migrationName);
+                SetMigrationsList(list);
+            }
         }
 
         /// <summary>
