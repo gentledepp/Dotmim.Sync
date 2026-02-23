@@ -16,11 +16,13 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.7.1.0</Version>
+        <Version>1.8.0.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.0.0
+            - supports additive schema-migration
             # 1.7.1.0
             - introduced IErrorHandler interface on .Server
             - fixed AspNetSessionCacheStore (providing HttpContext per request)
