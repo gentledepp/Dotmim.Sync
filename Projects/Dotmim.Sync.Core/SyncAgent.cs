@@ -120,7 +120,7 @@ namespace Wormhole.Sync
         /// Set by the developer to declare which schema migrations the client app has been updated to handle.
         /// Example: ["20260217_titlecolumns", "20260301_newprefs"]
         /// </summary>
-        public List<string> SupportedMigrations { get; set; }
+        public List<string> SupportedMigrations { get; set; } = new();
 
         /// <summary>
         /// Shortcut to Apply changed conflict occured if remote orchestrator supports it.
@@ -320,6 +320,36 @@ namespace Wormhole.Sync
 
                         if (clientNeedsReprovision)
                         {
+                            // Determine which tables have schema changes and need re-downloading
+                            // IMPORTANT: Do that BEFORE re-provisioning the client, since otherwise
+                            // the cScopeInfo will already have the same schema as the server
+                            var migration = new Migration(cScopeInfo, sScopeInfo);
+                            var migrationResult = migration.Compare();
+                            var changedTables = migrationResult.GetTablesWithSchemaChanges();
+
+                            // Record which migrations are now provisioned so we don't repeat
+                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
+
+                            if (changedTables.Count > 0)
+                                cScopeInfoClient.SetReinitTables(changedTables);
+
+                            // Persist reinit state immediately so it survives crashes.
+                            // If the sync crashes after reprovisioning but before completion,
+                            // the next sync will still see the ReinitTables flag.
+                            using (var scopeRunner = await this.LocalOrchestrator.GetConnectionAsync(
+                                       context, SyncMode.NoTransaction, SyncStage.ScopeWriting,
+                                       default, default, progress, cancellationToken).ConfigureAwait(false))
+                            {
+                                await using (scopeRunner.ConfigureAwait(false))
+                                {
+                                    (context, cScopeInfoClient) = await this.LocalOrchestrator.InternalSaveScopeInfoClientAsync(
+                                        cScopeInfoClient, context,
+                                        scopeRunner.Connection, scopeRunner.Transaction,
+                                        scopeRunner.Progress, scopeRunner.CancellationToken).ConfigureAwait(false);
+                                }
+                            }
+
+                            // only now perform the local schema changes
                             var provision = SyncProvision.StoredProcedures | SyncProvision.Triggers;
 
                             (context, _) = await this.LocalOrchestrator.InternalDeprovisionAsync(
@@ -330,15 +360,6 @@ namespace Wormhole.Sync
                                 sScopeInfo, cScopeInfo, context, provision, true,
                                 default, default, progress, cancellationToken).ConfigureAwait(false);
 
-                            // Record which migrations are now provisioned so we don't repeat
-                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
-
-                            // Determine which tables have schema changes and need re-downloading
-                            var migration = new Migration(cScopeInfo, sScopeInfo);
-                            var migrationResult = migration.Compare();
-                            var changedTables = migrationResult.GetTablesWithSchemaChanges();
-                            if (changedTables.Count > 0)
-                                cScopeInfoClient.SetReinitTables(changedTables);
                         }
                     }
 

@@ -44,6 +44,7 @@ namespace Wormhole.Sync
             {
                 // Connection & Transaction runner
                 DbConnectionRunner runner = null;
+                bool disabledDbLevelConstraints = false;
                 try
                 {
                     var serverBatchInfo = serverSyncChanges.ServerBatchInfo;
@@ -78,6 +79,25 @@ namespace Wormhole.Sync
 
                     context.SyncRole = SyncRole.Client;
 
+                    // Check for reinit tables BEFORE opening any transaction.
+                    // For database-level constraint providers (e.g. SQLite), PRAGMA foreign_keys = OFF
+                    // must be executed BEFORE starting a transaction, as it is silently ignored inside one.
+                    // This covers FK references from tables outside the sync scope as well.
+                    var reinitSet = cScopeInfoClient.GetReinitTablesSet();
+
+                    if (reinitSet.Count > 0 && this.Provider.ConstraintsLevelAction == ConstraintsLevelAction.OnDatabaseLevel)
+                    {
+                        connection ??= this.Provider.CreateConnection();
+
+                        if (connection.State != System.Data.ConnectionState.Open)
+                            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+                        using var pragmaOffCmd = connection.CreateCommand();
+                        pragmaOffCmd.CommandText = "PRAGMA foreign_keys = OFF";
+                        await pragmaOffCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        disabledDbLevelConstraints = true;
+                    }
+
                     // Transaction mode
                     if (this.Options.TransactionMode == TransactionMode.AllOrNothing)
                     {
@@ -93,6 +113,10 @@ namespace Wormhole.Sync
                     // Create the message containing everything needed to apply changes
                     var applyChanges = new MessageApplyChanges(cScopeInfoClient.Id, cScopeInfo.Id, cScopeInfoClient.IsNewScope, cScopeInfoClient.LastSyncTimestamp,
                         cScopeInfo.Schema, policy, snapshotApplied, this.Options.BatchDirectory, serverBatchInfo, failedRows, clientChangesApplied);
+
+                    // Pass per-table reinit set so apply logic can reset + insert-only for schema-evolved tables
+                    if (reinitSet.Count > 0)
+                        applyChanges.ReinitTables = reinitSet;
 
                     // call interceptor
                     var databaseChangesApplyingArgs = new DatabaseChangesApplyingArgs(context, applyChanges, connection, transaction);
@@ -283,6 +307,26 @@ namespace Wormhole.Sync
                 }
                 finally
                 {
+                    // Re-enable database-level FK constraints if we force-disabled them.
+                    // Only re-enable when the user did not request global constraint disabling,
+                    // otherwise we would override their intent.
+                    if (disabledDbLevelConstraints && !this.Options.DisableConstraintsOnApplyChanges)
+                    {
+                        try
+                        {
+                            if (connection?.State == System.Data.ConnectionState.Open)
+                            {
+                                using var pragmaOnCmd = connection.CreateCommand();
+                                pragmaOnCmd.CommandText = "PRAGMA foreign_keys = ON";
+                                await pragmaOnCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+                            }
+                        }
+                        catch
+                        {
+                            // Best-effort re-enable; connection may already be closed.
+                        }
+                    }
+
                     if (runner != null)
                         await runner.DisposeAsync().ConfigureAwait(false);
                 }

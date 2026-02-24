@@ -217,7 +217,7 @@ DMS supports **additive schema evolution** — you can add new nullable columns 
 
 1. **Server migrates** using `MigrateSchemaAsync` — records the migration, reprovisions stored procedures with CASE/COALESCE logic
 2. **Old clients keep syncing** — the server detects the additive difference and allows it; the SP preserves new column values when old clients upload partial data
-3. **Clients upgrade when ready** — add the column, set `SupportedMigrations`, and the framework auto-reprovisions on the next sync
+3. **Clients upgrade when ready** — add the column, set `SupportedMigrations`, and the framework auto-reprovisions on the next sync.
 
 ### Server-Side Migration
 
@@ -304,7 +304,7 @@ var result = await agent.SynchronizeAsync(setupV2);
 - If the server has a migration the client supports but hasn't provisioned for yet, it automatically deprovisions old triggers/SPs and reprovisions with the server's updated schema
 - The provisioned migrations are recorded in `ScopeInfoClient.SupportedMigrations` so this only happens once
 - If the server hasn't migrated yet (e.g., connecting to a different server still on V1), nothing happens — the client keeps syncing with the old schema
-- Incremental sync continues normally; new/changed rows will include the new column. To backfill existing rows, use `SyncType.Reinitialize`
+- Incremental sync continues normally; new/changed rows will include the new column. To backfill existing rows, the framework uses `SyncType.Reinitialize` for the tables, that have new columns.
 
 ### Mixed Client Scenario
 
@@ -315,6 +315,163 @@ Old and new clients can coexist. When an old client updates a row, the server's 
 | Server inserts row | "Bikes" | "All bikes" |
 | Old client (V1) updates `Name` to "Bicycles" | "Bicycles" | "All bikes" (preserved) |
 | New client (V2) syncs | "Bicycles" | "All bikes" |
+
+### Declarative Migration Configuration (IOptions-based)
+
+Instead of manually calling `MigrateSchemaAsync` and keeping your `AddSyncServer` setup in sync, you can declare all migrations during DI setup and apply them at startup. This uses the standard .NET **named options** pattern — each scope gets its own migration history.
+
+#### Basic Usage
+
+```csharp
+// In Program.cs / Startup.cs
+
+// 1. Register sync server with inline migration configuration
+services.AddSyncServer(serverProvider, migrations =>
+{
+    migrations.AddInitialMigration(setupV1);                        // baseline — always first
+    migrations.AddMigration("20260220_add_description", setupV2);   // additive change
+});
+
+// 2. At startup — apply pending migrations to the database
+await app.ApplySyncMigrationsAsync();
+```
+
+No need to pass a `SyncSetup` — the `WebServerAgent` automatically resolves the latest setup from the last configured migration.
+
+#### How It Works
+
+1. **`AddInitialMigration(setup)`** registers the baseline schema with an empty migration ID (sorts first, never needs to be sent as a `SupportedMigration` by clients)
+2. **`AddMigration(id, setup)`** registers subsequent additive changes with sortable IDs (e.g. date-prefixed)
+3. **`ApplySyncMigrationsAsync()`** at startup iterates all registered scopes and:
+   - On a **fresh database**: provisions the scope using the first migration's setup
+   - For each **pending migration**: calls `MigrateSchemaAsync` to reprovision SPs/triggers
+   - Already-applied migrations are **skipped** (idempotent)
+4. The `WebServerAgent` resolves its `SyncSetup` from the latest migration — no manual hot-swap needed
+
+#### Multiple Scopes
+
+Each scope has its own migration history, using .NET named options:
+
+```csharp
+// Configure migrations per scope
+services.Configure<SyncMigrationOptions>("SalesScope", o =>
+{
+    o.AddInitialMigration(salesSetupV1);
+    o.AddMigration("20260301_add_discount", salesSetupV2);
+});
+
+services.Configure<SyncMigrationOptions>("InventoryScope", o =>
+{
+    o.AddInitialMigration(inventorySetupV1);
+});
+
+// Register each scope (reads setup from options automatically)
+services.AddSyncServerWithMigrations(serverProvider, scopeName: "SalesScope");
+services.AddSyncServerWithMigrations(serverProvider, scopeName: "InventoryScope");
+
+await app.ApplySyncMigrationsAsync();
+```
+
+#### Multi-Tenant Deployments
+
+Apply the same migration list to multiple tenant databases using the provider override:
+
+```csharp
+// Apply migrations to the "main" database (provider from AddSyncServer)
+await app.ApplySyncMigrationsAsync();
+
+// Apply the same migration list to each tenant database
+foreach (var tenantCs in tenantConnectionStrings)
+{
+    await app.ApplySyncMigrationsAsync(new SqlSyncProvider(tenantCs));
+}
+```
+
+#### External Provisioning
+
+If you handle provisioning externally (e.g. via EF Code First migrations), set `AutoProvision = false`. The migration service will only record migration IDs without calling `ProvisionAsync`:
+
+```csharp
+services.AddSyncServer(serverProvider, migrations =>
+{
+    migrations.AutoProvision = false;
+    migrations.AddInitialMigration(setupV1);
+    migrations.AddMigration("20260220_v2", setupV2);
+});
+```
+
+#### DI-Resolved Providers
+
+For providers registered in DI (e.g. with connection strings from configuration):
+
+```csharp
+services.AddSyncServerWithMigrations<SqlSyncProvider>(migrations =>
+{
+    migrations.AddInitialMigration(setupV1);
+    migrations.AddMigration("20260220_v2", setupV2);
+});
+```
+
+#### Checking for Pending Migrations
+
+Use `HasPendingSyncMigrationsAsync` to check whether any registered scope has unapplied migrations — useful for health checks, startup gates, or admin dashboards:
+
+```csharp
+bool hasPending = await app.Services.HasPendingSyncMigrationsAsync();
+
+// Or check against a specific database (multi-tenant)
+bool tenantPending = await app.Services.HasPendingSyncMigrationsAsync(
+    new SqlSyncProvider(tenantConnectionString));
+```
+
+#### Progress Reporting
+
+`ApplySyncMigrationsAsync` accepts an optional `IProgress<(string message, int percent)>` to report migration progress — useful for splash screens, admin UIs, or structured logging:
+
+```csharp
+var progress = new Progress<(string message, int percent)>(p =>
+{
+    Console.WriteLine($"[{p.percent}%] {p.message}");
+});
+
+await app.ApplySyncMigrationsAsync(progress);
+
+// Output:
+// [0%] Applying migration 1 of 3: (initial) [scope 'DefaultScope']
+// [33%] Applying migration 2 of 3: 20260220_v2 [scope 'DefaultScope']
+// [66%] Applying migration 3 of 3: 20260301_v3 [scope 'DefaultScope']
+// [100%] Applied 3 migration(s)
+```
+
+The provider override variant also supports progress:
+
+```csharp
+foreach (var tenantCs in tenantConnectionStrings)
+{
+    await app.ApplySyncMigrationsAsync(new SqlSyncProvider(tenantCs), progress);
+}
+```
+
+#### SyncOptions via IOptions Pattern
+
+`SyncOptions` can be configured using the standard .NET options pattern. This is resolved automatically by all `AddSyncServer` overloads, `WebServerAgent`, `BatchCreationExecutor`, and the migration service:
+
+```csharp
+services.Configure<SyncOptions>(o =>
+{
+    o.ScopeInfoTableSuffix = "_v3";
+    o.UseOptimizedFlow = true;
+    o.BatchSize = 5000;
+    o.BatchDirectory = Path.Combine(storageRoot, "SyncBatchTemp");
+    o.AutoUpgrade = false;
+});
+```
+
+Resolution precedence (first non-null wins):
+1. Explicitly passed `SyncOptions` instance (e.g. `AddSyncServer(provider, setup, options: myOptions)`)
+2. Direct singleton registration (`services.AddSingleton<SyncOptions>(...)`) — backwards compatible
+3. `IOptions<SyncOptions>` pattern (`services.Configure<SyncOptions>(...)`)
+4. Default `new SyncOptions()`
 
 ## Star History
 

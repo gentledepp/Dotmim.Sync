@@ -974,14 +974,14 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.SqlServer": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Azure": {
@@ -989,7 +989,7 @@
         "dependencies": {
           "Azure.Storage.Blobs": "[12.23.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[2.2.0, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Client": {
@@ -998,7 +998,7 @@
           "Microsoft.AspNet.WebApi.Client": "[6.0.0, )",
           "Microsoft.Extensions.Features": "[6.0.0, )",
           "Microsoft.Net.Http.Headers": "[2.2.8, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Hangfire": {
@@ -1008,8 +1008,8 @@
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.Logging.Abstractions": "[9.0.9, )",
-          "Wormhole.Sync.Core": "[1.7.0, )",
-          "Wormhole.Sync.Web.Server": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )",
+          "Wormhole.Sync.Web.Server": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Server": {
@@ -1022,9 +1022,10 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[8.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.2, )",
+          "Microsoft.Extensions.Options": "[8.0.2, )",
           "System.Text.Json": "[8.0.5, )",
           "System.Threading.Channels": "[8.0.0, )",
-          "Wormhole.Sync.Web.Client": "[1.7.0, )"
+          "Wormhole.Sync.Web.Client": "[1.8.1, )"
         }
       }
     }

@@ -282,6 +282,34 @@ namespace Wormhole.Sync
                         }
                     }
 
+                    // -----------------------------------------------------
+                    // 0b) Per-table reinit for schema evolution:
+                    //     Force-disable FK constraints, then reset only the
+                    //     reinit tables. Constraints stay disabled through
+                    //     the insert and delete phases below and are
+                    //     re-enabled after both phases complete.
+                    // -----------------------------------------------------
+                    var hasReinitTables = context.SyncRole == SyncRole.Client
+                        && message.ReinitTables != null && message.ReinitTables.Count > 0;
+
+                    if (hasReinitTables)
+                    {
+                        // Force-disable FK constraints on ALL tables before reset/insert.
+                        // This is required even when DisableConstraintsOnApplyChanges is false,
+                        // because other tables may reference the reinit tables via FK.
+                        foreach (var table in schemaTables)
+                            context = await this.InternalDisableConstraintsAsync(scopeInfo, context, table, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                        // Reset only the reinit tables (in reverse dependency order)
+                        foreach (var table in reverseSchemaTables)
+                        {
+                            var tableKey = string.IsNullOrEmpty(table.SchemaName)
+                                ? table.TableName : $"{table.SchemaName}.{table.TableName}";
+                            if (message.ReinitTables.Contains(tableKey))
+                                context = await this.InternalResetTableAsync(scopeInfo, context, table, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+
                     // Trying to change order (from deletes-upserts to upserts-deletes)
                     // see https://github.com/Mimetis/Dotmim.Sync/discussions/453#discussioncomment-380530
 
@@ -308,6 +336,15 @@ namespace Wormhole.Sync
                     {
                         foreach (var table in reverseSchemaTables)
                         {
+                            // Skip deletes for reinit tables — they've been reset and re-inserted
+                            if (hasReinitTables)
+                            {
+                                var tableKey = string.IsNullOrEmpty(table.SchemaName)
+                                    ? table.TableName : $"{table.SchemaName}.{table.TableName}";
+                                if (message.ReinitTables.Contains(tableKey))
+                                    continue;
+                            }
+
                             failureException = await this.InternalApplyTableChangesAsync(scopeInfo, context, table, message, message.FailedRows.Tables[table.TableName, table.SchemaName],
                                 connection, transaction, SyncRowState.Deleted, message.ChangesApplied,
                                 progress, cancellationToken).ConfigureAwait(false);
@@ -315,6 +352,13 @@ namespace Wormhole.Sync
                             if (failureException != null)
                                 break;
                         }
+                    }
+
+                    // Re-enable FK constraints that were force-disabled for reinit tables
+                    if (hasReinitTables)
+                    {
+                        foreach (var table in schemaTables)
+                            context = await this.InternalEnableConstraintsAsync(scopeInfo, context, table, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
                     }
 
                     // Re enable check constraints
@@ -389,7 +433,12 @@ namespace Wormhole.Sync
                 return default;
 
             // what kind of command to execute
-            var init = message.IsNew || context.SyncType != SyncType.Normal;
+            var isReinitTable = message.ReinitTables != null && message.ReinitTables.Contains(
+               string.IsNullOrEmpty(schemaTable.SchemaName)
+                  ? schemaTable.TableName
+                  : $"{schemaTable.SchemaName}.{schemaTable.TableName}");
+
+            var init = message.IsNew || context.SyncType != SyncType.Normal || isReinitTable;
             var dbCommandType = applyType == SyncRowState.Deleted ? DbCommandType.DeleteRows : (init ? DbCommandType.InsertRows : DbCommandType.UpdateRows);
             var dbPreCommandType = applyType == SyncRowState.Deleted ? DbCommandType.PreDeleteRows : (init ? DbCommandType.PreInsertRows : DbCommandType.PreUpdateRows);
 

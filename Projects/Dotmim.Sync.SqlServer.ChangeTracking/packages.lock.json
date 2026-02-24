@@ -549,7 +549,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       }
     },
@@ -950,7 +950,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       }
     },
@@ -1317,7 +1317,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       }
     }

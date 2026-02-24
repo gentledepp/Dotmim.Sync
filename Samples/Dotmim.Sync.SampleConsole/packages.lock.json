@@ -721,41 +721,41 @@
         "type": "Project",
         "dependencies": {
           "MySqlConnector": "[2.3.7, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.MySql": {
         "type": "Project",
         "dependencies": {
           "MySqlConnector": "[2.3.7, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.PostgreSql": {
         "type": "Project",
         "dependencies": {
           "Npgsql": "[8.0.3, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Sqlite": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.SqlServer": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.SqlServer.ChangeTracking": {
         "type": "Project",
         "dependencies": {
-          "Wormhole.Sync.SqlServer": "[1.7.0, )"
+          "Wormhole.Sync.SqlServer": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Client": {
@@ -763,7 +763,7 @@
         "dependencies": {
           "Microsoft.Extensions.Features": "[8.0.6, )",
           "Microsoft.Net.Http.Headers": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.7.0, )"
+          "Wormhole.Sync.Core": "[1.8.1, )"
         }
       },
       "Wormhole.Sync.Web.Server": {
@@ -774,9 +774,10 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[8.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.2, )",
+          "Microsoft.Extensions.Options": "[8.0.2, )",
           "System.Text.Json": "[8.0.5, )",
           "System.Threading.Channels": "[8.0.0, )",
-          "Wormhole.Sync.Web.Client": "[1.7.0, )"
+          "Wormhole.Sync.Web.Client": "[1.8.1, )"
         }
       }
     }

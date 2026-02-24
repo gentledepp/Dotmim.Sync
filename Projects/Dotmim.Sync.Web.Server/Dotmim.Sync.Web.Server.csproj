@@ -29,6 +29,8 @@
         <!-- Required for session cache store abstraction -->
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
         <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
+        <!-- Required for IOptionsMonitor<SyncMigrationOptions> migration configuration -->
+        <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     </ItemGroup>
 
 

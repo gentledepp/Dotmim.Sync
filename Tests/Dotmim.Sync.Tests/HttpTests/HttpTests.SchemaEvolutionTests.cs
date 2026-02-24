@@ -25,7 +25,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_MigrateSchemaAsync_ShouldRecordMigrationAndReprovision()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -76,7 +76,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_OldClientSyncsWithNewServer_ShouldSucceed()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -131,7 +131,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_NewClientSyncsAfterMigration_GetsAllColumns()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -154,6 +154,10 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             // Step 3: Server inserts a row with "Attribute With Space" = "TestValue"
             var insertedId = await InsertProductCategoryWithAttributeOnServerAsync("TestValue");
 
+            // also insert two products to check for side-effects
+            await this.serverProvider.AddProductAsync(productCategoryId: insertedId);
+            await this.serverProvider.AddProductAsync(productCategoryId: insertedId);
+
             // Step 4: Hot-swap setup to V2 (no restart needed)
             this.Kestrel.UpdateSyncSetup(setupV2);
 
@@ -162,11 +166,19 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             HelperDatabase.ClearAllPools();
 
             // Step 6: Sync with setupV2 + SupportedMigrations — framework auto-reprovisions
+            // Capture ReinitTables to verify which tables are re-initialized
+            HashSet<string> capturedReinitTables = null;
             agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
             agent.SupportedMigrations = new List<string> { "mig1" };
+            agent.LocalOrchestrator.OnDatabaseChangesApplying(args =>
+            {
+                if(args.ApplyChanges.ReinitTables is {} tbl)
+                    capturedReinitTables = tbl;
+            });
+
             var result = await agent.SynchronizeAsync(setupV2);
 
-            Assert.True(result.TotalChangesDownloadedFromServer >= 1);
+            Assert.True(result.TotalChangesDownloadedFromServer == 12, "only the product categories should be re-synched");
 
             // Verify on client that "Attribute With Space" = "TestValue"
             var clientAttrValue = await ReadAttributeWithSpaceOnClientAsync(clientProvider, insertedId);
@@ -181,6 +193,17 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             // Verify server got "FromClient" for that column
             var serverAttrValue = await ReadAttributeWithSpaceOnServerAsync(clientInsertedId);
             Assert.Equal("FromClient", serverAttrValue?.ToString());
+
+            // Assert: ReinitTables contains ProductCategory but NOT Product
+            Assert.NotNull(capturedReinitTables);
+
+            var pcFullName = GetProductCategoryFullName();
+            Assert.True(capturedReinitTables.Contains(pcFullName),
+                $"Expected ReinitTables to contain '{pcFullName}', but it contained: [{string.Join(", ", capturedReinitTables)}]");
+
+            var productFullName = GetProductFullName();
+            Assert.False(capturedReinitTables.Contains(productFullName),
+                $"Expected ReinitTables NOT to contain '{productFullName}', but it did");
         }
 
         // -----------------------------------------------------------------------
@@ -190,7 +213,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_OldClientUpgradesToNewSchema_ShouldWork()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -243,7 +266,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_BidirectionalWithMixedClients_PreservesNewColumnValues()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -322,7 +345,7 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         [Fact]
         public virtual async Task SchemaEvolution_NewClientSyncsWithOldServer_ThenServerMigrates_ShouldAutoReinitialize()
         {
-            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
             var setupV1 = CreateSchemaEvolutionSetupV1();
             var setupV2 = CreateSchemaEvolutionSetupV2();
 
@@ -386,6 +409,101 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             // (verified implicitly: we didn't set SyncType.Reinitialize and the sync completed normally)
         }
 
+        // -----------------------------------------------------------------------
+        // Test 7: Crashed migration sync persists ReinitTables for next sync
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public virtual async Task SchemaEvolution_CrashedMigrationSync_ReinitTablesPersistedForNextSync()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+
+            // V1: ProductCategory (basic columns) + Product (basic columns)
+            // V2: ProductCategory (+ "Attribute With Space") + Product (unchanged)
+            var setupV1 = CreateSchemaEvolutionWithProductSetupV1();
+            var setupV2 = CreateSchemaEvolutionWithProductSetupV2();
+
+            // Step 1: Initial HTTP sync with setupV1 (both tables)
+            await this.Kestrel.StopAsync();
+            this.AddSyncServer(this.serverProvider, setupV1, options);
+            var uri = this.Kestrel.Run();
+
+            var clients = this.clientsProvider.ToList();
+            var clientProvider = clients.First();
+
+            var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
+            var r = await agent.SynchronizeAsync(setupV1);
+            Assert.True(r.TotalChangesDownloadedFromServer > 0);
+
+            // Step 2: Server-side migration (only ProductCategory gets new column)
+            var remoteOrchestrator = new RemoteOrchestrator(this.serverProvider);
+            await remoteOrchestrator.MigrateSchemaAsync("mig1", setupV2);
+
+            // Step 3: Server inserts data in both tables
+            var insertedPcId = await InsertProductCategoryWithAttributeOnServerAsync("CrashTestValue");
+            await this.serverProvider.AddProductAsync(productCategoryId: insertedPcId);
+
+            // Step 4: Hot-swap setup to V2
+            this.Kestrel.UpdateSyncSetup(setupV2);
+
+            // Step 5: Client upgrades: add column to ProductCategory
+            await AlterClientTableAddAttributeColumnAsync(clientProvider);
+            HelperDatabase.ClearAllPools();
+
+            // Step 6: First sync attempt — use interceptor to CRASH during apply
+            agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
+            agent.SupportedMigrations = new List<string> { "mig1" };
+
+            agent.LocalOrchestrator.OnDatabaseChangesApplying(args =>
+            {
+                throw new Exception("Simulated crash during apply changes");
+            });
+
+            var crashed = false;
+            try
+            {
+                await agent.SynchronizeAsync(setupV2);
+            }
+            catch (Exception)
+            {
+                crashed = true;
+            }
+            Assert.True(crashed, "First sync should have crashed");
+
+            // Step 7: Second sync with a NEW agent — should succeed
+            // Capture ReinitTables to verify which tables are re-initialized
+            HashSet<string> capturedReinitTables = null;
+
+            agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
+            agent.SupportedMigrations = new List<string> { "mig1" };
+
+            agent.LocalOrchestrator.OnDatabaseChangesApplying(args =>
+            {
+                capturedReinitTables = args.ApplyChanges.ReinitTables;
+            });
+
+            var result = await agent.SynchronizeAsync(setupV2);
+
+            // Assert: sync succeeded
+            Assert.NotNull(result);
+
+            // Assert: ReinitTables contains ProductCategory but NOT Product
+            Assert.NotNull(capturedReinitTables);
+
+            var pcFullName = GetProductCategoryFullName();
+            Assert.True(capturedReinitTables.Contains(pcFullName),
+               $"Expected ReinitTables to contain '{pcFullName}', but it contained: [{string.Join(", ", capturedReinitTables)}]");
+
+            var productFullName = GetProductFullName();
+            Assert.False(capturedReinitTables.Contains(productFullName),
+               $"Expected ReinitTables NOT to contain '{productFullName}', but it did");
+
+            // Verify on client that "Attribute With Space" = "CrashTestValue"
+            // (confirms ProductCategory was re-initialized with fresh server data)
+            var clientAttrValue = await ReadAttributeWithSpaceOnClientAsync(clientProvider, insertedPcId);
+            Assert.Equal("CrashTestValue", clientAttrValue?.ToString());
+        }
+
         /// <summary>
         /// Helper: setupV1 for ProductCategory without "Attribute With Space".
         /// </summary>
@@ -415,12 +533,53 @@ namespace Wormhole.Sync.Tests.IntegrationTests
         }
 
         /// <summary>
+        /// Helper: setupV1 for ProductCategory + Product without "Attribute With Space".
+        /// </summary>
+        private SyncSetup CreateSchemaEvolutionWithProductSetupV1()
+        {
+            var salesSchema = this.serverProvider.UseFallbackSchema() ? "SalesLT" : null;
+            var salesSchemaWithDot = string.IsNullOrEmpty(salesSchema) ? string.Empty : $"{salesSchema}.";
+            var pcTable = $"{salesSchemaWithDot}ProductCategory";
+            var prodTable = $"{salesSchemaWithDot}Product";
+
+            var s = new SyncSetup(pcTable, prodTable);
+            s.Tables[pcTable].Columns.AddRange("ProductCategoryId", "Name", "rowguid", "ModifiedDate");
+            s.Tables[prodTable].Columns.AddRange("ProductId", "Name", "ProductNumber", "ProductCategoryId", "rowguid", "ModifiedDate");
+            return s;
+        }
+
+        /// <summary>
+        /// Helper: setupV2 for ProductCategory (+ "Attribute With Space") + Product (unchanged).
+        /// </summary>
+        private SyncSetup CreateSchemaEvolutionWithProductSetupV2()
+        {
+            var salesSchema = this.serverProvider.UseFallbackSchema() ? "SalesLT" : null;
+            var salesSchemaWithDot = string.IsNullOrEmpty(salesSchema) ? string.Empty : $"{salesSchema}.";
+            var pcTable = $"{salesSchemaWithDot}ProductCategory";
+            var prodTable = $"{salesSchemaWithDot}Product";
+
+            var s = new SyncSetup(pcTable, prodTable);
+            s.Tables[pcTable].Columns.AddRange("ProductCategoryId", "Name", "rowguid", "ModifiedDate", "Attribute With Space");
+            s.Tables[prodTable].Columns.AddRange("ProductId", "Name", "ProductNumber", "ProductCategoryId", "rowguid", "ModifiedDate");
+            return s;
+        }
+
+        /// <summary>
         /// Helper: full table name for ProductCategory (with schema if applicable).
         /// </summary>
         private string GetProductCategoryFullName()
         {
             var salesSchema = this.serverProvider.UseFallbackSchema() ? "SalesLT" : null;
             return string.IsNullOrEmpty(salesSchema) ? "ProductCategory" : $"{salesSchema}.ProductCategory";
+        }
+
+        /// <summary>
+        /// Helper: full table name for Product (with schema if applicable).
+        /// </summary>
+        private string GetProductFullName()
+        {
+            var salesSchema = this.serverProvider.UseFallbackSchema() ? "SalesLT" : null;
+            return string.IsNullOrEmpty(salesSchema) ? "Product" : $"{salesSchema}.Product";
         }
 
         /// <summary>
