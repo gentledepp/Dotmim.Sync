@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Wormhole.Sync;
 using Wormhole.Sync.Async;
 using Wormhole.Sync.Web.Client;
@@ -51,7 +52,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(connectionString));
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -68,7 +69,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 var setupStore = sp.GetRequiredService<SyncSetupStore>();
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
-                return new WebServerAgent(provider, currentSetup, options, webServerOptions, scopeName, identifier);
+                return new WebServerAgent(provider, currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier);
             });
 
             return serviceCollection;
@@ -104,7 +105,7 @@ namespace Microsoft.Extensions.DependencyInjection
             Guard.ThrowIfNull(provider);
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -128,7 +129,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 // Register batch creation executor
                 serviceCollection.TryAddTransient<IBatchCreationExecutor>(sp =>
                     new BatchCreationExecutor(
-                        options ?? sp.GetRequiredService<SyncOptions>(),
+                        ResolveSyncOptions(sp, options),
                         provider,
                         sp.GetRequiredService<IBatchStorage>(),
                         sp.GetRequiredService<ILogger<BatchCreationExecutor>>()));
@@ -157,7 +158,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    provider, currentSetup, options, webServerOptions, scopeName, identifier,
+                    provider, currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                     sp.GetService<IBatchStorage>(),
@@ -184,7 +185,7 @@ namespace Microsoft.Extensions.DependencyInjection
             where TCoreProvider : CoreProvider
         {
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -209,7 +210,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 // Register batch creation executor
                 serviceCollection.TryAddTransient<IBatchCreationExecutor>(sp =>
                     new BatchCreationExecutor(
-                        options ?? sp.GetRequiredService<SyncOptions>(),
+                        ResolveSyncOptions(sp, options),
                         sp.GetRequiredService<TCoreProvider>(),
                         sp.GetRequiredService<IBatchStorage>(),
                         sp.GetRequiredService<ILogger<BatchCreationExecutor>>()));
@@ -238,7 +239,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    sp.GetRequiredService<TCoreProvider>(), currentSetup, options, webServerOptions, scopeName, identifier,
+                    sp.GetRequiredService<TCoreProvider>(), currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                     sp.GetService<IBatchStorage>(),
@@ -270,7 +271,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(providerKey));
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -295,7 +296,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 // Register batch creation executor
                 serviceCollection.TryAddTransient<IBatchCreationExecutor>(sp =>
                     new BatchCreationExecutor(
-                        options ?? sp.GetRequiredService<SyncOptions>(),
+                        ResolveSyncOptions(sp, options),
                         sp.GetRequiredService<TCoreProvider>(),
                         sp.GetRequiredService<IBatchStorage>(),
                         sp.GetRequiredService<ILogger<BatchCreationExecutor>>()));
@@ -324,7 +325,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    sp.GetRequiredKeyedService<TCoreProvider>(providerKey), currentSetup, options, webServerOptions, scopeName, identifier,
+                    sp.GetRequiredKeyedService<TCoreProvider>(providerKey), currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
                     sp.GetService<IBatchStorage>(),
@@ -376,7 +377,7 @@ namespace Microsoft.Extensions.DependencyInjection
             Guard.ThrowIfNull(provider);
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -404,7 +405,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    provider, currentSetup, options, webServerOptions, scopeName, identifier,
+                    provider, currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     sp.GetRequiredService<IBatchCreationJobService>(),
                     sp.GetService<IBatchStorage>(),
@@ -438,7 +439,7 @@ namespace Microsoft.Extensions.DependencyInjection
             where TJobService : class, IBatchCreationJobService
         {
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -470,7 +471,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    sp.GetRequiredService<TCoreProvider>(), currentSetup, options, webServerOptions, scopeName, identifier,
+                    sp.GetRequiredService<TCoreProvider>(), currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     sp.GetRequiredService<IBatchCreationJobService>(),
                     sp.GetService<IBatchStorage>(),
@@ -515,7 +516,7 @@ namespace Microsoft.Extensions.DependencyInjection
             Guard.ThrowIfNull(provider);
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -546,7 +547,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    provider, currentSetup, options, webServerOptions, scopeName, identifier,
+                    provider, currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     sp.GetRequiredService<IBatchCreationJobService>(),
                     sp.GetService<IBatchStorage>(),
@@ -600,7 +601,7 @@ namespace Microsoft.Extensions.DependencyInjection
             Guard.ThrowIfNull(provider);
 
             webServerOptions ??= new WebServerOptions();
-            options ??= new SyncOptions();
+
             setup = setup ?? throw new ArgumentNullException(nameof(setup));
             scopeName ??= SyncOptions.DefaultScopeName;
 
@@ -631,7 +632,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 setupStore.Register(scopeName, identifier, setup);
                 var currentSetup = setupStore.Resolve(scopeName, identifier);
                 return new WebServerAgent(
-                    provider, currentSetup, options, webServerOptions, scopeName, identifier,
+                    provider, currentSetup, ResolveSyncOptions(sp, options), webServerOptions, scopeName, identifier,
                     sp.GetRequiredService<IBatchCleanupService>(),
                     sp.GetRequiredService<IBatchCreationJobService>(),
                     sp.GetService<IBatchStorage>(),
@@ -640,6 +641,388 @@ namespace Microsoft.Extensions.DependencyInjection
             });
 
             return serviceCollection;
+        }
+
+        // -----------------------------------------------------------------------
+        // Migration-based overloads (no SyncSetup parameter — reads from IOptionsMonitor)
+        // -----------------------------------------------------------------------
+
+        /// <summary>
+        /// Add the server provider and register a WebServerAgent that resolves its SyncSetup
+        /// from <see cref="SyncMigrationOptions"/> configured via named options.
+        /// Migrations are applied at startup via <see cref="ApplySyncMigrationsAsync(IServiceProvider, CancellationToken)"/>.
+        /// </summary>
+        /// <param name="serviceCollection">Services collection.</param>
+        /// <param name="provider">Provider inherited from CoreProvider.</param>
+        /// <param name="configureMigrations">Action to configure migrations inline.</param>
+        /// <param name="options">Options, not shared with client.</param>
+        /// <param name="webServerOptions">Specific web server options.</param>
+        /// <param name="scopeName">Scope name.</param>
+        /// <param name="identifier">Optional identifier for multi-provider scenarios.</param>
+        public static IServiceCollection AddSyncServer(this IServiceCollection serviceCollection, CoreProvider provider,
+                                                        Action<SyncMigrationOptions> configureMigrations,
+                                                        SyncOptions options = null,
+                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+        {
+            Guard.ThrowIfNull(provider);
+            Guard.ThrowIfNull(configureMigrations);
+
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            // Register migration configuration for this scope
+            serviceCollection.Configure<SyncMigrationOptions>(scopeName, configureMigrations);
+
+            return serviceCollection.AddSyncServerWithMigrations(provider, options, webServerOptions, scopeName, identifier);
+        }
+
+        /// <summary>
+        /// Add the server provider and register a WebServerAgent that resolves its SyncSetup
+        /// from <see cref="SyncMigrationOptions"/> configured via named options.
+        /// Configure migrations separately via <c>services.Configure&lt;SyncMigrationOptions&gt;(scopeName, ...)</c>.
+        /// Migrations are applied at startup via <see cref="ApplySyncMigrationsAsync(IServiceProvider, CancellationToken)"/>.
+        /// </summary>
+        /// <param name="serviceCollection">Services collection.</param>
+        /// <param name="provider">Provider inherited from CoreProvider.</param>
+        /// <param name="options">Options, not shared with client.</param>
+        /// <param name="webServerOptions">Specific web server options.</param>
+        /// <param name="scopeName">Scope name.</param>
+        /// <param name="identifier">Optional identifier for multi-provider scenarios.</param>
+        public static IServiceCollection AddSyncServerWithMigrations(this IServiceCollection serviceCollection, CoreProvider provider,
+                                                        SyncOptions options = null,
+                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+        {
+            Guard.ThrowIfNull(provider);
+
+            webServerOptions ??= new WebServerOptions();
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
+
+            serviceCollection.AddTransient<ISessionCacheStore, AspNetSessionCacheStore>();
+
+            // Register session cache store based on configuration
+            RegisterSessionCacheStore(serviceCollection, webServerOptions);
+
+            // Register async batch creation services if enabled
+            if (webServerOptions.EnableAsyncBatchCreation)
+            {
+                serviceCollection.AddSingleton<InMemoryBatchJobStore>();
+                serviceCollection.AddSingleton<IBatchJobStore>(s => s.GetRequiredService<InMemoryBatchJobStore>());
+                serviceCollection.TryAddTransient<IBatchStorage, LocalFileSystemBatchStorage>();
+                serviceCollection.AddSingleton<DefaultBatchCreationJobService>();
+                serviceCollection.AddSingleton<IBatchCreationJobService>(sp =>
+                    sp.GetRequiredService<DefaultBatchCreationJobService>());
+
+                // Register batch creation executor
+                serviceCollection.TryAddTransient<IBatchCreationExecutor>(sp =>
+                    new BatchCreationExecutor(
+                        ResolveSyncOptions(sp, options),
+                        provider,
+                        sp.GetRequiredService<IBatchStorage>(),
+                        sp.GetRequiredService<ILogger<BatchCreationExecutor>>()));
+
+#if !NET48
+                serviceCollection.AddSingleton<IHostedService>(sp =>
+                    new BatchCreationWorkerService(
+                        sp.GetRequiredService<DefaultBatchCreationJobService>(),
+                        sp.GetRequiredService<IBatchCreationExecutor>(),
+                        sp.GetRequiredService<ILogger<BatchCreationWorkerService>>(),
+                        webServerOptions.AsyncBatchWorkerCount));
+#endif
+            }
+
+            // Register setup store for hot-swap support
+            serviceCollection.TryAddSingleton<SyncSetupStore>();
+
+            // Register the scope registration marker for migration discovery
+            serviceCollection.AddSingleton(new SyncScopeRegistration(scopeName, identifier, _ => provider,
+               sp => ResolveSyncOptions(sp, options)));
+
+            // Register migration infrastructure (idempotent via TryAdd)
+            serviceCollection.TryAddSingleton<SyncMigrationService>();
+
+            // Add Options infrastructure
+            serviceCollection.AddOptions();
+
+            // Create orchestrator — resolves current setup from store,
+            // falling back to options if store not yet populated
+            var capturedScopeName = scopeName;
+            var capturedIdentifier = identifier;
+            serviceCollection.AddScoped(sp =>
+            {
+                var setupStore = sp.GetRequiredService<SyncSetupStore>();
+                var currentSetup = setupStore.Resolve(capturedScopeName, capturedIdentifier);
+
+                // Fallback: read from options if store not yet populated
+                // (e.g., before ApplySyncMigrationsAsync runs, or if it was skipped)
+                if (currentSetup == null)
+                {
+                    var opts = sp.GetRequiredService<IOptionsMonitor<SyncMigrationOptions>>();
+                    currentSetup = opts.Get(capturedScopeName).CurrentSetup;
+                    if (currentSetup != null)
+                        setupStore.Register(capturedScopeName, capturedIdentifier, currentSetup);
+                }
+
+                if (currentSetup == null)
+                    throw new InvalidOperationException(
+                        $"No SyncSetup found for scope '{capturedScopeName}'. " +
+                        "Either configure migrations via SyncMigrationOptions or call ApplySyncMigrationsAsync at startup.");
+
+                return new WebServerAgent(
+                    provider, currentSetup,
+                    ResolveSyncOptions(sp, options), 
+                    webServerOptions, 
+                    capturedScopeName, 
+                    capturedIdentifier,
+                    sp.GetRequiredService<IBatchCleanupService>(),
+                    webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
+                    sp.GetService<IBatchStorage>(),
+                    sp.GetService<ISessionCacheStore>(),
+                    sp.GetService<IErrorHandler>());
+            });
+
+            return serviceCollection;
+        }
+
+        /// <summary>
+        /// Add the server provider (generic, DI-resolved) with migration-based configuration.
+        /// </summary>
+        public static IServiceCollection AddSyncServerWithMigrations<TCoreProvider>(this IServiceCollection serviceCollection,
+                                                        Action<SyncMigrationOptions> configureMigrations,
+                                                        SyncOptions options = null,
+                                                        WebServerOptions webServerOptions = null, string scopeName = null, string identifier = null)
+            where TCoreProvider : CoreProvider
+        {
+            Guard.ThrowIfNull(configureMigrations);
+
+            webServerOptions ??= new WebServerOptions();
+            scopeName ??= SyncOptions.DefaultScopeName;
+
+            // Register migration configuration for this scope
+            serviceCollection.Configure<SyncMigrationOptions>(scopeName, configureMigrations);
+
+            var isRegistered = serviceCollection.Any(descriptor => descriptor.ServiceType == typeof(TCoreProvider));
+            if (!isRegistered)
+                serviceCollection.AddScoped<TCoreProvider>();
+
+            serviceCollection.AddSingleton<IBatchCleanupService, BatchCleanupService>();
+
+            // Register session cache store based on configuration
+            RegisterSessionCacheStore(serviceCollection, webServerOptions);
+
+            // Register async batch creation services if enabled
+            if (webServerOptions.EnableAsyncBatchCreation)
+            {
+                serviceCollection.AddSingleton<InMemoryBatchJobStore>();
+                serviceCollection.TryAddTransient<IBatchStorage, LocalFileSystemBatchStorage>();
+                serviceCollection.AddSingleton<DefaultBatchCreationJobService>();
+                serviceCollection.AddSingleton<IBatchCreationJobService>(sp =>
+                    sp.GetRequiredService<DefaultBatchCreationJobService>());
+
+                serviceCollection.TryAddTransient<IBatchCreationExecutor>(sp =>
+                    new BatchCreationExecutor(
+                        ResolveSyncOptions(sp, options),
+                        sp.GetRequiredService<TCoreProvider>(),
+                        sp.GetRequiredService<IBatchStorage>(),
+                        sp.GetRequiredService<ILogger<BatchCreationExecutor>>()));
+
+#if !NET48
+                serviceCollection.AddSingleton<IHostedService>(sp =>
+                    new BatchCreationWorkerService(
+                        sp.GetRequiredService<DefaultBatchCreationJobService>(),
+                        sp.GetRequiredService<IBatchCreationExecutor>(),
+                        sp.GetRequiredService<ILogger<BatchCreationWorkerService>>(),
+                        webServerOptions.AsyncBatchWorkerCount));
+#endif
+            }
+
+            // Register setup store for hot-swap support
+            serviceCollection.TryAddSingleton<SyncSetupStore>();
+
+            // Register scope registration marker (factory-based for DI-resolved providers)
+            serviceCollection.AddSingleton(new SyncScopeRegistration(scopeName, identifier,
+                sp => sp.GetRequiredService<TCoreProvider>(),
+                sp => ResolveSyncOptions(sp, options)));
+
+            // Register migration infrastructure
+            serviceCollection.TryAddSingleton<SyncMigrationService>();
+            serviceCollection.AddOptions();
+
+            var capturedScopeName = scopeName;
+            var capturedIdentifier = identifier;
+            serviceCollection.AddScoped(sp =>
+            {
+                var setupStore = sp.GetRequiredService<SyncSetupStore>();
+                var currentSetup = setupStore.Resolve(capturedScopeName, capturedIdentifier);
+
+                if (currentSetup == null)
+                {
+                    var opts = sp.GetRequiredService<IOptionsMonitor<SyncMigrationOptions>>();
+                    currentSetup = opts.Get(capturedScopeName).CurrentSetup;
+                    if (currentSetup != null)
+                        setupStore.Register(capturedScopeName, capturedIdentifier, currentSetup);
+                }
+
+                if (currentSetup == null)
+                    throw new InvalidOperationException(
+                        $"No SyncSetup found for scope '{capturedScopeName}'. " +
+                        "Either configure migrations via SyncMigrationOptions or call ApplySyncMigrationsAsync at startup.");
+
+                return new WebServerAgent(
+                    sp.GetRequiredService<TCoreProvider>(), 
+                    currentSetup,
+                    ResolveSyncOptions(sp, options),
+                    webServerOptions, capturedScopeName, capturedIdentifier,
+                    sp.GetRequiredService<IBatchCleanupService>(),
+                    webServerOptions.EnableAsyncBatchCreation ? sp.GetService<IBatchCreationJobService>() : null,
+                    sp.GetService<IBatchStorage>(),
+                    sp.GetService<ISessionCacheStore>(),
+                    sp.GetService<IErrorHandler>());
+            });
+
+            return serviceCollection;
+        }
+
+        // -----------------------------------------------------------------------
+        // HasPendingSyncMigrationsAsync extension methods
+        // -----------------------------------------------------------------------
+
+#if !NET48
+        /// <summary>
+        /// Check whether any registered scope has pending migrations using the registered providers.
+        /// </summary>
+        public static Task<bool> HasPendingSyncMigrationsAsync(this IHost host, CancellationToken cancellationToken = default)
+            => host.Services.HasPendingSyncMigrationsAsync(cancellationToken);
+
+        /// <summary>
+        /// Check whether any registered scope has pending migrations against an explicit provider (multi-tenant).
+        /// </summary>
+        public static Task<bool> HasPendingSyncMigrationsAsync(this IHost host, CoreProvider provider, CancellationToken cancellationToken = default)
+            => host.Services.HasPendingSyncMigrationsAsync(provider, cancellationToken);
+#endif
+
+        /// <summary>
+        /// Check whether any registered scope has pending migrations using the registered providers.
+        /// </summary>
+        public static async Task<bool> HasPendingSyncMigrationsAsync(this IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+        {
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+                return false;
+
+            return await migrationService.HasPendingAsync(serviceProvider, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Check whether any registered scope has pending migrations against an explicit provider (multi-tenant).
+        /// </summary>
+        public static async Task<bool> HasPendingSyncMigrationsAsync(this IServiceProvider serviceProvider, CoreProvider provider, CancellationToken cancellationToken = default)
+        {
+            Guard.ThrowIfNull(provider);
+
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+                return false;
+
+            return await migrationService.HasPendingAsync(serviceProvider, provider, cancellationToken).ConfigureAwait(false);
+        }
+
+        // -----------------------------------------------------------------------
+        // ApplySyncMigrationsAsync extension methods
+        // -----------------------------------------------------------------------
+
+#if !NET48
+        /// <summary>
+        /// Apply pending schema migrations using the providers registered with AddSyncServer.
+        /// Call this at application startup before handling requests.
+        /// </summary>
+        public static Task ApplySyncMigrationsAsync(this IHost host, CancellationToken cancellationToken = default)
+            => host.Services.ApplySyncMigrationsAsync(cancellationToken);
+
+        /// <summary>
+        /// Apply pending schema migrations using an explicit provider (multi-tenant scenario).
+        /// The migration list comes from <see cref="SyncMigrationOptions"/>, but targets a different database.
+        /// </summary>
+        public static Task ApplySyncMigrationsAsync(this IHost host, CoreProvider provider, CancellationToken cancellationToken = default)
+            => host.Services.ApplySyncMigrationsAsync(provider, cancellationToken);
+
+        /// <summary>
+        /// Apply pending schema migrations using an explicit provider with progress reporting.
+        /// </summary>
+        public static Task ApplySyncMigrationsAsync(this IHost host, CoreProvider provider,
+            IProgress<(string message, int percent)> progress, CancellationToken cancellationToken = default)
+            => host.Services.ApplySyncMigrationsAsync(provider, progress, cancellationToken);
+
+        /// <summary>
+        /// Apply pending schema migrations using the registered providers with progress reporting.
+        /// </summary>
+        public static Task ApplySyncMigrationsAsync(this IHost host,
+            IProgress<(string message, int percent)> progress, CancellationToken cancellationToken = default)
+            => host.Services.ApplySyncMigrationsAsync(progress, cancellationToken);
+#endif
+
+        /// <summary>
+        /// Apply pending schema migrations using the providers registered with AddSyncServer.
+        /// Works on all target frameworks.
+        /// </summary>
+        public static async Task ApplySyncMigrationsAsync(this IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+        {
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+                return; // No migration-based scopes registered — no-op
+
+            await migrationService.ApplyAsync(serviceProvider, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Apply pending schema migrations using an explicit provider (multi-tenant scenario).
+        /// The migration list comes from <see cref="SyncMigrationOptions"/>, but targets a different database.
+        /// </summary>
+        public static async Task ApplySyncMigrationsAsync(this IServiceProvider serviceProvider, CoreProvider provider, CancellationToken cancellationToken = default)
+        {
+            Guard.ThrowIfNull(provider);
+
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+                return;
+
+            await migrationService.ApplyAsync(serviceProvider, provider, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Apply pending schema migrations using the registered providers with progress reporting.
+        /// Reports progress as <c>(string message, int percent)</c> — e.g. ("Applying migration 1 of 3: 20260220_v2 [scope 'DefaultScope']", 33).
+        /// </summary>
+        public static async Task ApplySyncMigrationsAsync(this IServiceProvider serviceProvider,
+            IProgress<(string message, int percent)> progress, CancellationToken cancellationToken = default)
+        {
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+            {
+                progress?.Report(("No pending migrations", 100));
+                return;
+            }
+
+            await migrationService.ApplyAsync(serviceProvider, null, progress, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Apply pending schema migrations using an explicit provider with progress reporting.
+        /// Reports progress as <c>(string message, int percent)</c> — e.g. ("Applying migration 1 of 3: 20260220_v2 [scope 'DefaultScope']", 33).
+        /// </summary>
+        public static async Task ApplySyncMigrationsAsync(this IServiceProvider serviceProvider, CoreProvider provider,
+            IProgress<(string message, int percent)> progress, CancellationToken cancellationToken = default)
+        {
+            Guard.ThrowIfNull(provider);
+
+            var migrationService = serviceProvider.GetService<SyncMigrationService>();
+            if (migrationService == null)
+            {
+                progress?.Report(("No pending migrations", 100));
+                return;
+            }
+
+            await migrationService.ApplyAsync(serviceProvider, provider, progress, cancellationToken).ConfigureAwait(false);
         }
 
 #if !NET48
@@ -680,6 +1063,31 @@ namespace Microsoft.Extensions.DependencyInjection
         /// Get the identifier that can be used in multi sync providers.
         /// </summary>
         public static string GetIdentifier(this HttpContext httpContext) => WebServerAgent.TryGetHeaderValue(httpContext.Request.Headers, "dotmim-sync-identifier", out var val) ? val : null;
+
+        /// <summary>
+        /// Resolve SyncOptions using the following precedence:
+        /// 1. Explicitly passed instance (if not null)
+        /// 2. Direct singleton registration (backwards compatibility with services.AddSingleton&lt;SyncOptions&gt;)
+        /// 3. IOptions&lt;SyncOptions&gt; pattern (services.Configure&lt;SyncOptions&gt;)
+        /// 4. Default SyncOptions
+        /// </summary>
+        internal static SyncOptions ResolveSyncOptions(IServiceProvider sp, SyncOptions explicitOptions)
+        {
+            if (explicitOptions != null)
+                return explicitOptions;
+
+            // Try direct singleton registration (backwards compat)
+            var direct = sp.GetService<SyncOptions>();
+            if (direct != null)
+                return direct;
+
+            // Try IOptions<SyncOptions> pattern
+            var ioptions = sp.GetService<IOptions<SyncOptions>>();
+            if (ioptions != null)
+                return ioptions.Value;
+
+            return new SyncOptions();
+        }
 
         /// <summary>
         /// Register session cache store based on configuration.

@@ -1,6 +1,7 @@
 ﻿using Wormhole.Sync.Batch;
 using Wormhole.Sync.Enumerations;
 using System;
+using System.Collections.Generic;
 
 namespace Wormhole.Sync
 {
@@ -86,5 +87,11 @@ namespace Wormhole.Sync
         /// Gets or sets the batch directory.
         /// </summary>
         public string BatchDirectory { get; set; }
+
+        /// <summary>
+        /// Gets or sets the set of table names (e.g. "Customer" or "hr.Employee")
+        /// that require full re-initialization (reset + insert-only, skip deletes).
+        /// </summary>
+        public HashSet<string> ReinitTables { get; set; }
     }
 }
