@@ -1751,7 +1751,7 @@ namespace Wormhole.Sync.Web.Server
             }
 
             // Perform cleanup logic for both protocols
-            var batchPartInfo = sessionCache.ServerBatchInfo.BatchPartsInfo.FirstOrDefault(d => d.Index == httpMessage.BatchIndexRequested);
+            var batchPartInfo = sessionCache.ServerBatchInfo?.BatchPartsInfo?.FirstOrDefault(d => d.Index == httpMessage.BatchIndexRequested);
 
             // we can try to clean if batchinfo is empty or if we found the last one AND we have the option.
             var cleanFolder = (batchPartInfo == null || batchPartInfo.IsLastBatch) && this.Options.CleanFolder;
