@@ -16,11 +16,13 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.2.0</Version>
+        <Version>1.8.3.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.3.0
+            - when a supported sync migration was configured before the local sqlite db was ever synchronized, the comparison caused a NRE
 	        # 1.8.2.0
 	        - fixed NullReferenceException in WebServerAgent
 			# 1.8.1.0
