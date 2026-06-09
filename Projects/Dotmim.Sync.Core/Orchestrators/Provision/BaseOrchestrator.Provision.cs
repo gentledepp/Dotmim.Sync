@@ -243,7 +243,7 @@ namespace Wormhole.Sync
                         else
                         {
                             schemaTables = [];
-                            foreach (var setupTable in scopeInfo.Setup.Tables)
+                            foreach (var setupTable in scopeInfo.Setup?.Tables ?? Enumerable.Empty<SetupTable>())
                                 schemaTables.Add(new SyncTable(setupTable.TableName, setupTable.SchemaName));
                         }
                     }

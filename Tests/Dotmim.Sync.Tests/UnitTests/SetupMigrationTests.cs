@@ -1329,5 +1329,35 @@ namespace Wormhole.Sync.Tests.UnitTests
             Assert.True(productTable.ShouldMigrate);
          }
       }
+
+      // =====================================================================
+      // Migration contract — Compare requires a non-null old Setup.
+      // Callers (e.g. SyncAgent on a first-ever sync) must guard before invoking.
+      // =====================================================================
+
+      [Fact]
+      public void Compare_OldScopeSetupNull_ShouldThrow()
+      {
+         var oldScope = MakeScopeInfo("scope", null);
+         var newScope = MakeScopeInfo("scope", new SyncSetup("Product"));
+
+         var migration = new Migration(oldScope, newScope);
+
+         var ex = Assert.Throws<InvalidOperationException>(() => migration.Compare());
+         Assert.Contains("non-null Setup", ex.Message);
+      }
+
+      [Fact]
+      public void Compare_OldScopeNull_ShouldThrow()
+      {
+         var newScope = MakeScopeInfo("scope", new SyncSetup("Product"));
+
+         var migration = new Migration(null, newScope);
+
+         // The guard at the top of Compare evaluates oldScopeInfo?.Setup == null,
+         // which is true when oldScopeInfo itself is null — so we get the same
+         // contract-violation error rather than an NRE.
+         Assert.Throws<InvalidOperationException>(() => migration.Compare());
+      }
    }
 }

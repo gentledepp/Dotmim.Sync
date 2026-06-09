@@ -322,16 +322,21 @@ namespace Wormhole.Sync
                         {
                             // Determine which tables have schema changes and need re-downloading
                             // IMPORTANT: Do that BEFORE re-provisioning the client, since otherwise
-                            // the cScopeInfo will already have the same schema as the server
-                            var migration = new Migration(cScopeInfo, sScopeInfo);
-                            var migrationResult = migration.Compare();
-                            var changedTables = migrationResult.GetTablesWithSchemaChanges();
+                            // the cScopeInfo will already have the same schema as the server.
+                            // A never-synced client (no prior Setup) has nothing to diff against —
+                            // the normal initialization path will fetch the full server schema.
+                            if (cScopeInfo?.Setup != null)
+                            {
+                                var migration = new Migration(cScopeInfo, sScopeInfo);
+                                var migrationResult = migration.Compare();
+                                var changedTables = migrationResult.GetTablesWithSchemaChanges();
+
+                                if (changedTables.Count > 0)
+                                    cScopeInfoClient.SetReinitTables(changedTables);
+                            }
 
                             // Record which migrations are now provisioned so we don't repeat
                             cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
-
-                            if (changedTables.Count > 0)
-                                cScopeInfoClient.SetReinitTables(changedTables);
 
                             // Persist reinit state immediately so it survives crashes.
                             // If the sync crashes after reprovisioning but before completion,
