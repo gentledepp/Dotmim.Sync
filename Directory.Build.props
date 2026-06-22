@@ -21,7 +21,7 @@
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
-            # 1.8.4.0
+            # 1.8.4.0 
             - added DeleteMetadata interceptor that allows to retain metadata rows of child tables to avoid sqlite foreign key constraint errors because the parent row is deleted but the child row is not
 			# 1.8.3.0
             - when a supported sync migration was configured before the local sqlite db was ever synchronized, the comparison caused a NRE
