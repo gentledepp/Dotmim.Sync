@@ -169,6 +169,22 @@ namespace Wormhole.Sync.Web.Server
         public RemoteOrchestrator RemoteOrchestrator { get; private set; }
 
         /// <summary>
+        /// Delete all metadatas from tracking tables, based on min timestamp from scope info client table.
+        /// Passes this agent's live <see cref="Setup"/> so runtime-only interceptors (e.g. the per-table
+        /// DeleteMetadataInterceptor, stripped when scope infos are loaded from the database) are re-attached.
+        /// </summary>
+        public Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync()
+            => this.RemoteOrchestrator.DeleteMetadatasAsync(setup: this.Setup);
+
+        /// <summary>
+        /// Delete metadatas items from tracking tables, down to the given timestamp.
+        /// Passes this agent's live <see cref="Setup"/> so runtime-only interceptors (e.g. the per-table
+        /// DeleteMetadataInterceptor, stripped when scope infos are loaded from the database) are re-attached.
+        /// </summary>
+        public Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync(long timeStampStart)
+            => this.RemoteOrchestrator.DeleteMetadatasAsync(timeStampStart, setup: this.Setup);
+
+        /// <summary>
         /// Gets or sets the batch creation job service for async batch creation.
         /// When set together with <see cref="WebServerOptions.EnableAsyncBatchCreation"/>,
         /// batch creation for initial syncs is performed in the background.

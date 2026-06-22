@@ -18,7 +18,7 @@ namespace Wormhole.Sync
         /// <summary>
         /// Delete all metadatas from tracking tables, based on min timestamp from scope info client table.
         /// </summary>
-        public virtual async Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync(DbConnection connection = null, DbTransaction transaction = null)
+        public virtual async Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync(DbConnection connection = null, DbTransaction transaction = null, SyncSetup setup = null)
         {
             var context = new SyncContext(Guid.NewGuid(), SyncOptions.DefaultScopeName);
 
@@ -51,7 +51,7 @@ namespace Wormhole.Sync
 
                     DatabaseMetadatasCleaned databaseMetadatasCleaned;
                     (context, databaseMetadatasCleaned) = await this.InternalDeleteMetadatasAsync(minTimestamp, context,
-                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken, setup).ConfigureAwait(false);
 
                     await runner.CommitAsync().ConfigureAwait(false);
 
@@ -70,7 +70,7 @@ namespace Wormhole.Sync
         /// <param name="timeStampStart">Timestamp start. Used to limit the delete metadatas rows from now to this timestamp.</param>
         /// <param name="connection">Optional Connection.</param>
         /// <param name="transaction">Optional Transaction.</param>
-        public virtual async Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync(long timeStampStart, DbConnection connection = null, DbTransaction transaction = null)
+        public virtual async Task<DatabaseMetadatasCleaned> DeleteMetadatasAsync(long timeStampStart, DbConnection connection = null, DbTransaction transaction = null, SyncSetup setup = null)
         {
             var context = new SyncContext(Guid.NewGuid(), SyncOptions.DefaultScopeName);
 
@@ -81,7 +81,7 @@ namespace Wormhole.Sync
                 {
                     DatabaseMetadatasCleaned databaseMetadatasCleaned;
                     (context, databaseMetadatasCleaned) = await this.InternalDeleteMetadatasAsync(timeStampStart, context,
-                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken, setup).ConfigureAwait(false);
 
                     await runner.CommitAsync().ConfigureAwait(false);
 
@@ -102,7 +102,7 @@ namespace Wormhole.Sync
         /// Delete metadatas items from tracking tables.
         /// </summary>
         internal virtual async Task<(SyncContext Context, DatabaseMetadatasCleaned DatabaseMetadatasCleaned)>
-            InternalDeleteMetadatasAsync(long? timeStampStart, SyncContext context, DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+            InternalDeleteMetadatasAsync(long? timeStampStart, SyncContext context, DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken, SyncSetup setup = null)
         {
 
             if (!timeStampStart.HasValue)
@@ -125,6 +125,13 @@ namespace Wormhole.Sync
 
                     if (sScopeInfos == null || sScopeInfos.Count == 0)
                         return (context, new DatabaseMetadatasCleaned());
+
+                    // The scope infos were just (de)serialized from the scope_info table, so runtime-only
+                    // interceptors (e.g. the per-table DeleteMetadataInterceptor, which is [IgnoreDataMember])
+                    // were stripped. Re-attach them from the live setup so they fire during cleanup.
+                    if (setup != null)
+                        foreach (var sScopeInfo in sScopeInfos)
+                            this.ApplySetupInterceptors(setup, sScopeInfo);
 
                     DatabaseMetadatasCleaned databaseMetadatasCleaned;
                     (context, databaseMetadatasCleaned) = await this.InternalDeleteMetadatasAsync(sScopeInfos, context, timeStampStart.Value, connection, transaction, progress, cancellationToken).ConfigureAwait(false);

@@ -108,6 +108,22 @@ namespace Wormhole.Sync
             // Ensure parameters are correct, from DbSyncAdapter
             command = syncAdapter.EnsureCommandParameters(context, command, commandType, connection, transaction);
 
+            // Per-table DeleteMetadata interceptor (set on SetupTable in the SyncSetup).
+            // Fires only for DbCommandType.DeleteMetadata; lets a consumer rewrite the cleanup SQL
+            // for this specific table — e.g. to preserve a sub-table's tracking row while its
+            // parent's tracking row is still alive. The replacement SQL must still reference the
+            // @sync_row_timestamp parameter bound above.
+            if (commandType == DbCommandType.DeleteMetadata)
+            {
+                var setupTable = scopeInfo.Setup?.Tables[syncAdapter.TableDescription.TableName, syncAdapter.TableDescription.SchemaName];
+                if (setupTable?.DeleteMetadataInterceptor != null)
+                {
+                    var dmArgs = new DeleteMetadataCreatingArgs(context, scopeInfo, syncAdapter.TableDescription, command, connection, transaction);
+                    setupTable.DeleteMetadataInterceptor.Invoke(dmArgs);
+                    command = dmArgs.Command;
+                }
+            }
+
             // Let a chance to the interceptor to change the command
             var args = new GetCommandArgs(scopeInfo, context, command, isBatch, syncAdapter.TableDescription, commandType, connection, transaction);
             await this.InterceptAsync(args, progress, cancellationToken).ConfigureAwait(false);

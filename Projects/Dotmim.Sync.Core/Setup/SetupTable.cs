@@ -103,6 +103,15 @@ namespace Wormhole.Sync
         public Action<StoredProcedureCreatingArgs> StoredProcedureInterceptor { get; set; }
 
         /// <summary>
+        /// Gets or sets the interceptor invoked at runtime when the per-table DeleteMetadata command
+        /// is being built (during a metadata cleanup). Use this to rewrite the cleanup SQL — e.g. to
+        /// preserve a sub-table's tracking row while its parent's tracking row is still alive,
+        /// avoiding parent/child orphans that cause FK violations on the next client sync.
+        /// </summary>
+        [IgnoreDataMember]
+        public Action<DeleteMetadataCreatingArgs> DeleteMetadataInterceptor { get; set; }
+
+        /// <summary>
         /// Gets or sets custom SQL commands to execute after provisioning this table.
         /// These will be executed after triggers, tracking tables, and stored procedures are created.
         /// </summary>
@@ -244,6 +253,18 @@ namespace Wormhole.Sync
         public SetupTable OnStoredProcedureCreating(Action<StoredProcedureCreatingArgs> action)
         {
             this.StoredProcedureInterceptor = action;
+            return this;
+        }
+
+        /// <summary>
+        /// Specify an interceptor to rewrite the per-table DeleteMetadata cleanup SQL at runtime.
+        /// The replacement SQL must still reference the <c>@sync_row_timestamp</c> parameter.
+        /// </summary>
+        /// <param name="action">The action to invoke when the DeleteMetadata command is being built.</param>
+        /// <returns>The current SetupTable instance for method chaining.</returns>
+        public SetupTable OnDeleteMetadataCreating(Action<DeleteMetadataCreatingArgs> action)
+        {
+            this.DeleteMetadataInterceptor = action;
             return this;
         }
 

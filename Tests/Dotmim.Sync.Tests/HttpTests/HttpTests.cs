@@ -1947,6 +1947,64 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             }
         }
 
+        /// <summary>
+        /// A per-table <see cref="SetupTable.DeleteMetadataInterceptor"/> must fire during
+        /// <see cref="RemoteOrchestrator.DeleteMetadatasAsync(long, DbConnection, DbTransaction, SyncSetup)"/>
+        /// and its rewritten command must be honored — even though the scope infos consumed by the cleanup
+        /// are loaded (and the interceptor stripped, being [IgnoreDataMember]) from the scope_info table.
+        /// The interceptor is re-attached from the live setup passed into DeleteMetadatasAsync.
+        /// </summary>
+        [Fact]
+        public async Task DeleteMetadatas_PerTableInterceptor_RewriteIsHonored()
+        {
+            var (serverProviderType, _) = HelperDatabase.GetDatabaseType(serverProvider);
+
+            // Change tracking does not build the per-table tracking-table DELETE we rewrite here.
+            if (serverProviderType == ProviderType.Sql && serverProvider.GetProviderTypeName().Contains("ChangeTracking"))
+                return;
+
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = true };
+
+            // Tables may be schema-qualified (e.g. "SalesLT.ProductCategory") when the provider uses a fallback schema.
+            var salesSchema = serverProvider.UseFallbackSchema() ? "SalesLT" : null;
+
+            // Attach a per-table DeleteMetadata interceptor on ONE table that rewrites the cleanup DELETE
+            // so it reaps nothing (the guard still references @sync_row_timestamp). Another table is left
+            // un-intercepted as a control to prove the cleanup actually ran and would have reaped it too.
+            var interceptorFired = false;
+            string rewrittenCommandText = null;
+            setup.Tables["ProductCategory", salesSchema].OnDeleteMetadataCreating(args =>
+            {
+                interceptorFired = true;
+                args.Command.CommandText += " AND 1 = 0";
+                rewrittenCommandText = args.Command.CommandText;
+            });
+
+            // Provision the server (and at least one client, so the scope is initialized).
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+            // Create eligible tracking rows on the server: a ProductCategory (intercepted -> must survive)
+            // and a Product (control -> must be reaped).
+            await serverProvider.AddProductCategoryAsync();
+            await serverProvider.AddProductAsync();
+
+            // Run server-side cleanup with an explicit timestamp that makes all current tracking rows eligible,
+            // passing the LIVE setup so the interceptor is re-attached onto the DB-loaded scope infos.
+            var remoteOrchestrator = new RemoteOrchestrator(serverProvider);
+            var ts = await remoteOrchestrator.GetLocalTimestampAsync();
+            var cleaned = await remoteOrchestrator.DeleteMetadatasAsync(ts, setup: setup);
+
+            Assert.True(interceptorFired, "DeleteMetadataInterceptor must fire during cleanup");
+            Assert.Contains("AND 1 = 0", rewrittenCommandText);
+
+            // The intercepted table's rewrite reaped nothing, so it never reaches the cleaned-tables list.
+            Assert.DoesNotContain(cleaned.Tables, t => t.TableName == "ProductCategory");
+
+            // Control: the un-intercepted table was cleaned normally, proving the cleanup pass ran.
+            Assert.Contains(cleaned.Tables, t => t.TableName == "Product");
+        }
+
         [Fact]
         public virtual async Task HandlingDifferentIdentifiers()
         {

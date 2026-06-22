@@ -361,7 +361,7 @@
           "Microsoft.AspNet.WebApi.Client": "[6.0.0, )",
           "Microsoft.Extensions.Features": "[6.0.0, )",
           "Microsoft.Net.Http.Headers": "[2.2.8, )",
-          "Wormhole.Sync.Core": "[1.8.1, )"
+          "Wormhole.Sync.Core": "[1.8.2, )"
         }
       }
     },
@@ -758,7 +758,7 @@
           "Microsoft.AspNet.WebApi.Client": "[6.0.0, )",
           "Microsoft.Extensions.Features": "[6.0.0, )",
           "Microsoft.Net.Http.Headers": "[2.2.8, )",
-          "Wormhole.Sync.Core": "[1.8.1, )"
+          "Wormhole.Sync.Core": "[1.8.2, )"
         }
       }
     },
@@ -1007,7 +1007,7 @@
         "dependencies": {
           "Microsoft.AspNet.WebApi.Client": "[6.0.0, )",
           "Microsoft.Extensions.Features": "[6.0.0, )",
-          "Wormhole.Sync.Core": "[1.8.1, )"
+          "Wormhole.Sync.Core": "[1.8.2, )"
         }
       }
     },
@@ -1080,9 +1080,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[8.0.24, )",
-        "resolved": "8.0.24",
-        "contentHash": "1gnadp//+DoGJvV4AFdzPqYPxkypaWYjYMCr7KAacV0iadsHz1nU+rrkoxBCna4FCmeKH49CisEwa7g94/MbEg=="
+        "requested": "[8.0.28, )",
+        "resolved": "8.0.28",
+        "contentHash": "XMqgVjlLxLqWmEh3c49haXLQwsMNtvo6YscUaqfvEGfg1iA8hnYgkUVq3i9Zu9gKeNKMWiiZKVwZExc/qyEAsQ=="
       },
       "Microsoft.SourceLink.GitHub": {
         "type": "Direct",
@@ -1203,7 +1203,7 @@
         "dependencies": {
           "Microsoft.Extensions.Features": "[8.0.6, )",
           "Microsoft.Net.Http.Headers": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.8.1, )"
+          "Wormhole.Sync.Core": "[1.8.2, )"
         }
       }
     }
