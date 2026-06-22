@@ -233,6 +233,9 @@ namespace Wormhole.Sync
                     if (inputTable.StoredProcedureInterceptor != null)
                         loadedTable.StoredProcedureInterceptor = inputTable.StoredProcedureInterceptor;
 
+                    if (inputTable.DeleteMetadataInterceptor != null)
+                        loadedTable.DeleteMetadataInterceptor = inputTable.DeleteMetadataInterceptor;
+
                     // Copy custom provisioning SQL
                     if (inputTable.CustomProvisioningSql != null && inputTable.CustomProvisioningSql.Count > 0)
                         loadedTable.CustomProvisioningSql = new List<string>(inputTable.CustomProvisioningSql);
