@@ -275,6 +275,9 @@ namespace Wormhole.Sync.Web.Server
                 // ------------------------------------------------------------
                 if (httpMessage.IsLastBatch)
                 {
+                    // All batches received (according to the client): make sure none went missing before applying.
+                    EnsureAllClientBatchPartsReceived(sessionCache, httpMessage.BatchCount, context);
+
                     var clientSyncChanges = new ClientSyncChanges(httpMessage.ClientLastSyncTimestamp, sessionCache.ClientBatchInfo, null, null);
 
                     // Apply client changes and get server changes

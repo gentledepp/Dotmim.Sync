@@ -1335,6 +1335,9 @@ namespace Wormhole.Sync.Web.Server
             if (!httpMessage.IsLastBatch)
                 return new HttpMessageSummaryResponse(httpMessage.SyncContext) { Step = HttpStep.SendChangesInProgress };
 
+            // All batches received (according to the client): make sure none went missing before applying.
+            EnsureAllClientBatchPartsReceived(sessionCache, httpMessage.BatchCount, context);
+
             // ------------------------------------------------------------
             // ASYNC BATCH CREATION : Check if we should use async processing
             // ------------------------------------------------------------
@@ -1432,6 +1435,33 @@ namespace Wormhole.Sync.Web.Server
 
             // Get the firt response to send back to client
             return summaryResponse;
+        }
+
+        /// <summary>
+        /// Ensures every client batch part announced by the client (<paramref name="batchCount"/>) has been
+        /// accumulated in the session before applying. The incremental upload accumulates each batch's
+        /// <see cref="BatchPartInfo"/> into the (potentially volatile) server session and applies them all at
+        /// once on the last batch. If the session lost earlier parts (eviction, stale-session recreation, or a
+        /// concurrent read-modify-write on the session), applying now would persist only a subset of the upload
+        /// — e.g. a child row whose parent row was in a missing earlier batch — producing a spurious
+        /// foreign-key violation. Failing fast with <see cref="HttpSessionLostException"/> aborts the current
+        /// sync (the client retry policy does not swallow this exception) so the next sync restarts the whole
+        /// upload instead of committing a partial, inconsistent set.
+        /// </summary>
+        private static void EnsureAllClientBatchPartsReceived(SessionCache sessionCache, int batchCount, SyncContext context)
+        {
+            if (batchCount <= 0 || sessionCache?.ClientBatchInfo?.BatchPartsInfo == null)
+                return;
+
+            var receivedIndices = new HashSet<int>();
+            foreach (var part in sessionCache.ClientBatchInfo.BatchPartsInfo)
+                receivedIndices.Add(part.Index);
+
+            for (var i = 0; i < batchCount; i++)
+            {
+                if (!receivedIndices.Contains(i))
+                    throw new HttpSessionLostException(context.SessionId.ToString());
+            }
         }
 
         private async Task UpdateSession(HttpContext httpContext, SessionCache sessionCache,

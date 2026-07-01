@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet10)</TargetFrameworks>
         <AssemblyName>Wormhole.Sync.SqlServer.ChangeTracking</AssemblyName>
         <PackageId>Wormhole.Sync.SqlServer.ChangeTracking</PackageId>
         <RootNamespace>Wormhole.Sync</RootNamespace>

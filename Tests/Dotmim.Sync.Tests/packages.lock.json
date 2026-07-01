@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0": {
+    "net10.0": {
       "DotNet.ReproducibleBuilds": {
         "type": "Direct",
         "requested": "[1.2.4, )",
@@ -80,9 +80,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[8.0.28, )",
-        "resolved": "8.0.28",
-        "contentHash": "XMqgVjlLxLqWmEh3c49haXLQwsMNtvo6YscUaqfvEGfg1iA8hnYgkUVq3i9Zu9gKeNKMWiiZKVwZExc/qyEAsQ=="
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "4Iw41e2h7I4t70SJcX2GCmbyKJIlA273Cfm9RJMM050/3VBejGAG1KcthP5Z2L6SQcbfbf6BhNWO26+ZG+GzMg=="
       },
       "Microsoft.Testing.Extensions.HangDump": {
         "type": "Direct",
@@ -447,8 +447,7 @@
         "resolved": "9.0.9",
         "contentHash": "FEgpSF+Z9StMvrsSViaybOBwR0f0ZZxDm8xV5cSOFiXN/t+ys+rwAlTd/6yG7Ld1gfppgvLcMasZry3GsI9lGA==",
         "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.9",
-          "System.Diagnostics.DiagnosticSource": "9.0.9"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.9"
         }
       },
       "Microsoft.Extensions.Options": {
@@ -678,8 +677,11 @@
       },
       "System.Diagnostics.DiagnosticSource": {
         "type": "Transitive",
-        "resolved": "9.0.9",
-        "contentHash": "8hy61dsFYYSDjT9iTAfygGMU3A0EAnG69x5FUXeKsCjMhBmtTBt4UMUEW3ipprFoorOW6Jw/7hDMjXtlrsOvVQ=="
+        "resolved": "6.0.1",
+        "contentHash": "KiLYDu2k2J82Q9BJpWiuQqCkFjRBWVq4jDzKKWawVi9KWzyD0XG3cmfX0vqTQlL14Wi9EufJrbL0+KCLTbqWiQ==",
+        "dependencies": {
+          "System.Runtime.CompilerServices.Unsafe": "6.0.0"
+        }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
@@ -733,6 +735,11 @@
         "dependencies": {
           "System.Configuration.ConfigurationManager": "8.0.0"
         }
+      },
+      "System.Runtime.CompilerServices.Unsafe": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "/iUeP3tq1S0XdNNoMz5C9twLSrM/TH+qElHkXWaPvuNOt+99G75NrV0OS2EqHx5wMN7popYjpc8oTjC1y16DLg=="
       },
       "System.Security.AccessControl": {
         "type": "Transitive",
@@ -862,41 +869,41 @@
         "type": "Project",
         "dependencies": {
           "MySqlConnector": "[2.3.7, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.MySql": {
         "type": "Project",
         "dependencies": {
           "MySqlConnector": "[2.3.7, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.PostgreSql": {
         "type": "Project",
         "dependencies": {
           "Npgsql": "[8.0.3, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.Sqlite": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.SqlServer": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.SqlServer.ChangeTracking": {
         "type": "Project",
         "dependencies": {
-          "Wormhole.Sync.SqlServer": "[1.8.2, )"
+          "Wormhole.Sync.SqlServer": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.Web.Azure": {
@@ -904,7 +911,7 @@
         "dependencies": {
           "Azure.Storage.Blobs": "[12.23.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.0, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.Web.Client": {
@@ -912,7 +919,7 @@
         "dependencies": {
           "Microsoft.Extensions.Features": "[8.0.6, )",
           "Microsoft.Net.Http.Headers": "[8.0.6, )",
-          "Wormhole.Sync.Core": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.Web.Hangfire": {
@@ -922,8 +929,8 @@
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
           "Microsoft.Extensions.Logging.Abstractions": "[9.0.9, )",
-          "Wormhole.Sync.Core": "[1.8.2, )",
-          "Wormhole.Sync.Web.Server": "[1.8.2, )"
+          "Wormhole.Sync.Core": "[1.8.5, )",
+          "Wormhole.Sync.Web.Server": "[1.8.5, )"
         }
       },
       "Wormhole.Sync.Web.Server": {
@@ -937,7 +944,7 @@
           "Microsoft.Extensions.Options": "[8.0.2, )",
           "System.Text.Json": "[8.0.5, )",
           "System.Threading.Channels": "[8.0.0, )",
-          "Wormhole.Sync.Web.Client": "[1.8.2, )"
+          "Wormhole.Sync.Web.Client": "[1.8.5, )"
         }
       }
     }

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+		<TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet10)</TargetFrameworks>
 		<AssemblyName>Wormhole.Sync.PostgreSql</AssemblyName>
 		<PackageId>Wormhole.Sync.PostgreSql</PackageId>
 		<RootNamespace>Wormhole.Sync</RootNamespace>

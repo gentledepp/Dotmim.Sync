@@ -3180,7 +3180,110 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
             }
         }
-        
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public Task OptimizedSync_IfClientBatchPartIsLostMidUpload_ThrowsSessionLostInsteadOfApplyingPartialSet(SyncOptions options)
+            => this.RunClientBatchPartLostMidUploadScenario(options, useOptimizedFlow: true);
+
+        [Theory]
+        [ClassData(typeof(SyncOptionsData))]
+        public Task Sync_IfClientBatchPartIsLostMidUpload_ThrowsSessionLostInsteadOfApplyingPartialSet(SyncOptions options)
+            => this.RunClientBatchPartLostMidUploadScenario(options, useOptimizedFlow: false);
+
+        // Regression test for the transient FK violation (Sentry FILLER-ANDROID-AVA-9T).
+        // The unified incremental upload accumulates each batch's BatchPartInfo into the (volatile, in-memory)
+        // server session and applies them all at once on the last batch. If the session loses an earlier part
+        // (eviction / stale-session recreation / a concurrent read-modify-write on the session), the server
+        // would apply only a subset of the upload -- e.g. a child row (Checklist) whose parent row (Inspection)
+        // was in the missing earlier batch -- causing a foreign-key violation. The server must instead detect
+        // the incomplete upload and fail fast with HttpSessionLostException so the sync aborts and the next sync
+        // restarts the whole upload. The accumulate-then-apply-on-last guard is reached through the same server
+        // method for both the optimized and the legacy (traditional) client flow, so both are covered here.
+        private async Task RunClientBatchPartLostMidUploadScenario(SyncOptions options, bool useOptimizedFlow)
+        {
+            options.BatchSize = 100;
+            options.UseUnifiedBatching = true; // tests only work with unified batching enabled
+            options.UseOptimizedFlow = useOptimizedFlow;
+
+            // Execute a sync on all clients to initialize client and server schema
+            foreach (var clientProvider in clientsProvider)
+                await new SyncAgent(clientProvider, serverProvider, options).SynchronizeAsync(setup);
+
+            // stop the shared kestrel; we need one with a server interceptor that drops an early batch part
+            await this.Kestrel.StopAsync();
+
+            foreach (var clientProvider in clientsProvider)
+            {
+                // Add enough client changes so the upload spans more than one incremental batch
+                var clientChangeCount = 2000;
+                for (int i = 0; i < clientChangeCount; i++)
+                {
+                    var m = i % 4;
+                    if (m == 0)
+                        await clientProvider.AddProductCategoryAsync();
+                    if (m == 1)
+                        await clientProvider.AddCustomerAsync();
+                    if (m == 2)
+                        await clientProvider.AddPriceListAsync();
+                    if (m == 3)
+                        await clientProvider.AddProductAsync();
+                }
+
+                using var kestrel = new TestWebServer(this.UseFiddler);
+                kestrel.AddSyncServer(serverProvider, setup, options, batchStorage: this.batchStorage);
+
+                // Custom server handler: right before the last batch is applied, drop the first accumulated
+                // client batch part (index 0) from the session -- simulating an earlier part lost from the
+                // volatile server session.
+#if NET48
+                var serviceUri = kestrel.Run(agent =>
+                {
+                    agent.OnHttpGettingChanges(args =>
+                    {
+                        if (!args.Request.IsLastBatch)
+                            return;
+
+                        var parts = args.SessionCache?.ClientBatchInfo?.BatchPartsInfo;
+                        if (parts == null)
+                            return;
+
+                        foreach (var lostPart in parts.Where(p => p.Index == 0).ToList())
+                            parts.Remove(lostPart);
+                    });
+                });
+#else
+                var serviceUri = kestrel.Run(async context =>
+                {
+                    var agents = context.RequestServices.GetService(typeof(IEnumerable<WebServerAgent>)) as IEnumerable<WebServerAgent>;
+                    var agent = agents.First();
+
+                    agent.OnHttpGettingChanges(args =>
+                    {
+                        if (!args.Request.IsLastBatch)
+                            return;
+
+                        var parts = args.SessionCache?.ClientBatchInfo?.BatchPartsInfo;
+                        if (parts == null)
+                            return;
+
+                        foreach (var lostPart in parts.Where(p => p.Index == 0).ToList())
+                            parts.Remove(lostPart);
+                    });
+
+                    await agent.HandleRequestAsync(context);
+                });
+#endif
+
+                var agent2 = new SyncAgent(clientProvider, new WebRemoteOrchestrator(serviceUri), options);
+
+                var ex = await Assert.ThrowsAsync<HttpSyncWebException>(() => agent2.SynchronizeAsync());
+                Assert.Equal("HttpSessionLostException", ex.TypeName);
+
+                await kestrel.StopAsync();
+            }
+        }
+
         [Theory]
         [ClassData(typeof(SyncOptionsData))]
         public async Task OptimizedSync_IfServerChangesFitInto_N_Requests_SynchronizesUsing_N_Requests(SyncOptions options)

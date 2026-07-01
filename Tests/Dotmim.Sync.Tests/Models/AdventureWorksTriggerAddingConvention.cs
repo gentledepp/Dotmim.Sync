@@ -6,7 +6,7 @@ using System.Linq;
 
 namespace Wormhole.Sync.Tests.Models
 {
-#if NET8_0
+#if NET10_0
     public class AdventureWorksTriggerAddingConvention : IModelFinalizingConvention
     {
         public virtual void ProcessModelFinalizing(

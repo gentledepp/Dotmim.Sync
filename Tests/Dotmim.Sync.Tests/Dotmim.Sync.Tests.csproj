@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>$(TargetFrameworkNet8)</TargetFrameworks>
+		<TargetFrameworks>$(TargetFrameworkNet10)</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<AssemblyName>Wormhole.Sync.Tests</AssemblyName>
 		<RootNamespace>Wormhole.Sync.Tests</RootNamespace>
@@ -92,27 +92,10 @@
 		<PackageReference Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
 	</ItemGroup>
 
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNetCore)'">
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="3.1.32" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.32" />
-		<PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="3.1.32" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="3.1.32" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="3.1.32" />
-		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="3.2.7" />
-		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.18" />
-		<PackageReference Include="System.Security.Permissions" Version="6.0.0" />
-	</ItemGroup>
-
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)'">
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.31" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.31" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.31" />
-		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="6.0.3" />
-		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="6.0.29" />
-	</ItemGroup>
 
 
-	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet8)'">
+
+	<ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet10)'">
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.6" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.6" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.6" />

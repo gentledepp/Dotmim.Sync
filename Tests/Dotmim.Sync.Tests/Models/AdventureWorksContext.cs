@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 #endif
 
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
 using MySqlConnector;
 #elif NETCOREAPP3_1
 using MySql.Data.MySqlClient;
@@ -121,7 +121,7 @@ namespace Wormhole.Sync.Tests.Models
         public AdventureWorksContext() { }
 #endif
 
-#if NET8_0
+#if NET10_0
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
             configurationBuilder.Conventions.Add(_ => new AdventureWorksTriggerAddingConvention());
@@ -141,7 +141,7 @@ namespace Wormhole.Sync.Tests.Models
                         else
                             optionsBuilder.UseSqlServer(this.ConnectionString, options => options.EnableRetryOnFailure(5));
                         break;
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET10_0 
                     case ProviderType.MySql:
                         if (this.Connection != null)
                             optionsBuilder.UseMySql(this.Connection, new MySqlServerVersion(new Version(8, 0, 21)), options => options.EnableRetryOnFailure(5));
@@ -665,7 +665,7 @@ namespace Wormhole.Sync.Tests.Models
                 entity.HasKey(e => e.ProductId);
 
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
                     .HasDatabaseName("AK_Product_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_Product_Name")
@@ -673,7 +673,7 @@ namespace Wormhole.Sync.Tests.Models
                     .IsUnique();
 
                 entity.HasIndex(e => e.ProductNumber)
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
                     .HasDatabaseName("AK_Product_ProductNumber")
 #elif NETCOREAPP3_1
                     .HasName("AK_Product_ProductNumber")
@@ -749,7 +749,7 @@ namespace Wormhole.Sync.Tests.Models
                 entity.HasKey(e => e.ProductCategoryId);
 
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
                     .HasDatabaseName("AK_ProductCategory_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_ProductCategory_Name")
@@ -799,7 +799,7 @@ namespace Wormhole.Sync.Tests.Models
                     entity.ToTable("ProductModel", "SalesLT");
 
                 entity.HasIndex(e => e.Name)
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
                     .HasDatabaseName("AK_ProductModel_Name")
 #elif NETCOREAPP3_1
                     .HasName("AK_ProductModel_Name")
@@ -1061,7 +1061,7 @@ namespace Wormhole.Sync.Tests.Models
 
                 entity.HasOne(d => d.Category).WithMany(c => c.Details);
 
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
                 // Adding a compute column
                 if (this.ProviderType == ProviderType.Sql || this.ProviderType == ProviderType.MySql || this.ProviderType == ProviderType.MariaDB)
                 {
@@ -1397,7 +1397,7 @@ namespace Wormhole.Sync.Tests.Models
     //}
 
 #if !NET48
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
 
     public class MyModelCacheKeyFactory : IModelCacheKeyFactory
     {

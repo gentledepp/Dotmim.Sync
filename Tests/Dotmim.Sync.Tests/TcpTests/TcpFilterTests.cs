@@ -4,7 +4,7 @@ using Wormhole.Sync.Tests.Core;
 using Wormhole.Sync.Tests.Fixtures;
 using Wormhole.Sync.Tests.Misc;
 using Wormhole.Sync.Tests.Models;
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET10_0 
 using MySqlConnector;
 using Npgsql;
 #elif NETCOREAPP3_1

@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
 using MySqlConnector;
 #elif NETSTANDARD
 using MySql.Data.MySqlClient;

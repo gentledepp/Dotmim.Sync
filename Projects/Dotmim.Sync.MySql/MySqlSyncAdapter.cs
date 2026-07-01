@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
-#if NET6_0 || NET8_0
+#if NET6_0 || NET10_0
 using Wormhole.Sync.DatabaseStringParsers;
 using MySqlConnector;
 using System.Reflection.Metadata;

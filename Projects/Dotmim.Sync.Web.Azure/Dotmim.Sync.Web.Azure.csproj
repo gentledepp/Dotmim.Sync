@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8)</TargetFrameworks>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet10)</TargetFrameworks>
         <AssemblyName>Wormhole.Sync.Web.Azure</AssemblyName>
         <PackageId>Wormhole.Sync.Web.Azure</PackageId>
         <RootNamespace>Wormhole.Sync.Web.Azure</RootNamespace>
@@ -34,11 +34,8 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="2.2.0" />
     </ItemGroup>
 
-    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)' ">
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
-    </ItemGroup>
 
-    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet8)' ">
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet10)' ">
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
     </ItemGroup>
 

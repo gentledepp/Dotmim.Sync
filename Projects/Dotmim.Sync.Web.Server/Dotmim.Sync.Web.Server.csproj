@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet6);$(TargetFrameworkNet8);$(TargetFrameworkNetframework)</TargetFrameworks>
+        <TargetFrameworks>$(TargetFrameworkNetStandard);$(TargetFrameworkNet10);$(TargetFrameworkNetframework)</TargetFrameworks>
         <AssemblyName>Wormhole.Sync.Web.Server</AssemblyName>
         <PackageId>Wormhole.Sync.Web.Server</PackageId>
         <RootNamespace>Wormhole.Sync.Web.Server</RootNamespace>
@@ -41,7 +41,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
     </ItemGroup>
 
-    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet6)' OR '$(TargetFramework)' == '$(TargetFrameworkNet8)'">
+    <ItemGroup Condition=" '$(TargetFramework)' == '$(TargetFrameworkNet10)'">
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>

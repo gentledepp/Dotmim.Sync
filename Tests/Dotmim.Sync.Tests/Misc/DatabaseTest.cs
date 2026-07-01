@@ -1,6 +1,6 @@
 ﻿using Wormhole.Sync.Tests.Fixtures;
 using Microsoft.Data.SqlClient;
-#if NET6_0 || NET8_0 
+#if NET6_0 || NET10_0 
 using MySqlConnector;
 #elif NETCOREAPP3_1
 using MySql.Data.MySqlClient;
