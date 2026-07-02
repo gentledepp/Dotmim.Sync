@@ -3,10 +3,14 @@
 
     <PropertyGroup>
         <TargetFrameworkNetStandard>netstandard2.0</TargetFrameworkNetStandard>
-        <TargetFrameworkNet8>net10.0</TargetFrameworkNet8>
+        <TargetFrameworkNet10>net10.0</TargetFrameworkNet10>
 		<TargetFrameworkNetframework>net48</TargetFrameworkNetframework>
 
         <LangVersion>12.0</LangVersion>
+
+        <!-- Workaround for NETSDK1226 on .NET 10 SDK (10.0.301): prune package data for the
+             net10.0 shared frameworks is missing, which fails the build. Safe to ignore. -->
+        <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
 
         <!-- Generate the lock file -->
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
@@ -20,7 +24,7 @@
 
         <PackageReleaseNotes>
             # 1.8.5.0
-            - optimized incremental upload: the server now verifies that every announced client batch part was accumulated before applying. If the (volatile) server session lost an earlier batch part mid-upload (eviction / stale-session recreation / concurrent session write), the server no longer applies a partial set - which could commit a child row without its parent and cause transient foreign-key violations - but fails fast with HttpSessionLostException so the client restarts the whole upload
+            - optimized incremental upload: the server now verifies that every announced client batch part was accumulated before applying. If the (volatile) server session lost an earlier batch part mid-upload (eviction / stale-session recreation / concurrent session write), the server no longer applies a partial set - which could commit a child row without its parent and cause transient foreign-key violations - but fails fast with HttpSessionLostException so the sync aborts and the next sync restarts the whole upload
             # 1.8.4.0
             - added DeleteMetadata interceptor that allows to retain metadata rows of child tables to avoid sqlite foreign key constraint errors because the parent row is deleted but the child row is not
 			# 1.8.3.0
