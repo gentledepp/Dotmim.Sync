@@ -59,8 +59,10 @@ namespace Wormhole.Sync.Web.Server.Async
                     BatchStorage = this.batchStorage
                 };
 
-                // Register progress callback via OnBatchChangesCreated interceptor
-                if (onBatchPartCreated != null)
+                // Register progress callback via OnBatchChangesCreated interceptor.
+                // Only unified batch parts can be handed out while the job runs: traditional batch parts are
+                // re-indexed once all tables are read (and have no TableRowCounts), so they are returned on completion.
+                if (onBatchPartCreated != null && parameters.Context?.UseUnifiedBatching == true)
                 {
                     orchestrator.OnBatchChangesCreated(async args =>
                     {

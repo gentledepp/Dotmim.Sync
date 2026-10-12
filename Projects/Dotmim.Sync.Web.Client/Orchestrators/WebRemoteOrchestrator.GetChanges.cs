@@ -154,10 +154,12 @@ namespace Wormhole.Sync.Web.Client
             await this.InterceptAsync(new HttpBatchesDownloadingArgs(context, serverBatchInfo, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
             // hook to get the last batch part info at the end
-            var bpis = serverBatchInfo.BatchPartsInfo.Where(bpi => !bpi.IsLastBatch).ToList();
             var lstbpi = serverBatchInfo.BatchPartsInfo.FirstOrDefault(bpi => bpi.IsLastBatch);
 
             lstbpi ??= serverBatchInfo.BatchPartsInfo.OrderByDescending(bpi => bpi.Index).FirstOrDefault();
+
+            // In a progressive batching round no part is flagged as the last one: exclude the fallback too, or it is downloaded twice
+            var bpis = serverBatchInfo.BatchPartsInfo.Where(bpi => bpi != lstbpi).ToList();
 
             var optimizedFlow = this.customHeaders.TryGetValue("dotmim-sync-optimized", out var se) &&
                                 bool.TryParse(se, out var seb) && seb;
@@ -221,7 +223,8 @@ namespace Wormhole.Sync.Web.Client
 
             await this.InterceptAsync(new HttpGettingServerChangesRequestArgs(bpi.Index, downloadProgress.TotalParts, context, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
 
-            var response = await this.ProcessRequestAsync(changesToSend, step, 0, progress, cancellationToken).ConfigureAwait(false);
+            // disposed on every path, also when reading or writing the batch part fails
+            using var response = await this.ProcessRequestAsync(changesToSend, step, 0, progress, cancellationToken).ConfigureAwait(false);
 
             // If we are using a serializer that is not JSON, need to load in memory, then serialize to JSON
             // OR If we have an interceptor on getting response
@@ -273,6 +276,9 @@ namespace Wormhole.Sync.Web.Client
 
                         // Handle unified batch - serialize the entire ContainerSet directly
                         var serializer = SerializersFactory.JsonSerializerFactory.GetSerializer();
+                        var dirPath = Path.GetDirectoryName(fullPath);
+                        if (!Directory.Exists(dirPath))
+                            Directory.CreateDirectory(dirPath);
                         using (var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
                         {
                             var data = await serializer.SerializeAsync(getMoreChanges.Changes).ConfigureAwait(false);
@@ -394,8 +400,6 @@ namespace Wormhole.Sync.Web.Client
                     }
                 }
             }
-
-            response.Dispose();
 
             downloadProgress.PartDownloaded(clientContext);
             context.ProgressPercentage = clientContext.ProgressPercentage;

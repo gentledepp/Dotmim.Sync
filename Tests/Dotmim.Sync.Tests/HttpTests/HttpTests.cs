@@ -3334,11 +3334,18 @@ namespace Wormhole.Sync.Tests.IntegrationTests
 
                 var agent = new SyncAgent(clientProvider, proxy, options);
 
+                // the first batch comes with the response, the others are downloaded: the total to apply must count each row once
+                var rowsToApply = -1;
+                agent.LocalOrchestrator.OnDatabaseChangesApplying(args => rowsToApply = args.ApplyChanges.Changes.RowsCount);
+
                 // don' need to specify scope name (default will be used) nor setup, since it already exists
                 var s = await agent.SynchronizeAsync();
 
+                this.Output.WriteLine($"Rows downloaded: {s.TotalChangesDownloadedFromServer}. Rows to apply announced to the local orchestrator: {rowsToApply}");
+
                 Assert.Equal(2000, s.TotalChangesDownloadedFromServer);
                 Assert.Equal(2000, s.TotalChangesAppliedOnClient);
+                Assert.Equal(2000, rowsToApply);
                 Assert.Equal(0, s.TotalChangesUploadedToServer);
                 Assert.Equal(0, s.TotalChangesAppliedOnServer);
                 Assert.Equal(0, s.TotalResolvedConflicts);

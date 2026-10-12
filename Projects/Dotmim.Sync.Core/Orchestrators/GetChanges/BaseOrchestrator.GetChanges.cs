@@ -76,8 +76,8 @@ namespace Wormhole.Sync
                      if (cancellationToken.IsCancellationRequested)
                         return;
 
-                     // tmp count of table for report progress pct
-                     cptSyncTable++;
+                     // tmp count of table for report progress pct (tables are read in parallel)
+                     Interlocked.Increment(ref cptSyncTable);
 
                      // Schema evolution: per-table re-init for upgraded clients
                      var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
@@ -239,8 +239,8 @@ namespace Wormhole.Sync
                   if (cancellationToken.IsCancellationRequested)
                      return;
 
-                  // tmp count of table for report progress pct
-                  cptSyncTable++;
+                  // tmp count of table for report progress pct (tables are read in parallel)
+                  Interlocked.Increment(ref cptSyncTable);
 
                   // Schema evolution: per-table re-init for upgraded clients
                   var tableKey = string.IsNullOrEmpty(syncTable.SchemaName)
@@ -411,6 +411,10 @@ namespace Wormhole.Sync
                await batchingLock.WaitAsync(cancellationToken).ConfigureAwait(false);
                try
                {
+                  // A batch part still open from a previous table already holds rows: keep counting from there
+                  if (unifiedSerializer.IsOpen && batchPartInfos.Count > 0)
+                     currentBatchRowCount = batchPartInfos[batchPartInfos.Count - 1].RowsCount;
+
                   // Check if the correct table is open in the serializer
                   var requiredTableKey = $"{schemaChangesTable.SchemaName}.{schemaChangesTable.TableName}";
 

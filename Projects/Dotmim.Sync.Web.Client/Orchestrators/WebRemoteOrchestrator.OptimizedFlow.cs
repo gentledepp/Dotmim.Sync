@@ -253,7 +253,8 @@ namespace Wormhole.Sync.Web.Client
 
                 // Add remaining batch info (if any)
                 serverBatchInfo.Timestamp = summaryResponseContent.RemoteClientTimestamp;
-                serverBatchInfo.RowsCount += summaryResponseContent.BatchInfo?.RowsCount??0;
+                // The server's count is the total of all its batches, including the first one already counted above
+                serverBatchInfo.RowsCount = Math.Max(serverBatchInfo.RowsCount, summaryResponseContent.BatchInfo?.RowsCount ?? 0);
                 
                 if (summaryResponseContent.BatchInfo?.BatchPartsInfo != null)
                 {
