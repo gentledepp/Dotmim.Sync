@@ -250,7 +250,7 @@ namespace Wormhole.Sync.Web.Client
 #endif
                         var moreBatchesSerializer = this.SerializerFactory.GetSerializer();
                         var moreBatchesResponse = await moreBatchesSerializer.DeserializeAsync<HttpMessageSummaryResponse>(moreBatchesStream).ConfigureAwait(false);
-                        context = moreBatchesResponse.SyncContext;
+                        context = AdoptServerContext(context, moreBatchesResponse.SyncContext);
 
                         // Add new batch parts that we haven't downloaded yet
                         if (moreBatchesResponse.BatchInfo?.BatchPartsInfo != null)
