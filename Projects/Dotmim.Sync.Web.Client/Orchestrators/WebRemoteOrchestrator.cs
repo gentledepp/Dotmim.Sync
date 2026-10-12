@@ -166,6 +166,21 @@ namespace Wormhole.Sync.Web.Client
         public void AddCustomHeader(string key, string value) => this.customHeaders[key] = value;
 
         /// <summary>
+        /// Take over the context sent back by the server, but keep the client's progress.
+        /// The server computes ProgressPercentage against its own phases, so its value is meaningless on the client.
+        /// </summary>
+        internal static SyncContext AdoptServerContext(SyncContext clientContext, SyncContext serverContext)
+        {
+            if (serverContext == null)
+                return clientContext;
+
+            if (clientContext != null)
+                serverContext.ProgressPercentage = clientContext.ProgressPercentage;
+
+            return serverContext;
+        }
+
+        /// <summary>
         /// Deserialize the message and then send back it to caller.
         /// </summary>
         public async Task<T> ProcessRequestAsync<T>(SyncContext context, IScopeMessage message, HttpStep step, int batchSize,
@@ -204,7 +219,7 @@ namespace Wormhole.Sync.Web.Client
                 if (streamResponse.CanRead)
                     messageResponse = await serializer.DeserializeAsync<T>(streamResponse).ConfigureAwait(false);
 
-                context = messageResponse?.SyncContext;
+                context = AdoptServerContext(context, messageResponse?.SyncContext);
 
                 await this.InterceptAsync(
                     new HttpGettingResponseMessageArgs(response, this.ServiceUri,

@@ -136,7 +136,7 @@ namespace Wormhole.Sync.Web.Client
                 {
                     var responseSerializer = this.SerializerFactory.GetSerializer();
                     summaryResponseContent = await responseSerializer.DeserializeAsync<HttpMessageSummaryResponse>(streamResponse).ConfigureAwait(false);
-                    context = summaryResponseContent.SyncContext;
+                    context = AdoptServerContext(context, summaryResponseContent.SyncContext);
 
                     await this.InterceptAsync(
                         new HttpGettingResponseMessageArgs(response, this.ServiceUri,
@@ -180,7 +180,7 @@ namespace Wormhole.Sync.Web.Client
 #endif
                         var retrySerializer = this.SerializerFactory.GetSerializer();
                         summaryResponseContent = await retrySerializer.DeserializeAsync<HttpMessageSummaryResponse>(retryStream).ConfigureAwait(false);
-                        context = summaryResponseContent.SyncContext;
+                        context = AdoptServerContext(context, summaryResponseContent.SyncContext);
 
                         retryCount++;
                     }
@@ -207,8 +207,10 @@ namespace Wormhole.Sync.Web.Client
                 serverBatchInfo.DirectoryRoot = batchDirectoryRoot;
                 serverBatchInfo.DirectoryName = batchDirectoryName;
 
-                // Download initial batches
-                await this.DownladBatchInfoAsync(context, schema, serverBatchInfo, summaryResponseContent, progress, cancellationToken).ConfigureAwait(false);
+                // Download initial batches. The same progress tracker is used for every progressive round below.
+                var downloadProgress = new BatchDownloadProgress(serverBatchInfo.BatchPartsInfo.Count);
+                downloadProgress.SetKnownParts(serverBatchInfo.BatchPartsInfo.Count, summaryResponseContent.MoreBatchesPending, summaryResponseContent.AsyncProgress);
+                await this.DownladBatchInfoAsync(context, schema, serverBatchInfo, summaryResponseContent, progress, cancellationToken, downloadProgress).ConfigureAwait(false);
 
                 // Handle progressive batch streaming: poll for more batches while MoreBatchesPending is true
                 if (summaryResponseContent.MoreBatchesPending)
@@ -274,18 +276,24 @@ namespace Wormhole.Sync.Web.Client
                                 }
 
                                 // Download only the new batch parts
-                                await this.DownladBatchInfoAsync(context, schema, tempBatchInfo, moreBatchesResponse, progress, cancellationToken).ConfigureAwait(false);
+                                downloadProgress.SetKnownParts(serverBatchInfo.BatchPartsInfo.Count, moreBatchesResponse.MoreBatchesPending, moreBatchesResponse.AsyncProgress);
+                                await this.DownladBatchInfoAsync(context, schema, tempBatchInfo, moreBatchesResponse, progress, cancellationToken, downloadProgress).ConfigureAwait(false);
                             }
                         }
 
-                        // Update status
+                        // Update status. Partial (FirstBatchReady) responses carry no row count, so don't overwrite a known count with 0
                         summaryResponseContent = moreBatchesResponse;
-                        serverBatchInfo.RowsCount = moreBatchesResponse.BatchInfo?.RowsCount ?? serverBatchInfo.RowsCount;
+                        if (moreBatchesResponse.BatchInfo?.RowsCount > 0)
+                            serverBatchInfo.RowsCount = moreBatchesResponse.BatchInfo.RowsCount;
                         progressiveRetryCount++;
                     }
 
                     if (summaryResponseContent.MoreBatchesPending)
                         throw new SyncException($"Server batch creation timeout after {progressiveRetryCount} progressive retries. Please try again later.");
+
+                    // The apply phase computes its progress share against this total
+                    if (serverBatchInfo.RowsCount <= 0)
+                        serverBatchInfo.RowsCount = serverBatchInfo.BatchPartsInfo.Sum(bpi => bpi.RowsCount);
                 }
 
                 // generate the new scope item

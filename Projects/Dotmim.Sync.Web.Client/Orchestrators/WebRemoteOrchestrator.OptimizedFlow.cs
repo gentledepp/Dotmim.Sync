@@ -208,7 +208,7 @@ namespace Wormhole.Sync.Web.Client
                                 var responseSerializer = this.SerializerFactory.GetSerializer();
                                 summaryResponseContent = await responseSerializer
                                     .DeserializeAsync<HttpMessageSummaryResponse>(streamResponse).ConfigureAwait(false);
-                                context = summaryResponseContent.SyncContext;
+                                context = AdoptServerContext(context, summaryResponseContent.SyncContext);
                             }
                             
                             await this.InterceptAsync(

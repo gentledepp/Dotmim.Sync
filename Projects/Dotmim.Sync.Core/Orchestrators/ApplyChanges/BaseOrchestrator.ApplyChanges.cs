@@ -842,8 +842,11 @@ namespace Wormhole.Sync
                     }
 
                     // we've got 0.25% to fill here
-                    var progresspct = appliedRows * 0.25d / tableChangesApplied.TotalRowsCount;
-                    context.ProgressPercentage += progresspct;
+                    if (tableChangesApplied.TotalRowsCount > 0)
+                    {
+                        var progresspct = appliedRows * 0.25d / tableChangesApplied.TotalRowsCount;
+                        context.ProgressPercentage += progresspct;
+                    }
 
                     connection ??= this.Provider.CreateConnection();
                     var tableChangesAppliedArgs = new TableChangesAppliedArgs(context, tableChangesApplied, connection, transaction);

@@ -118,8 +118,21 @@ namespace Wormhole.Sync
         /// <summary>
         /// Gets or Sets the current percentage progress overall.
         /// </summary>
+        /// <remarks>The value is clamped to [0, 1]. NaN is ignored.</remarks>
         [DataMember(Name = "pp", IsRequired = false, Order = 9)]
-        public double ProgressPercentage { get; set; }
+        public double ProgressPercentage
+        {
+            get => this.progressPercentage;
+            set
+            {
+                if (double.IsNaN(value))
+                    return;
+
+                this.progressPercentage = Math.Max(0d, Math.Min(1d, value));
+            }
+        }
+
+        private double progressPercentage;
 
         /// <summary>
         /// Gets or Sets whether unified batching should be used for this sync session.

@@ -83,8 +83,17 @@ namespace Wormhole.Sync
 
         /// <summary>
         /// Gets the overall percentage progress.
+        /// Once the args have been reported to an <see cref="System.IProgress{T}"/>, this is the value reported at that moment,
+        /// so a progress handler running later (e.g. on the ThreadPool) does not read a newer or older value.
         /// </summary>
-        public double ProgressPercentage => this.Context.ProgressPercentage;
+        public double ProgressPercentage => this.progressPercentage ?? this.Context.ProgressPercentage;
+
+        private double? progressPercentage;
+
+        /// <summary>
+        /// Freeze <see cref="ProgressPercentage"/> to the value being reported.
+        /// </summary>
+        internal void FreezeProgressPercentage(double value) => this.progressPercentage = value;
 
         /// <summary>
         /// Gets the Message property if any.

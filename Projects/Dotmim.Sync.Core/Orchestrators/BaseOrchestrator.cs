@@ -40,6 +40,13 @@ namespace Wormhole.Sync
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Generic.List<Guid>> scopeInterceptors = new();
 
         /// <summary>
+        /// Serializes progress reports and remembers the last reported percentage per session, see <see cref="ReportProgress"/>.
+        /// </summary>
+        private readonly object reportProgressLock = new();
+        private Guid lastReportedSessionId;
+        private double lastReportedProgressPercentage;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="BaseOrchestrator"/> class.
         /// </summary>
         internal BaseOrchestrator(CoreProvider provider, SyncOptions options)
@@ -327,7 +334,26 @@ namespace Wormhole.Sync
                 args.Transaction = transaction;
 
             if (this.Options.ProgressLevel <= args.ProgressLevel)
-                progress.Report(args);
+            {
+                // Parallel workers (batch downloads) report concurrently, each with its own copy of the context.
+                // Freeze the percentage and report under one lock, so the reported values never go down within a session.
+                lock (this.reportProgressLock)
+                {
+                    var progressPercentage = args.Context?.ProgressPercentage ?? 0d;
+
+                    if (args.Context != null)
+                    {
+                        if (args.Context.SessionId == this.lastReportedSessionId)
+                            progressPercentage = Math.Max(progressPercentage, this.lastReportedProgressPercentage);
+
+                        this.lastReportedSessionId = args.Context.SessionId;
+                        this.lastReportedProgressPercentage = progressPercentage;
+                    }
+
+                    args.FreezeProgressPercentage(progressPercentage);
+                    progress.Report(args);
+                }
+            }
         }
 
         /// <summary>
