@@ -87,7 +87,7 @@
 		<PackageReference Include="JetBrains.Profiler.Api" Version="1.4.10" />
 		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
 		<PackageReference Include="Moq" Version="4.20.70" />
-		<PackageReference Include="Hangfire.Core" Version="1.8.*" />
+		<PackageReference Include="Hangfire.Core" Version="1.8.25" />
 
 		<PackageReference Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
 	</ItemGroup>
