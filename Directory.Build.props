@@ -18,11 +18,18 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.5.0</Version>
+        <Version>1.8.6.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.6.0
+            - web sync progress no longer jumps back and forth during the first sync (parallel batch downloads, async batch creation and progressive batching). ProgressArgs.ProgressPercentage is now the value at the time the progress was reported
+            - progressive batching no longer downloads batch parts twice, and the first web sync with a response interceptor, converter or non-json serializer no longer fails with DirectoryNotFoundException
+            - async batch creation without unified batching no longer fails with a NullReferenceException
+            - web server: the client batch size and converter are kept per request instead of on shared instances, so concurrent clients no longer get each other's batch size or converter. The in-memory batch job store returns copies of job statuses
+            - fixed row counts of the optimized flow and of unified batch parts
+            - the web client disposes the last upload response, and the client disposes the connections it opens for DatabaseChangesAppliedArgs and to disable SQLite foreign keys when tables are re-initialized
             # 1.8.5.0
             - optimized incremental upload: the server now verifies that every announced client batch part was accumulated before applying. If the (volatile) server session lost an earlier batch part mid-upload (eviction / stale-session recreation / concurrent session write), the server no longer applies a partial set - which could commit a child row without its parent and cause transient foreign-key violations - but fails fast with HttpSessionLostException so the sync aborts and the next sync restarts the whole upload
             # 1.8.4.0
