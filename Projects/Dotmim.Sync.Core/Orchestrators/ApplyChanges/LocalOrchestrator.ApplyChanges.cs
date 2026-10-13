@@ -45,6 +45,9 @@ namespace Wormhole.Sync
                 // Connection & Transaction runner
                 DbConnectionRunner runner = null;
                 bool disabledDbLevelConstraints = false;
+
+                // Connection opened here to disable database-level constraints. The runners below see it as already opened, so they never close it
+                DbConnection ownedConnection = null;
                 try
                 {
                     var serverBatchInfo = serverSyncChanges.ServerBatchInfo;
@@ -87,7 +90,8 @@ namespace Wormhole.Sync
 
                     if (reinitSet.Count > 0 && this.Provider.ConstraintsLevelAction == ConstraintsLevelAction.OnDatabaseLevel)
                     {
-                        connection ??= this.Provider.CreateConnection();
+                        if (connection == null)
+                            connection = ownedConnection = this.Provider.CreateConnection();
 
                         if (connection.State != System.Data.ConnectionState.Open)
                             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -339,6 +343,15 @@ namespace Wormhole.Sync
 
                     if (runner != null)
                         await runner.DisposeAsync().ConfigureAwait(false);
+
+                    if (ownedConnection != null)
+                    {
+                        // A retry starts again without a connection, as on the first attempt
+                        if (connection == ownedConnection)
+                            connection = null;
+
+                        ownedConnection.Dispose();
+                    }
                 }
             }, null, cancellationToken).ConfigureAwait(false);
 
