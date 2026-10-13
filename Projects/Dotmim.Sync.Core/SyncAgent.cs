@@ -318,22 +318,24 @@ namespace Wormhole.Sync
                         var serverMigrations = sScopeInfo.GetMigrationsList();
                         var clientNeedsReprovision = serverMigrations.Any(m => this.SupportedMigrations.Contains(m));
 
-                        if (clientNeedsReprovision)
+                        // A never-synced client (no prior Setup) has nothing to diff against and nothing provisioned
+                        // to re-provision (not even its tables): the normal initialization path below provisions it
+                        // with the full server schema. Only record the supported migrations, saved at the end of the sync.
+                        if (clientNeedsReprovision && cScopeInfo?.Setup == null)
+                        {
+                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
+                        }
+                        else if (clientNeedsReprovision)
                         {
                             // Determine which tables have schema changes and need re-downloading
                             // IMPORTANT: Do that BEFORE re-provisioning the client, since otherwise
                             // the cScopeInfo will already have the same schema as the server.
-                            // A never-synced client (no prior Setup) has nothing to diff against —
-                            // the normal initialization path will fetch the full server schema.
-                            if (cScopeInfo?.Setup != null)
-                            {
-                                var migration = new Migration(cScopeInfo, sScopeInfo);
-                                var migrationResult = migration.Compare();
-                                var changedTables = migrationResult.GetTablesWithSchemaChanges();
+                            var migration = new Migration(cScopeInfo, sScopeInfo);
+                            var migrationResult = migration.Compare();
+                            var changedTables = migrationResult.GetTablesWithSchemaChanges();
 
-                                if (changedTables.Count > 0)
-                                    cScopeInfoClient.SetReinitTables(changedTables);
-                            }
+                            if (changedTables.Count > 0)
+                                cScopeInfoClient.SetReinitTables(changedTables);
 
                             // Record which migrations are now provisioned so we don't repeat
                             cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);

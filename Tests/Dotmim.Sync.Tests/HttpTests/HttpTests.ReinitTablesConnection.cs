@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
+using Wormhole.Sync.Tests.Core;
 using Wormhole.Sync.Tests.Misc;
 using Wormhole.Sync.Web.Client;
 using Xunit;
@@ -85,25 +86,35 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             var insertedId = await InsertProductCategoryWithAttributeOnServerAsync("TestValue");
             this.Kestrel.UpdateSyncSetup(setupV2);
 
-            // A brand-new, empty client that already knows the migration
-            var clientProvider = this.clientsProvider.First();
-            var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
-            agent.SupportedMigrations = new List<string> { "mig1" };
+            // A brand-new client that already knows the migration. Its database is empty: unlike the test clients,
+            // whose tables are created up front, all its tables have to be created by the sync.
+            var clientName = HelperDatabase.GetRandomName("http_sqlite_empty_");
+            var clientProvider = HelperDatabase.GetSyncProvider(ProviderType.Sqlite, clientName, false);
+            try
+            {
+                var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
+                agent.SupportedMigrations = new List<string> { "mig1" };
 
-            // Without a setup, the client takes the server's (as iCL.Modules.Sync does)
-            var first = passSetup ? await agent.SynchronizeAsync(setupV2) : await agent.SynchronizeAsync();
-            var clientAttrValue = await ReadAttributeWithSpaceOnClientAsync(clientProvider, insertedId);
-            var scopeInfoClient = await agent.LocalOrchestrator.GetScopeInfoClientAsync();
+                // Without a setup, the client takes the server's (as iCL.Modules.Sync does)
+                var first = passSetup ? await agent.SynchronizeAsync(setupV2) : await agent.SynchronizeAsync();
+                var clientAttrValue = await ReadAttributeWithSpaceOnClientAsync(clientProvider, insertedId);
+                var scopeInfoClient = await agent.LocalOrchestrator.GetScopeInfoClientAsync();
 
-            var second = passSetup ? await agent.SynchronizeAsync(setupV2) : await agent.SynchronizeAsync();
+                var second = passSetup ? await agent.SynchronizeAsync(setupV2) : await agent.SynchronizeAsync();
 
-            this.Output.WriteLine($"First sync: {first.TotalChangesDownloadedFromServer} rows downloaded, 'Attribute With Space'={clientAttrValue}. " +
-                $"Supported migrations recorded: [{string.Join(", ", scopeInfoClient.GetSupportedMigrationsList())}]. Second sync: {second.TotalChangesDownloadedFromServer} rows downloaded");
+                this.Output.WriteLine($"First sync: {first.TotalChangesDownloadedFromServer} rows downloaded, 'Attribute With Space'={clientAttrValue}. " +
+                    $"Supported migrations recorded: [{string.Join(", ", scopeInfoClient.GetSupportedMigrationsList())}]. Second sync: {second.TotalChangesDownloadedFromServer} rows downloaded");
 
-            Assert.True(first.TotalChangesDownloadedFromServer > 0);
-            Assert.Equal("TestValue", clientAttrValue?.ToString());
-            Assert.Contains("mig1", scopeInfoClient.GetSupportedMigrationsList());
-            Assert.Equal(0, second.TotalChangesDownloadedFromServer);
+                Assert.True(first.TotalChangesDownloadedFromServer > 0);
+                Assert.Equal("TestValue", clientAttrValue?.ToString());
+                Assert.Contains("mig1", scopeInfoClient.GetSupportedMigrationsList());
+                Assert.Equal(0, second.TotalChangesDownloadedFromServer);
+            }
+            finally
+            {
+                HelperDatabase.ClearAllPools();
+                HelperDatabase.DropDatabase(ProviderType.Sqlite, clientName);
+            }
         }
     }
 }
