@@ -18,11 +18,13 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.7.0</Version>
+        <Version>1.8.8.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.8.0
+            - a client that never synced but already supports a migration the server has no longer fails its first sync with "no such table" (stored procedures and triggers were re-provisioned before the tables existed)
             # 1.8.7.0
             - same changes as 1.8.6.0: the 1.8.6 packages were packed from stale build output and contain the 1.8.5 binaries, so do not use them
             # 1.8.6.0
