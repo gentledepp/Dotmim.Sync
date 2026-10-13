@@ -18,11 +18,13 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.6.0</Version>
+        <Version>1.8.7.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.7.0
+            - same changes as 1.8.6.0: the 1.8.6 packages were packed from stale build output and contain the 1.8.5 binaries, so do not use them
             # 1.8.6.0
             - web sync progress no longer jumps back and forth during the first sync (parallel batch downloads, async batch creation and progressive batching). ProgressArgs.ProgressPercentage is now the value at the time the progress was reported
             - progressive batching no longer downloads batch parts twice, and the first web sync with a response interceptor, converter or non-json serializer no longer fails with DirectoryNotFoundException
