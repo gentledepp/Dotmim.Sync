@@ -288,8 +288,18 @@ namespace Wormhole.Sync
                             runnerScopeInfo.Connection, runnerScopeInfo.Transaction, runnerScopeInfo.Progress, runnerScopeInfo.CancellationToken).ConfigureAwait(false);
                     }
 
-                    var databaseChangesAppliedArgs = new DatabaseChangesAppliedArgs(context, clientChangesApplied, connection ??= this.Provider.CreateConnection(), transaction);
-                    await this.InterceptAsync(databaseChangesAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
+                    // Without a connection of our own, create one for the args only, and dispose it once the interceptors ran
+                    var appliedConnection = connection ?? this.Provider.CreateConnection();
+                    try
+                    {
+                        var databaseChangesAppliedArgs = new DatabaseChangesAppliedArgs(context, clientChangesApplied, appliedConnection, transaction);
+                        await this.InterceptAsync(databaseChangesAppliedArgs, progress, cancellationToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        if (connection == null)
+                            appliedConnection.Dispose();
+                    }
 
                     if (this.Options.TransactionMode == TransactionMode.AllOrNothing && runner != null)
                         await runner.CommitAsync().ConfigureAwait(false);

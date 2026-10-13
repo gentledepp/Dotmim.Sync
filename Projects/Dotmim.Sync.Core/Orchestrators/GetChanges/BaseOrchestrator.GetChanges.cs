@@ -508,7 +508,7 @@ namespace Wormhole.Sync
 
                      var newSizeKB = batchSizeInBytes / 1024L;
                      // Check if we exceeded the batch size limit
-                     if (newSizeKB > this.Options.BatchSize)
+                     if (newSizeKB > this.BatchSize)
                      {
                         // Close current table and file
                         await unifiedSerializer.CloseCurrentTableAsync().ConfigureAwait(false);
@@ -850,7 +850,7 @@ namespace Wormhole.Sync
 
          var currentBatchSize = await localJsonSerializer.GetCurrentFileSizeAsync().ConfigureAwait(false);
 
-         if (currentBatchSize > this.Options.BatchSize && localJsonSerializer.IsOpen)
+         if (currentBatchSize > this.BatchSize && localJsonSerializer.IsOpen)
          {
             await localJsonSerializer.CloseFileAsync().ConfigureAwait(false);
             await this.InterceptAsync(new BatchChangesCreatedArgs(context, batchInfo, batchPartInfo, schemaChangesTable, tableChangesSelected, syncRow.RowState, connection, transaction), progress, cancellationToken).ConfigureAwait(false);
@@ -877,7 +877,7 @@ namespace Wormhole.Sync
             var changes = new DatabaseChangesSelected();
 
             // Call interceptor
-            var databaseChangesSelectingArgs = new DatabaseChangesSelectingArgs(context, default, this.Options.BatchSize, true,
+            var databaseChangesSelectingArgs = new DatabaseChangesSelectingArgs(context, default, this.BatchSize, true,
                fromLastTimestamp, connection, transaction);
 
             await this.InterceptAsync(databaseChangesSelectingArgs, progress, cancellationToken).ConfigureAwait(false);

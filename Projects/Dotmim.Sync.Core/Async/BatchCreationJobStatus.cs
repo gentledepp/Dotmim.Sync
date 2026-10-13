@@ -152,5 +152,19 @@ namespace Wormhole.Sync.Async
         /// </summary>
         [DataMember(Name = "lac", IsRequired = false, EmitDefaultValue = false, Order = 17)]
         public int LastAcknowledgedIndex { get; set; } = -1;
+
+        /// <summary>
+        /// Copy of this status with its own <see cref="AvailableBatchParts"/> list, so that a reader and the job writing the status
+        /// do not share mutable state. Other references (e.g. <see cref="BatchInfo"/>) are shared.
+        /// </summary>
+        internal BatchCreationJobStatus Clone()
+        {
+            var clone = (BatchCreationJobStatus)this.MemberwiseClone();
+
+            if (this.AvailableBatchParts != null)
+                clone.AvailableBatchParts = new List<BatchPartInfo>(this.AvailableBatchParts);
+
+            return clone;
+        }
     }
 }

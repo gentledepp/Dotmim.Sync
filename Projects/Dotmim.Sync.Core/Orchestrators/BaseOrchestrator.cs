@@ -47,6 +47,24 @@ namespace Wormhole.Sync
         private double lastReportedProgressPercentage;
 
         /// <summary>
+        /// Batch size for the current async flow, see <see cref="UseBatchSize"/>.
+        /// </summary>
+        private readonly AsyncLocal<int?> batchSizeOverride = new();
+
+        /// <summary>
+        /// Gets the batch size used to create batch parts: the one set with <see cref="UseBatchSize"/> for the current async flow,
+        /// otherwise <see cref="SyncOptions.BatchSize"/>.
+        /// </summary>
+        internal int BatchSize => this.batchSizeOverride.Value ?? this.Options.BatchSize;
+
+        /// <summary>
+        /// Use <paramref name="batchSize"/> instead of <see cref="SyncOptions.BatchSize"/> for the rest of the current async flow,
+        /// without changing the options shared by concurrent calls (e.g. one web server orchestrator serving many clients).
+        /// Set it from within an async method: the value is gone once that method returns.
+        /// </summary>
+        internal void UseBatchSize(int batchSize) => this.batchSizeOverride.Value = batchSize;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="BaseOrchestrator"/> class.
         /// </summary>
         internal BaseOrchestrator(CoreProvider provider, SyncOptions options)

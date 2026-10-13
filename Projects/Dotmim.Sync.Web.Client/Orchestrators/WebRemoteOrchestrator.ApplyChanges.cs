@@ -322,6 +322,11 @@ namespace Wormhole.Sync.Web.Client
 
                 throw this.GetSyncError(context, ex);
             } // throw client error
+            finally
+            {
+                // The last upload or poll response is read above, and not disposed by the loops
+                response?.Dispose();
+            }
         }
     }
 }

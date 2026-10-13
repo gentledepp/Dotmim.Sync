@@ -87,9 +87,9 @@ namespace Wormhole.Sync.Web.Server
         }
 
         /// <summary>
-        /// Client Converter.
+        /// Converter of the client whose request is being handled. Kept per async flow, since one agent serves concurrent requests.
         /// </summary>
-        private IConverter clientConverter;
+        private readonly AsyncLocal<IConverter> clientConverter = new();
 
 #if NET48
         /// <summary>
@@ -571,7 +571,7 @@ namespace Wormhole.Sync.Web.Server
 
                 // Get converter used by client
                 // Can be null
-                this.clientConverter = this.GetClientConverter(cliConverterKey);
+                this.clientConverter.Value = this.GetClientConverter(cliConverterKey);
 
                 byte[] binaryData = null;
                 Type responseSerializerType = null;
@@ -1180,8 +1180,9 @@ namespace Wormhole.Sync.Web.Server
         {
             // Overriding batch size options value, coming from client
             // having changes from server in batch size or not is decided by the client.
-            // Basically this options is not used on the server, since it's always overriden by the client
-            this.Options.BatchSize = clientBatchSize;
+            // Basically this options is not used on the server, since it's always overriden by the client.
+            // Only for this request: the options are shared by all clients.
+            this.RemoteOrchestrator.UseBatchSize(clientBatchSize);
 
             var context = httpMessage.SyncContext;
             ScopeInfo sScopeInfo;
@@ -1227,7 +1228,7 @@ namespace Wormhole.Sync.Web.Server
                     var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
 
                     // Apply converter if needed before serialization
-                    if (this.clientConverter != null)
+                    if (this.clientConverter.Value != null)
                     {
                         foreach (var containerTable in httpMessage.Changes.Tables)
                         {
@@ -1240,7 +1241,7 @@ namespace Wormhole.Sync.Web.Server
                                 {
                                     // Row format is always: [state, col1, col2, ..., colN]
                                     var syncRow = new SyncRow(schemaTable, row);
-                                    this.clientConverter.AfterDeserialized(syncRow, schemaTable);
+                                    this.clientConverter.Value.AfterDeserialized(syncRow, schemaTable);
                                 }
                             }
                         }
@@ -1306,8 +1307,8 @@ namespace Wormhole.Sync.Web.Server
                 {
                     var syncRow = new SyncRow(schemaTable, row);
 
-                    if (this.clientConverter != null && syncRow.Length > 0)
-                        this.clientConverter.AfterDeserialized(syncRow, schemaTable);
+                    if (this.clientConverter.Value != null && syncRow.Length > 0)
+                        this.clientConverter.Value.AfterDeserialized(syncRow, schemaTable);
 
                     await localSerializer.WriteRowToFileAsync(syncRow, schemaTable).ConfigureAwait(false);
                 }
@@ -1376,7 +1377,7 @@ namespace Wormhole.Sync.Web.Server
                     Context = context,
                     ClientBatchInfo = sessionCache.ClientBatchInfo,
                     BatchDirectory = this.Options.BatchDirectory,
-                    BatchSize = this.Options.BatchSize,
+                    BatchSize = clientBatchSize,
                     UseUnifiedBatching = context.UseUnifiedBatching,
                     ProviderTypeName = this.Provider.GetType().AssemblyQualifiedName,
                     ConnectionString = this.Provider.ConnectionString
@@ -1710,7 +1711,7 @@ namespace Wormhole.Sync.Web.Server
                 }
 
                 // Apply converter if needed after deserialization
-                if (this.clientConverter != null && containerSet.HasRows)
+                if (this.clientConverter.Value != null && containerSet.HasRows)
                 {
                     foreach (var containerTable in containerSet.Tables)
                     {
@@ -1723,7 +1724,7 @@ namespace Wormhole.Sync.Web.Server
                                 var row = containerTable.Rows[i];
                                 // Row format is always: [state, col1, col2, ..., colN]
                                 var syncRow = new SyncRow(schemaTable, row);
-                                this.clientConverter.BeforeSerialize(syncRow, schemaTable);
+                                this.clientConverter.Value.BeforeSerialize(syncRow, schemaTable);
                                 // Note: row is a reference to the same array in SyncRow, so modifications are reflected
                             }
                         }
@@ -1744,8 +1745,8 @@ namespace Wormhole.Sync.Web.Server
                 await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
                 foreach (var row in await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, schemaTable))
                 {
-                    if (row != null && row.Length > 0 && this.clientConverter != null)
-                        this.clientConverter.BeforeSerialize(row, schemaTable);
+                    if (row != null && row.Length > 0 && this.clientConverter.Value != null)
+                        this.clientConverter.Value.BeforeSerialize(row, schemaTable);
 
                     containerTable.Rows.Add(row.ToArray());
                 }

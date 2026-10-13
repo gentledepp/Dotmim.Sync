@@ -216,8 +216,8 @@ namespace Wormhole.Sync.Web.Client
                                     HttpStep.SendChangesInProgress, context, summaryResponseContent, this.GetServiceHost()), progress, cancellationToken).ConfigureAwait(false);
                             
                             // See #721 for issue and #721 for PR from slagtejn
-                            if (!bpi.IsLastBatch)
-                                response.Dispose();
+                            // The response has been read above, so the last one can be disposed as well
+                            response.Dispose();
                         }
                     }
                 }

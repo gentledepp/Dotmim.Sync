@@ -11,6 +11,7 @@ namespace Wormhole.Sync.Web.Server.Async
     /// <summary>
     /// Singleton in-memory storage for job state. Single-server only.
     /// For scale-out deployments, use a distributed store implementation like HangfireBatchJobStore.
+    /// Like a distributed store, it stores and returns copies of the statuses: the job updates its status while requests read it.
     /// </summary>
     public class InMemoryBatchJobStore : IBatchJobStore
     {
@@ -42,14 +43,14 @@ namespace Wormhole.Sync.Web.Server.Async
         /// <inheritdoc />
         public Task SetStatusAsync(string jobId, BatchCreationJobStatus status, CancellationToken cancellationToken = default)
         {
-            this.statuses[jobId] = status;
+            this.statuses[jobId] = status?.Clone();
             return Task.CompletedTask;
         }
 
         /// <inheritdoc />
         public Task<BatchCreationJobStatus> GetStatusAsync(string jobId, CancellationToken cancellationToken = default)
         {
-            var result = this.statuses.TryGetValue(jobId, out var s) ? s : null;
+            var result = this.statuses.TryGetValue(jobId, out var s) ? s?.Clone() : null;
             return Task.FromResult(result);
         }
 
@@ -105,7 +106,7 @@ namespace Wormhole.Sync.Web.Server.Async
         /// <param name="jobId">The job identifier.</param>
         /// <param name="status">The job status.</param>
         public void SetStatus(string jobId, BatchCreationJobStatus status)
-            => this.statuses[jobId] = status;
+            => this.statuses[jobId] = status?.Clone();
 
         /// <summary>
         /// Gets the status for a job.
@@ -113,7 +114,7 @@ namespace Wormhole.Sync.Web.Server.Async
         /// <param name="jobId">The job identifier.</param>
         /// <returns>The job status, or null if not found.</returns>
         public BatchCreationJobStatus GetStatus(string jobId)
-            => this.statuses.TryGetValue(jobId, out var s) ? s : null;
+            => this.statuses.TryGetValue(jobId, out var s) ? s?.Clone() : null;
 
         /// <summary>
         /// Removes a job and its associated data.
@@ -152,6 +153,6 @@ namespace Wormhole.Sync.Web.Server.Async
         /// </summary>
         /// <returns>Dictionary of job IDs to their statuses.</returns>
         public IDictionary<string, BatchCreationJobStatus> GetAllStatuses()
-            => new Dictionary<string, BatchCreationJobStatus>(this.statuses);
+            => this.statuses.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.Clone());
     }
 }

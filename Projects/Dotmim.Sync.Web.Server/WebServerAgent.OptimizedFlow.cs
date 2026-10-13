@@ -37,8 +37,8 @@ namespace Wormhole.Sync.Web.Server
         {
             try
             {   
-                // Overriding batch size options value, coming from client
-                this.Options.BatchSize = clientBatchSize;
+                // Overriding batch size options value, coming from client, only for this request: the options are shared by all clients
+                this.RemoteOrchestrator.UseBatchSize(clientBatchSize);
 
                 var context = httpMessage.SyncContext;
 
@@ -140,7 +140,7 @@ namespace Wormhole.Sync.Web.Server
                         var fullPath = Path.Combine(sessionCache.ClientBatchInfo.GetDirectoryFullPath(), fileName);
 
                         // Apply converter if needed before serialization
-                        if (this.clientConverter != null) {
+                        if (this.clientConverter.Value != null) {
                             foreach (var containerTable in httpMessage.Changes.Tables)
                             {
                                 if (containerTable.HasRows)
@@ -152,7 +152,7 @@ namespace Wormhole.Sync.Web.Server
                                     {
                                         // Row format is always: [state, col1, col2, ..., colN]
                                         var syncRow = new SyncRow(schemaTable, row);
-                                        this.clientConverter.AfterDeserialized(syncRow, schemaTable);
+                                        this.clientConverter.Value.AfterDeserialized(syncRow, schemaTable);
                                     }
                                 }
                             }
@@ -222,8 +222,8 @@ namespace Wormhole.Sync.Web.Server
                             // Traditional batch processing
                             var syncRow = new SyncRow(schemaTable, row);
 
-                            if (this.clientConverter != null && syncRow.Length > 0)
-                                this.clientConverter.AfterDeserialized(syncRow, schemaTable);
+                            if (this.clientConverter.Value != null && syncRow.Length > 0)
+                                this.clientConverter.Value.AfterDeserialized(syncRow, schemaTable);
 
                             await localSerializer.WriteRowToFileAsync(syncRow, schemaTable);
                         }
@@ -588,7 +588,7 @@ namespace Wormhole.Sync.Web.Server
                 var containerSet = await serializer.DeserializeAsync<ContainerSet>(stream).ConfigureAwait(false);
 
                 // Apply converter if needed
-                if (this.clientConverter != null && containerSet.HasRows)
+                if (this.clientConverter.Value != null && containerSet.HasRows)
                 {
                     foreach (var containerTable in containerSet.Tables)
                     {
@@ -598,7 +598,7 @@ namespace Wormhole.Sync.Web.Server
                             foreach (var row in containerTable.Rows)
                             {
                                 var syncRow = new SyncRow(schemaTable, row);
-                                this.clientConverter.BeforeSerialize(syncRow, schemaTable);
+                                this.clientConverter.Value.BeforeSerialize(syncRow, schemaTable);
                             }
                         }
                     }
@@ -622,8 +622,8 @@ namespace Wormhole.Sync.Web.Server
                 await using var localSerializer = new LocalJsonSerializer(this.RemoteOrchestrator.BatchStorage, this.RemoteOrchestrator, context);
                 foreach (var row in await localSerializer.GetRowsFromFileAsync(directoryPath, fileName, schemaTable))
                 {
-                    if (row != null && row.Length > 0 && this.clientConverter != null)
-                        this.clientConverter.BeforeSerialize(row, schemaTable);
+                    if (row != null && row.Length > 0 && this.clientConverter.Value != null)
+                        this.clientConverter.Value.BeforeSerialize(row, schemaTable);
 
                     containerTable.Rows.Add(row.ToArray());
                 }

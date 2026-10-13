@@ -294,6 +294,77 @@ namespace Wormhole.Sync.Tests.UnitTests.AsyncBatchCreation
             Assert.Equal(0, this.store.Count);
         }
 
+        [Fact]
+        public void GetStatus_ReturnsSnapshot_NotChangedByLaterUpdates()
+        {
+            var jobId = "snapshot_job";
+            this.store.SetStatus(jobId, CreateTestStatus(jobId, BatchCreationJobState.Processing));
+
+            // A request reads the status while the job is running
+            var read = this.store.GetStatus(jobId);
+
+            // The job updates the status the way BatchCreationWorkerService does
+            var update = this.store.GetStatus(jobId);
+            update.AvailableBatchParts.Add(new Batch.BatchPartInfo { FileName = "part0", Index = 0 });
+            update.State = BatchCreationJobState.FirstBatchReady;
+            this.store.SetStatus(jobId, update);
+
+            // Changing the object after SetStatus does not change the stored status either
+            update.AvailableBatchParts.Add(new Batch.BatchPartInfo { FileName = "part1", Index = 1 });
+
+            var latest = this.store.GetStatus(jobId);
+
+            this.Output.WriteLine($"Read before update: {read.State}, {read.AvailableBatchParts.Count} parts. Latest: {latest.State}, {latest.AvailableBatchParts.Count} parts");
+
+            Assert.Equal(BatchCreationJobState.Processing, read.State);
+            Assert.Empty(read.AvailableBatchParts);
+            Assert.Equal(BatchCreationJobState.FirstBatchReady, latest.State);
+            Assert.Single(latest.AvailableBatchParts);
+        }
+
+        [Fact]
+        public async Task GetStatus_WhileJobAddsBatchParts_ReadersSeeConsistentLists()
+        {
+            var jobId = "parts_job";
+            this.store.SetStatus(jobId, CreateTestStatus(jobId, BatchCreationJobState.Processing));
+
+            const int parts = 20000;
+            var writer = Task.Run(() =>
+            {
+                for (var i = 0; i < parts; i++)
+                {
+                    var status = this.store.GetStatus(jobId);
+                    status.AvailableBatchParts.Add(new Batch.BatchPartInfo { FileName = $"part{i}", Index = i });
+                    status.TotalBatchPartsCreated++;
+                    this.store.SetStatus(jobId, status);
+                }
+            });
+
+            // Read the way WebServerAgent.TryHandleBatchJobStatusAsync does, while the job adds parts
+            var reads = 0;
+            var reader = Task.Run(() =>
+            {
+                while (!writer.IsCompleted)
+                {
+                    var status = this.store.GetStatus(jobId);
+                    if (status.AvailableBatchParts.Count == 0)
+                        continue;
+
+                    var copy = new System.Collections.Generic.List<Batch.BatchPartInfo>(status.AvailableBatchParts);
+                    var lastIndex = status.AvailableBatchParts.Max(bpi => bpi.Index);
+
+                    Assert.DoesNotContain(null, copy);
+                    Assert.Equal(copy.Count - 1, lastIndex);
+                    reads++;
+                }
+            });
+
+            await Task.WhenAll(writer, reader);
+
+            this.Output.WriteLine($"{reads} consistent reads while {parts} parts were added");
+            Assert.Equal(parts, this.store.GetStatus(jobId).AvailableBatchParts.Count);
+        }
+
         public void Dispose()
         {
             this.stopwatch?.Stop();

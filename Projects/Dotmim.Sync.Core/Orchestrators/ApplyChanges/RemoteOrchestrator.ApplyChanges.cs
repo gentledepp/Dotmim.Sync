@@ -248,7 +248,7 @@ namespace Wormhole.Sync
 
                     // Call interceptor
                     var databaseChangesSelectingArgs = new DatabaseChangesSelectingArgs(
-                        context, serverBatchInfo.GetDirectoryFullPath(), this.Options.BatchSize, fromScratch,
+                        context, serverBatchInfo.GetDirectoryFullPath(), this.BatchSize, fromScratch,
                         cScopeInfoClient.LastServerSyncTimestamp, runner.Connection, runner.Transaction);
 
                     await this.InterceptAsync(databaseChangesSelectingArgs, progress, cancellationToken).ConfigureAwait(false);

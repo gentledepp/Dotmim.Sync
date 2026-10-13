@@ -59,6 +59,10 @@ namespace Wormhole.Sync.Web.Server.Async
                     BatchStorage = this.batchStorage
                 };
 
+                // Batch size requested by the client, without changing the options shared with other jobs and requests
+                if (parameters.BatchSize > 0)
+                    orchestrator.UseBatchSize(parameters.BatchSize);
+
                 // Register progress callback via OnBatchChangesCreated interceptor.
                 // Only unified batch parts can be handed out while the job runs: traditional batch parts are
                 // re-indexed once all tables are read (and have no TableRowCounts), so they are returned on completion.

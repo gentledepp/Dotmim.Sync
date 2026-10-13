@@ -80,7 +80,7 @@ namespace Wormhole.Sync
                     var serverBatchInfo = new BatchInfo(this.Options.BatchDirectory, info: info);
 
                     // Call interceptor
-                    var databaseChangesSelectingArgs = new DatabaseChangesSelectingArgs(context, serverBatchInfo.GetDirectoryFullPath(), this.Options.BatchSize, true,
+                    var databaseChangesSelectingArgs = new DatabaseChangesSelectingArgs(context, serverBatchInfo.GetDirectoryFullPath(), this.BatchSize, true,
                         cScopeInfoClient.LastServerSyncTimestamp, runner.Connection, runner.Transaction);
 
                     await this.InterceptAsync(databaseChangesSelectingArgs, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
