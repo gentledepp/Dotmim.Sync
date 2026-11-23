@@ -303,7 +303,8 @@ var result = await agent.SynchronizeAsync(setupV2);
 - On sync, the framework compares `agent.SupportedMigrations` with the server's `ScopeInfo.Migrations`
 - If the server has a migration the client supports but hasn't provisioned for yet, it automatically deprovisions old triggers/SPs and reprovisions with the server's updated schema
 - The client declares its `SupportedMigrations` to the server (since 1.8.9), which hands it its scope at the newest migration the client supports, never the tables or columns of a newer one. When reprovisioning, the client also keeps only the columns its existing tables have
-- The provisioned migrations (those the server had) are recorded in `ScopeInfoClient.SupportedMigrations` so this only happens once
+- The local scope stores the migrations it was provisioned for (`ScopeInfo.Migrations`, since 1.8.10) so this only happens once. A scope provisioned before 1.8.10 re-provisions once, since older versions recorded migrations the server did not have yet as provisioned
+- The client also declares the migrations its scope is provisioned for (since 1.8.10): a supported migration the server lacks does not force the traditional flow, and a server since 1.8.10 sends the client from the optimized to the traditional flow in the sync in which it has to re-provision
 - Clients before 1.8.9 do not declare their migrations. Set `WebServerOptions.UndeclaredClientsMigration` to the newest migration they support (e.g. `"0001_rc"`): they are handed the server scope at that migration, which they may rebuild their triggers from without harm
 - If the server hasn't migrated yet (e.g., connecting to a different server still on V1), nothing happens — the client keeps syncing with the old schema
 - Incremental sync continues normally; new/changed rows will include the new column. To backfill existing rows, the framework uses `SyncType.Reinitialize` for the tables, that have new columns.

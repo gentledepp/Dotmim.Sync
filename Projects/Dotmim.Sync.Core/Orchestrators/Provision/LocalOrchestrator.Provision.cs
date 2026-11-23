@@ -344,6 +344,9 @@ namespace Wormhole.Sync
                     clientScopeInfo.Setup = clientScopeToProvision.Setup;
                     clientScopeInfo.Schema = clientScopeToProvision.Schema;
 
+                    // the migrations the local scope is now provisioned for (SyncAgent re-provisions for a supported one it lacks)
+                    clientScopeInfo.Migrations = clientScopeToProvision.Migrations;
+
                     // Write scopes locally
                     (context, clientScopeInfo) = await this.InternalSaveScopeInfoAsync(clientScopeInfo, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 

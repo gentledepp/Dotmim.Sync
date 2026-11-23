@@ -26,22 +26,8 @@ namespace Wormhole.Sync
         internal virtual async Task<(SyncContext Context, ScopeInfo ScopeInfo)> InternalGetScopeInfoForClientAsync(ScopeInfo serverScopeInfo, SyncContext context,
             string undeclaredClientsMigration, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
         {
-            var serverMigrations = serverScopeInfo?.GetMigrationsList() ?? new List<string>();
-            if (serverMigrations.Count == 0)
-                return (context, serverScopeInfo);
-
-            serverMigrations.Sort(StringComparer.Ordinal);
-
-            var clientMigrations = context.GetSupportedMigrations();
-            if (clientMigrations == null)
-            {
-                if (string.IsNullOrEmpty(undeclaredClientsMigration))
-                    return (context, serverScopeInfo);
-
-                clientMigrations = serverMigrations.Where(m => string.CompareOrdinal(m, undeclaredClientsMigration) <= 0).ToList();
-            }
-
-            var clientLevel = serverMigrations.TakeWhile(m => clientMigrations.Contains(m)).ToList();
+            var serverMigrations = GetSortedMigrations(serverScopeInfo);
+            var clientLevel = GetClientMigrationLevel(serverMigrations, context, undeclaredClientsMigration);
             if (clientLevel.Count == serverMigrations.Count)
                 return (context, serverScopeInfo);
 
@@ -89,6 +75,49 @@ namespace Wormhole.Sync
 
                 return (context, clientScopeInfo);
             }
+        }
+
+        /// <summary>
+        /// Whether a client has to re-provision before it syncs: it declared its supported migrations and the migrations its local
+        /// scope is provisioned for (since Wormhole.Sync 1.8.10), and the server has a migration up to the client's level that the
+        /// client has not provisioned. The optimized flow then sends the client to the traditional flow, which re-provisions it.
+        /// </summary>
+        internal static bool ClientNeedsReprovision(ScopeInfo serverScopeInfo, SyncContext context, string undeclaredClientsMigration)
+        {
+            var provisioned = context.GetProvisionedMigrations();
+            if (provisioned == null || context.GetSupportedMigrations() == null)
+                return false;
+
+            return GetClientMigrationLevel(GetSortedMigrations(serverScopeInfo), context, undeclaredClientsMigration)
+                .Any(m => !provisioned.Contains(m));
+        }
+
+        /// <summary>
+        /// The server migrations of a scope, ordered by name.
+        /// </summary>
+        private static List<string> GetSortedMigrations(ScopeInfo serverScopeInfo)
+        {
+            var serverMigrations = serverScopeInfo?.GetMigrationsList() ?? new List<string>();
+            serverMigrations.Sort(StringComparer.Ordinal);
+            return serverMigrations;
+        }
+
+        /// <summary>
+        /// The client's migration level: the longest run of server migrations, from the first, that the client supports.
+        /// All server migrations for a client that does not declare its migrations when <paramref name="undeclaredClientsMigration"/> is not set.
+        /// </summary>
+        private static List<string> GetClientMigrationLevel(List<string> sortedServerMigrations, SyncContext context, string undeclaredClientsMigration)
+        {
+            var clientMigrations = context.GetSupportedMigrations();
+            if (clientMigrations == null)
+            {
+                if (string.IsNullOrEmpty(undeclaredClientsMigration))
+                    return sortedServerMigrations;
+
+                clientMigrations = sortedServerMigrations.Where(m => string.CompareOrdinal(m, undeclaredClientsMigration) <= 0).ToList();
+            }
+
+            return sortedServerMigrations.TakeWhile(m => clientMigrations.Contains(m)).ToList();
         }
     }
 }

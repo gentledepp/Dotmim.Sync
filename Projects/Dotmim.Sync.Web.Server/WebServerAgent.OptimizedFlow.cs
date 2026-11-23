@@ -113,6 +113,29 @@ namespace Wormhole.Sync.Web.Server
                     }
                 }
 
+                // Schema evolution: a client that has to re-provision for a migration it supports (it declares its supported and
+                // provisioned migrations since 1.8.10) is sent to the traditional flow with the scope it may adopt, before any of
+                // its changes are received, so that it re-provisions in this sync.
+                if (schemaValid && httpMessage.BatchIndex == 0
+                    && RemoteOrchestrator.ClientNeedsReprovision(serverScopeInfo, context, this.WebServerOptions.UndeclaredClientsMigration))
+                {
+                    ScopeInfo clientScopeInfo;
+                    (context, clientScopeInfo) = await this.RemoteOrchestrator.InternalGetScopeInfoForClientAsync(serverScopeInfo, context,
+                        this.WebServerOptions.UndeclaredClientsMigration, progress, cancellationToken).ConfigureAwait(false);
+
+                    return new HttpMessageSendChangesIncrementalResponse
+                    {
+                        Operation = operation,
+                        SchemaValid = false,
+                        ServerScopeInfo = clientScopeInfo,
+                        ConflictResolutionPolicy = this.Options.ConflictResolutionPolicy,
+                        ServerScopeId = serverScopeInfo.Id,
+                        ServerCapabilities = serverScopeInfo.ServerCapabilities,
+                        SyncContext = context,
+                        Step = HttpStep.SendChangesIncremental,
+                    };
+                }
+
                 // Step 4: Apply changes and get server changes (only if schema is valid and this is the last batch)
                 DatabaseChangesApplied clientChangesApplied = null;
                 DatabaseChangesSelected serverChangesSelected = null;

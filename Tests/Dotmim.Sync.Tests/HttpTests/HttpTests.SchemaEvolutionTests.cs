@@ -818,6 +818,160 @@ namespace Wormhole.Sync.Tests.IntegrationTests
             Assert.Null(clientScope.Schema.Tables.First(t => t.TableName == "ProductCategory").Columns["Mig2Column"]);
         }
 
+        // -----------------------------------------------------------------------
+        // Test 17: A client provisioned before 1.8.10 that recorded a migration its scope lacks (1.8.8 recorded all supported
+        //          migrations once the server had any) re-provisions for it once the server has it
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public virtual async Task SchemaEvolution_ClientThatRecordedAMigrationItsScopeLacks_ReprovisionsForIt()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+            var uri = await this.SetupClientProvisionedForMig1Async(options);
+            var clientProvider = this.clientsProvider.First();
+
+            // as 1.8.8 left it: "mig2" recorded although the server did not have it, the scope has no "Mig2Column"
+            var localOrchestrator = new LocalOrchestrator(clientProvider, options);
+            var clientScope = await localOrchestrator.GetScopeInfoAsync();
+            clientScope.Migrations = null;
+            await localOrchestrator.SaveScopeInfoAsync(clientScope);
+            var scopeInfoClient = await localOrchestrator.GetScopeInfoClientAsync();
+            scopeInfoClient.SetSupportedMigrationsList(new List<string> { "mig1", "mig2" });
+            scopeInfoClient.LastKnownServerMigrations = null;
+            await localOrchestrator.SaveScopeInfoClientAsync(scopeInfoClient);
+
+            await this.MigrateServerToMig2Async();
+            var serverInsertedId = await InsertProductCategoryWithAttributeOnServerAsync("AfterMig2");
+            await this.SetMig2ColumnOnServerAsync(serverInsertedId, "Mig2Value");
+            await this.ExecuteOnClientAsync(clientProvider, "ALTER TABLE ProductCategory ADD [Mig2Column] text NULL;");
+            HelperDatabase.ClearAllPools();
+
+            var agent = new SyncAgent(clientProvider, new WebRemoteOrchestrator(uri), options);
+            agent.SupportedMigrations = new List<string> { "mig1", "mig2" };
+            await agent.SynchronizeAsync();
+
+            var clientTable = (await agent.LocalOrchestrator.GetScopeInfoAsync()).Schema.Tables.First(t => t.TableName == "ProductCategory");
+            Assert.NotNull(clientTable.Columns["Mig2Column"]);
+            Assert.Equal("Mig2Value", (await this.ReadMig2ColumnOnClientAsync(clientProvider, serverInsertedId))?.ToString());
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 18: A client that supports a migration the server does not have keeps the optimized flow, and re-provisions
+        //          in the sync in which the server has it (the server sends it to the traditional flow)
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public virtual async Task SchemaEvolution_ClientAheadOfServer_KeepsTheOptimizedFlow_ThenReprovisionsInOneSync()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+            var uri = await this.SetupClientProvisionedForMig1Async(options);
+            var clientProvider = this.clientsProvider.First();
+            await this.ExecuteOnClientAsync(clientProvider, "ALTER TABLE ProductCategory ADD [Mig2Column] text NULL;");
+            HelperDatabase.ClearAllPools();
+
+            var steps = new List<HttpStep>();
+            await this.ClientSupportingMig2(clientProvider, uri, options, steps).SynchronizeAsync();
+
+            steps.Clear();
+            await InsertProductCategoryWithAttributeOnClientAsync(clientProvider, "Optimized");
+            var result = await this.ClientSupportingMig2(clientProvider, uri, options, steps).SynchronizeAsync();
+            Assert.Equal(1, result.TotalChangesUploadedToServer);
+            Assert.Contains(HttpStep.SendChangesIncremental, steps);
+            Assert.DoesNotContain(HttpStep.EnsureScopes, steps);
+
+            await this.MigrateServerToMig2Async();
+            var serverInsertedId = await InsertProductCategoryWithAttributeOnServerAsync("AfterMig2");
+            await this.SetMig2ColumnOnServerAsync(serverInsertedId, "Mig2Value");
+            var clientInsertedId = await InsertProductCategoryWithAttributeOnClientAsync(clientProvider, "WhileServerMigrated");
+
+            result = await this.ClientSupportingMig2(clientProvider, uri, options, steps).SynchronizeAsync();
+
+            Assert.Equal(1, result.TotalChangesUploadedToServer);
+            Assert.Equal("WhileServerMigrated", (await ReadAttributeWithSpaceOnServerAsync(clientInsertedId))?.ToString());
+            var clientTable = (await new LocalOrchestrator(clientProvider, options).GetScopeInfoAsync()).Schema.Tables.First(t => t.TableName == "ProductCategory");
+            Assert.NotNull(clientTable.Columns["Mig2Column"]);
+            Assert.Equal("Mig2Value", (await this.ReadMig2ColumnOnClientAsync(clientProvider, serverInsertedId))?.ToString());
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 19: A client stuck before 1.8.9 (the full scope) whose table got the column (app hotfix) keeps syncing and
+        //          uploading, in the optimized flow and when a traditional sync re-provisions it down to the scope it is handed
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public virtual async Task SchemaEvolution_StuckClientThatGotTheColumn_KeepsItsUploads_OptimizedAndTraditional()
+        {
+            var options = new SyncOptions { DisableConstraintsOnApplyChanges = false };
+            var uri = await this.SetupClientProvisionedForMig1Async(options, new WebServerOptions { UndeclaredClientsMigration = "mig1" });
+            var clientProvider = this.clientsProvider.First();
+            await this.MigrateServerToMig2Async();
+            var serverInsertedId = await InsertProductCategoryWithAttributeOnServerAsync("AfterMig2");
+            await this.SetMig2ColumnOnServerAsync(serverInsertedId, "Mig2Value");
+
+            var localOrchestrator = await this.StuckClientAsync(clientProvider, options, version: null);
+            await this.ExecuteOnClientAsync(clientProvider, "ALTER TABLE ProductCategory ADD [Mig2Column] text NULL;");
+            HelperDatabase.ClearAllPools();
+
+            // optimized flow: the client has the server's scope
+            var optimizedId = await InsertProductCategoryWithAttributeOnClientAsync(clientProvider, "Optimized");
+            var result = await this.OldClient(clientProvider, uri, useOptimizedFlow: true).SynchronizeAsync();
+            Assert.Equal(1, result.TotalChangesUploadedToServer);
+
+            // traditional flow, with a pending upload: re-provisioned down to the handed "mig1" scope, as before 1.8.9
+            var traditionalId = await InsertProductCategoryWithAttributeOnClientAsync(clientProvider, "Traditional");
+            await this.ReprovisionAsBefore189Async(clientProvider, uri, options);
+            result = await this.OldClient(clientProvider, uri, useOptimizedFlow: false).SynchronizeAsync();
+            Assert.Equal(1, result.TotalChangesUploadedToServer);
+
+            var laterId = await InsertProductCategoryWithAttributeOnClientAsync(clientProvider, "Later");
+            result = await this.OldClient(clientProvider, uri, useOptimizedFlow: true).SynchronizeAsync();
+            Assert.Equal(1, result.TotalChangesUploadedToServer);
+
+            var clientScope = await localOrchestrator.GetScopeInfoAsync();
+            Assert.Null(clientScope.Schema.Tables.First(t => t.TableName == "ProductCategory").Columns["Mig2Column"]);
+            Assert.Equal("Optimized", (await ReadAttributeWithSpaceOnServerAsync(optimizedId))?.ToString());
+            Assert.Equal("Traditional", (await ReadAttributeWithSpaceOnServerAsync(traditionalId))?.ToString());
+            Assert.Equal("Later", (await ReadAttributeWithSpaceOnServerAsync(laterId))?.ToString());
+            Assert.Equal("Mig2Value", (await this.ReadMig2ColumnOnServerAsync(serverInsertedId))?.ToString());
+            Assert.Equal("AfterMig2", (await ReadAttributeWithSpaceOnClientAsync(clientProvider, serverInsertedId))?.ToString());
+            Assert.Equal("Traditional", (await ReadAttributeWithSpaceOnClientAsync(clientProvider, traditionalId))?.ToString());
+        }
+
+        /// <summary>
+        /// Helper: a client [mig1, mig2] that records the http steps it sends.
+        /// </summary>
+        private SyncAgent ClientSupportingMig2(CoreProvider clientProvider, string uri, SyncOptions options, List<HttpStep> steps)
+        {
+            var remoteOrchestrator = new WebRemoteOrchestrator(uri);
+            remoteOrchestrator.OnHttpSendingRequest(args =>
+            {
+                if (args.Request.Headers.TryGetValues("dotmim-sync-step", out var values))
+                    steps.Add((HttpStep)int.Parse(values.First()));
+            });
+            var agent = new SyncAgent(clientProvider, remoteOrchestrator, options);
+            agent.SupportedMigrations = new List<string> { "mig1", "mig2" };
+            return agent;
+        }
+
+        /// <summary>
+        /// Helper: what a client before 1.8.9 does in the traditional flow: diff its scope against the handed one, record the
+        /// changed tables for re-initialization, then re-provision its triggers and stored procedures from the handed scope.
+        /// </summary>
+        private async Task ReprovisionAsBefore189Async(CoreProvider clientProvider, string uri, SyncOptions options)
+        {
+            var localOrchestrator = new LocalOrchestrator(clientProvider, options);
+            var served = await new WebRemoteOrchestrator(uri).GetScopeInfoAsync();
+            var changedTables = new Migration(await localOrchestrator.GetScopeInfoAsync(), served).Compare().GetTablesWithSchemaChanges();
+            if (changedTables.Count > 0)
+            {
+                var scopeInfoClient = await localOrchestrator.GetScopeInfoClientAsync();
+                scopeInfoClient.SetReinitTables(changedTables);
+                await localOrchestrator.SaveScopeInfoClientAsync(scopeInfoClient);
+            }
+
+            await localOrchestrator.ProvisionAsync(served, SyncProvision.StoredProcedures | SyncProvision.Triggers, true);
+        }
+
         /// <summary>
         /// Helper: the stuck state of a client before 1.8.9: it adopted the full server scope (with "Mig2Column"), its table has no such column.
         /// </summary>

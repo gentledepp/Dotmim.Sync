@@ -123,6 +123,14 @@ namespace Wormhole.Sync
         public List<string> SupportedMigrations { get; set; } = new();
 
         /// <summary>
+        /// The migrations the local scope is provisioned for: those of the scope it was provisioned from (stored with the local
+        /// scope since 1.8.10). None for a scope provisioned before 1.8.10: those recorded every supported migration as provisioned
+        /// once the server had any of them (ScopeInfoClient.SupportedMigrations), also one the server did not have yet, so such a
+        /// client re-provisions once from the scope the server hands it.
+        /// </summary>
+        private static List<string> ProvisionedMigrations(ScopeInfo cScopeInfo) => cScopeInfo?.GetMigrationsList() ?? new List<string>();
+
+        /// <summary>
         /// Shortcut to Apply changed conflict occured if remote orchestrator supports it.
         /// </summary>
         public void OnApplyChangesConflictOccured(Action<ApplyChangesConflictOccuredArgs> action)
@@ -250,14 +258,19 @@ namespace Wormhole.Sync
                 // because the server processes the sync even when rejecting (schemaValid=false)
                 // and sets AppliedBatchesSuccessfully=true in the session cache. A subsequent
                 // traditional flow call then gets a stub response with no BatchInfo → NullRef.
-                // NOTE: SupportedMigrations is only written to cScopeInfoClient AFTER
-                // reprovision, so the DB-stored value reflects what's actually provisioned.
+                // A supported migration is pending when the local scope is not provisioned for it (see ProvisionedMigrations) and
+                // the server had it at the last traditional sync, or that is unknown. When the server gets it later, a server since
+                // 1.8.10 sends the client from the optimized to the traditional flow (the client declares what it has provisioned).
                 var hasPendingMigrations = false;
                 if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0
                     && cScopeInfo?.Setup != null)
                 {
-                    var clientProvisioned = cScopeInfoClient.GetSupportedMigrationsList();
-                    hasPendingMigrations = this.SupportedMigrations.Any(m => !clientProvisioned.Contains(m));
+                    var provisioned = ProvisionedMigrations(cScopeInfo);
+                    context.SetProvisionedMigrations(provisioned);
+
+                    var lastKnownServerMigrations = cScopeInfoClient.LastKnownServerMigrations == null ? null : cScopeInfoClient.GetLastKnownServerMigrationsList();
+                    hasPendingMigrations = this.SupportedMigrations.Any(m => !provisioned.Contains(m)
+                        && (lastKnownServerMigrations == null || lastKnownServerMigrations.Contains(m)));
                 }
 
                 // check if the server supports unified batching
@@ -310,6 +323,11 @@ namespace Wormhole.Sync
                     if(sScopeInfo is null) // maybe we already retrieved it from the optimized sync attmept
                         (context, sScopeInfo, shouldProvision) = await this.RemoteOrchestrator.InternalEnsureScopeInfoAsync(context, setup, false, default, default, progress, cancellationToken).ConfigureAwait(false);
 
+                    // the migrations of the scope the server hands this client: a supported migration it does not have is not
+                    // pending (see hasPendingMigrations), so the client keeps the optimized flow against such a server
+                    if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0 && sScopeInfo != null)
+                        cScopeInfoClient.SetLastKnownServerMigrationsList(sScopeInfo.GetMigrationsList());
+
                     // -----------------------------------------------------------
                     // Schema evolution: auto-reprovision if the server has
                     // migrations that the client supports but hasn't provisioned
@@ -320,16 +338,16 @@ namespace Wormhole.Sync
                         && sScopeInfo != null && !string.IsNullOrEmpty(sScopeInfo.Migrations))
                     {
                         var serverMigrations = sScopeInfo.GetMigrationsList();
-                        var provisionedMigrations = cScopeInfoClient.GetSupportedMigrationsList();
+                        var provisionedMigrations = ProvisionedMigrations(cScopeInfo);
 
                         // Only a server migration the client supports AND has not provisioned yet needs a re-provision.
                         // A server migration the client does not support must not change the client's schema: an old
                         // client keeps syncing with its own columns.
                         var clientNeedsReprovision = serverMigrations.Any(m => this.SupportedMigrations.Contains(m) && !provisionedMigrations.Contains(m));
 
-                        // Only the supported migrations the server has are provisioned now. One the server does not have
-                        // yet stays pending, so the client re-provisions once a server has it.
-                        var nowProvisioned = provisionedMigrations.Union(serverMigrations.Where(m => this.SupportedMigrations.Contains(m))).ToList();
+                        // Recorded for information only (the local scope's migrations decide, see ProvisionedMigrations):
+                        // the supported migrations the server has.
+                        var nowProvisioned = cScopeInfoClient.GetSupportedMigrationsList().Union(serverMigrations.Where(m => this.SupportedMigrations.Contains(m))).ToList();
 
                         // A never-synced client (no prior Setup) has nothing to diff against and nothing provisioned
                         // to re-provision (not even its tables): the normal initialization path below provisions it

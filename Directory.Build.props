@@ -18,11 +18,15 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.9.0</Version>
+        <Version>1.8.10.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.10.0
+            - the local scope stores the migrations it was provisioned for, and a supported migration counts as provisioned only when the local scope has it. A client provisioned before 1.8.10 (1.8.8 recorded all supported migrations once the server had any, also one the server did not have yet) re-provisions once from the scope the server hands it, so its new columns sync
+            - a supported migration the server did not have at the last traditional sync no longer forces the traditional flow on every sync: the client declares the migrations its scope is provisioned for, and a server since 1.8.10 sends it from the optimized to the traditional flow (with the scope to adopt) as soon as it has to re-provision
+            - a single-row apply (fallback after a failed batch, conflict resolution) keeps the server values of columns an old client did not send, as the batch apply does (@sync_columns_present was always "*")
             # 1.8.9.0
             - a client declares its SupportedMigrations to the server, which hands it its scope at the newest migration the client supports, never the tables or columns of a newer one
             - WebServerOptions.UndeclaredClientsMigration: the newest migration of clients that do not declare their migrations (before 1.8.9). They are handed the server scope at that migration (from scope_info_schema_history), so their re-provisioning no longer adopts columns their tables lack ("no such column" on every sync)

@@ -143,6 +143,33 @@ namespace Wormhole.Sync
         }
 
         /// <summary>
+        /// The key in <see cref="AdditionalProperties"/> under which a client declares the migrations its local scope is
+        /// provisioned for (comma separated, since Wormhole.Sync 1.8.10), so that the server can send a client that has to
+        /// re-provision for a migration it supports from the optimized to the traditional flow.
+        /// </summary>
+        public const string ProvisionedMigrationsKey = "provisioned_migrations";
+
+        /// <summary>
+        /// Declare the migrations the client's local scope is provisioned for (see <see cref="ProvisionedMigrationsKey"/>).
+        /// </summary>
+        public void SetProvisionedMigrations(IEnumerable<string> migrations)
+        {
+            this.AdditionalProperties ??= new Dictionary<string, string>();
+            this.AdditionalProperties[ProvisionedMigrationsKey] = string.Join(",", migrations);
+        }
+
+        /// <summary>
+        /// Get the migrations the client declared its local scope is provisioned for, or null if it did not declare them.
+        /// </summary>
+        public List<string> GetProvisionedMigrations()
+        {
+            if (this.AdditionalProperties == null || !this.AdditionalProperties.TryGetValue(ProvisionedMigrationsKey, out var migrations))
+                return null;
+
+            return migrations.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        }
+
+        /// <summary>
         /// Gets or Sets the current percentage progress overall.
         /// </summary>
         /// <remarks>The value is clamped to [0, 1]. NaN is ignored.</remarks>

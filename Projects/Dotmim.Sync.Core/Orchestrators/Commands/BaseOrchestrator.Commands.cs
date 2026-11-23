@@ -263,9 +263,11 @@ namespace Wormhole.Sync
             var syncColumnsPresentParam = syncAdapter.GetParameter(context, command, "sync_columns_present");
             if (syncColumnsPresentParam != null)
             {
-                // Default to "*" (all columns present). The caller is responsible for setting
-                // a specific column list when processing batches from old clients.
-                syncAdapter.AddCommandParameterValue(context, syncColumnsPresentParam, "*", command, commandType);
+                // "*" (all columns present), unless the row tracks the columns its source had, as the batch apply
+                // does: a single-row apply (fallback after a failed batch, conflict resolution) must not overwrite
+                // the columns an old client did not send.
+                var columnsPresent = row?.SourceColumnNames != null ? string.Join(",", row.SourceColumnNames) : "*";
+                syncAdapter.AddCommandParameterValue(context, syncColumnsPresentParam, columnsPresent, command, commandType);
             }
 
             // Sqlite does not support output parameters
