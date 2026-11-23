@@ -1002,6 +1002,10 @@ namespace Wormhole.Sync.Web.Server
                 (context, serverScopeInfo) = await this.RemoteOrchestrator.InternalProvisionServerAsync(serverScopeInfo, context, provision, false, default, default, progress, cancellationToken).ConfigureAwait(false);
             }
 
+            // the client provisions itself from this scope: hand it the scope at the newest migration it supports
+            (context, serverScopeInfo) = await this.RemoteOrchestrator.InternalGetScopeInfoForClientAsync(serverScopeInfo, context,
+                this.WebServerOptions.UndeclaredClientsMigration, progress, cancellationToken).ConfigureAwait(false);
+
             // Create http response
             var httpResponse = new HttpMessageEnsureScopesResponse(context, serverScopeInfo);
 

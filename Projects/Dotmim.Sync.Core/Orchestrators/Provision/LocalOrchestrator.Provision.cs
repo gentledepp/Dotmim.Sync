@@ -1,5 +1,6 @@
 ﻿using Wormhole.Sync.Builders;
 using Wormhole.Sync.Enumerations;
+using Wormhole.Sync.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -331,11 +332,17 @@ namespace Wormhole.Sync
                     if (provision == SyncProvision.NotSet)
                         provision = SyncProvision.Table | SyncProvision.StoredProcedures | SyncProvision.Triggers | SyncProvision.TrackingTable;
 
-                    (context, _) = await this.InternalProvisionAsync(serverScopeInfo, context, overwrite, provision, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+                    // The client keeps its own columns: a column the server has but an existing client table lacks
+                    // comes from a server migration the client does not support (yet), and must not be selected or applied.
+                    ScopeInfo clientScopeToProvision;
+                    (context, clientScopeToProvision) = await this.InternalRemoveColumnsMissingLocallyAsync(serverScopeInfo, context,
+                        runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
+
+                    (context, _) = await this.InternalProvisionAsync(clientScopeToProvision, context, overwrite, provision, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
 
                     // set client scope setup and schema
-                    clientScopeInfo.Setup = serverScopeInfo.Setup;
-                    clientScopeInfo.Schema = serverScopeInfo.Schema;
+                    clientScopeInfo.Setup = clientScopeToProvision.Setup;
+                    clientScopeInfo.Schema = clientScopeToProvision.Schema;
 
                     // Write scopes locally
                     (context, clientScopeInfo) = await this.InternalSaveScopeInfoAsync(clientScopeInfo, context, runner.Connection, runner.Transaction, runner.Progress, runner.CancellationToken).ConfigureAwait(false);
@@ -354,6 +361,75 @@ namespace Wormhole.Sync
 
                 throw this.GetSyncError(context, ex, message);
             }
+        }
+
+        /// <summary>
+        /// Returns the server scope without the columns that an existing local table does not have (setup and schema).
+        /// Tables that do not exist locally keep the server definition, since provisioning creates them.
+        /// Returns the server scope itself when nothing is missing.
+        /// </summary>
+        internal virtual async Task<(SyncContext Context, ScopeInfo ScopeInfo)> InternalRemoveColumnsMissingLocallyAsync(ScopeInfo serverScopeInfo, SyncContext context,
+                            DbConnection connection, DbTransaction transaction, IProgress<ProgressArgs> progress, CancellationToken cancellationToken)
+        {
+            var sc = SyncGlobalization.DataSourceStringComparison;
+            ScopeInfo clientScope = null;
+
+            foreach (var serverTable in serverScopeInfo.Schema.Tables)
+            {
+                var tableBuilder = this.GetSyncAdapter(serverTable, serverScopeInfo).GetTableBuilder();
+
+                bool exists;
+                (context, exists) = await this.InternalExistsTableAsync(serverScopeInfo, context, tableBuilder, connection, transaction, progress, cancellationToken).ConfigureAwait(false);
+
+                if (!exists)
+                    continue;
+
+                var localColumns = (await tableBuilder.GetColumnsAsync(connection, transaction).ConfigureAwait(false)).Select(c => c.ColumnName).ToList();
+
+                // computed and read-only columns are never selected or applied on the client, so the client need not have them
+                var missingColumns = serverTable.Columns
+                    .Where(c => !c.IsCompute && !c.IsReadOnly)
+                    .Where(c => !serverTable.PrimaryKeys.Any(pk => string.Equals(pk, c.ColumnName, sc)))
+                    .Where(c => !localColumns.Any(lc => string.Equals(lc, c.ColumnName, sc)))
+                    .Select(c => c.ColumnName)
+                    .ToList();
+
+                if (missingColumns.Count == 0)
+                    continue;
+
+                clientScope ??= new ScopeInfo
+                {
+                    Id = serverScopeInfo.Id,
+                    Name = serverScopeInfo.Name,
+                    Schema = serverScopeInfo.Schema.Clone(),
+                    Setup = Serializer.Deserialize<SyncSetup>(Serializer.Serialize(serverScopeInfo.Setup).ToUtf8String()),
+                    Version = serverScopeInfo.Version,
+                    LastCleanupTimestamp = serverScopeInfo.LastCleanupTimestamp,
+                    Properties = serverScopeInfo.Properties,
+                    ServerCapabilities = serverScopeInfo.ServerCapabilities,
+                    SchemaHash = serverScopeInfo.SchemaHash,
+                    Migrations = serverScopeInfo.Migrations,
+                };
+
+                var clientTable = clientScope.Schema.Tables[serverTable.TableName, serverTable.SchemaName];
+                var setupTable = clientScope.Setup.Tables[serverTable.TableName, serverTable.SchemaName];
+
+                foreach (var columnName in missingColumns)
+                {
+                    clientTable.Columns.Remove(clientTable.Columns[columnName]);
+
+                    var setupColumn = setupTable?.Columns?.FirstOrDefault(c => string.Equals(c, columnName, sc));
+                    if (setupColumn != null)
+                        setupTable.Columns.Remove(setupColumn);
+
+                    // a relation on a column the client does not have cannot exist on the client either
+                    foreach (var relation in clientScope.Schema.Relations.Where(r => r.Keys.Concat(r.ParentKeys).Any(k =>
+                        string.Equals(k.ColumnName, columnName, sc) && new SyncTable(k.TableName, k.SchemaName).EqualsByName(clientTable))).ToList())
+                        clientScope.Schema.Relations.Remove(relation);
+                }
+            }
+
+            return (context, clientScope ?? serverScopeInfo);
         }
     }
 }

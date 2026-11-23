@@ -174,6 +174,10 @@ namespace Wormhole.Sync
                 SyncType = syncType
             };
 
+            // declare the supported migrations, so that the server hands out its scope at the newest of them
+            if (this.SupportedMigrations != null && this.SupportedMigrations.Count > 0)
+                context.SetSupportedMigrations(this.SupportedMigrations);
+
             // Result, with sync results stats.
             var result = new SyncResult(context.SessionId)
             {
@@ -316,14 +320,23 @@ namespace Wormhole.Sync
                         && sScopeInfo != null && !string.IsNullOrEmpty(sScopeInfo.Migrations))
                     {
                         var serverMigrations = sScopeInfo.GetMigrationsList();
-                        var clientNeedsReprovision = serverMigrations.Any(m => this.SupportedMigrations.Contains(m));
+                        var provisionedMigrations = cScopeInfoClient.GetSupportedMigrationsList();
+
+                        // Only a server migration the client supports AND has not provisioned yet needs a re-provision.
+                        // A server migration the client does not support must not change the client's schema: an old
+                        // client keeps syncing with its own columns.
+                        var clientNeedsReprovision = serverMigrations.Any(m => this.SupportedMigrations.Contains(m) && !provisionedMigrations.Contains(m));
+
+                        // Only the supported migrations the server has are provisioned now. One the server does not have
+                        // yet stays pending, so the client re-provisions once a server has it.
+                        var nowProvisioned = provisionedMigrations.Union(serverMigrations.Where(m => this.SupportedMigrations.Contains(m))).ToList();
 
                         // A never-synced client (no prior Setup) has nothing to diff against and nothing provisioned
                         // to re-provision (not even its tables): the normal initialization path below provisions it
-                        // with the full server schema. Only record the supported migrations, saved at the end of the sync.
+                        // from the server schema. Only record the supported migrations, saved at the end of the sync.
                         if (clientNeedsReprovision && cScopeInfo?.Setup == null)
                         {
-                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
+                            cScopeInfoClient.SetSupportedMigrationsList(nowProvisioned);
                         }
                         else if (clientNeedsReprovision)
                         {
@@ -338,7 +351,7 @@ namespace Wormhole.Sync
                                 cScopeInfoClient.SetReinitTables(changedTables);
 
                             // Record which migrations are now provisioned so we don't repeat
-                            cScopeInfoClient.SetSupportedMigrationsList(this.SupportedMigrations);
+                            cScopeInfoClient.SetSupportedMigrationsList(nowProvisioned);
 
                             // Persist reinit state immediately so it survives crashes.
                             // If the sync crashes after reprovisioning but before completion,

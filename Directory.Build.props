@@ -18,11 +18,15 @@
         <!-- Restore the exact packages as listed in the lock file -->
         <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
 
-        <Version>1.8.8.0</Version>
+        <Version>1.8.9.0</Version>
         <VersionSuffix>$(VersionSuffix)</VersionSuffix>
         <Version Condition=" '$(VersionSuffix)' != '' ">$(Version)-$(VersionSuffix)</Version>
 
         <PackageReleaseNotes>
+            # 1.8.9.0
+            - a client declares its SupportedMigrations to the server, which hands it its scope at the newest migration the client supports, never the tables or columns of a newer one
+            - WebServerOptions.UndeclaredClientsMigration: the newest migration of clients that do not declare their migrations (before 1.8.9). They are handed the server scope at that migration (from scope_info_schema_history), so their re-provisioning no longer adopts columns their tables lack ("no such column" on every sync)
+            - a client only re-provisions for supported migrations it has not provisioned yet, records only those the server had, and keeps only the columns its existing tables have (also when upgrading from an older version, which repairs a client stuck with "no such column")
             # 1.8.8.0
             - a client that never synced but already supports a migration the server has no longer fails its first sync with "no such table" (stored procedures and triggers were re-provisioned before the tables existed)
             # 1.8.7.0

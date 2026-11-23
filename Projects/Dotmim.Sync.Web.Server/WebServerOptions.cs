@@ -60,6 +60,14 @@ namespace Wormhole.Sync.Web.Server
         public SessionCacheStoreOptions SessionStoreOptions { get; set; } = new SessionCacheStoreOptions();
 
         /// <summary>
+        /// Gets or sets the newest migration that a client supports when it does not declare its supported migrations
+        /// (clients before Wormhole.Sync 1.8.9). Such a client is handed the server scope at that migration, never the
+        /// tables or columns of a newer one. Migration names are ordered (e.g. "0001_rc", "0002_tl").
+        /// Default: null, such a client gets the current server scope.
+        /// </summary>
+        public string UndeclaredClientsMigration { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="WebServerOptions"/> class.
         /// Create a new instance of options with default values.
         /// </summary>

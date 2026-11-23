@@ -1,6 +1,7 @@
 ﻿using Wormhole.Sync.Enumerations;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace Wormhole.Sync
@@ -114,6 +115,32 @@ namespace Wormhole.Sync
         /// </summary>
         [DataMember(Name = "ap", IsRequired = false, EmitDefaultValue = false, Order = 8)]
         public Dictionary<string, string> AdditionalProperties { get; set; }
+
+        /// <summary>
+        /// The key in <see cref="AdditionalProperties"/> under which a client declares its supported migrations (comma separated),
+        /// so that the server hands it its scope at the newest of them. Clients before Wormhole.Sync 1.8.9 do not declare them.
+        /// </summary>
+        public const string SupportedMigrationsKey = "supported_migrations";
+
+        /// <summary>
+        /// Declare the migrations the client supports (see <see cref="SupportedMigrationsKey"/>).
+        /// </summary>
+        public void SetSupportedMigrations(IEnumerable<string> migrations)
+        {
+            this.AdditionalProperties ??= new Dictionary<string, string>();
+            this.AdditionalProperties[SupportedMigrationsKey] = string.Join(",", migrations);
+        }
+
+        /// <summary>
+        /// Get the migrations the client declared it supports, or null if it did not declare them.
+        /// </summary>
+        public List<string> GetSupportedMigrations()
+        {
+            if (this.AdditionalProperties == null || !this.AdditionalProperties.TryGetValue(SupportedMigrationsKey, out var migrations))
+                return null;
+
+            return migrations.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        }
 
         /// <summary>
         /// Gets or Sets the current percentage progress overall.
